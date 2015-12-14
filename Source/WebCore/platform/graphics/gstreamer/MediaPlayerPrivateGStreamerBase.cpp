@@ -106,6 +106,12 @@ struct _EGLDetails {
     EGLSurface read;
 };
 
+#if USE(SOUP)
+#include "CookieJarSoup.h"
+#endif
+#include "CachedResourceLoader.h"
+#include "CookieJar.h"
+
 #if ENABLE(ENCRYPTED_MEDIA)
 #include "WebKitCommonEncryptionDecryptorGStreamer.h"
 #endif
@@ -331,11 +337,28 @@ void MediaPlayerPrivateGStreamerBase::clearSamples()
 
 bool MediaPlayerPrivateGStreamerBase::handleSyncMessage(GstMessage* message)
 {
-#if USE(GSTREAMER_GL)
+    TRACE_MEDIA_MESSAGE("Sync message %s received from element %s", GST_MESSAGE_TYPE_NAME(message), GST_MESSAGE_SRC_NAME(message));
+
     if (GST_MESSAGE_TYPE(message) == GST_MESSAGE_NEED_CONTEXT) {
         const gchar* contextType;
         gst_message_parse_context_type(message, &contextType);
 
+#if USE(SOUP)
+        if (!g_strcmp0(contextType, "soup-http")) {
+            GstContext* context = gst_context_new("soup-http", FALSE);
+            GstStructure* contextStructure = gst_context_writable_structure(context);
+            SoupCookieJar* jar = soupCookieJar();
+            String c = WebCore::cookies(m_player->cachedResourceLoader()->document(), m_url);
+            soup_cookie_jar_set_accept_policy(jar, SOUP_COOKIE_JAR_ACCEPT_ALWAYS);
+            soup_cookie_jar_set_cookie(jar, m_url.createSoupURI().get(), c.utf8().data());
+            gst_structure_set(contextStructure, "soup-cookie-jar", G_TYPE_OBJECT, jar, nullptr);
+            gst_element_set_context(GST_ELEMENT(GST_MESSAGE_SRC(message)), context);
+            gst_context_unref(context);
+            return true;
+        }
+#endif
+
+#if USE(GSTREAMER_GL)
         if (!ensureGstGLContext())
             return false;
 
@@ -353,8 +376,8 @@ bool MediaPlayerPrivateGStreamerBase::handleSyncMessage(GstMessage* message)
             gst_element_set_context(GST_ELEMENT(message->src), appContext.get());
             return true;
         }
-    }
 #endif // USE(GSTREAMER_GL)
+    }
 
 #if ENABLE(ENCRYPTED_MEDIA) || ENABLE(ENCRYPTED_MEDIA_V2)
     if (GST_MESSAGE_TYPE(message) == GST_MESSAGE_ELEMENT) {
