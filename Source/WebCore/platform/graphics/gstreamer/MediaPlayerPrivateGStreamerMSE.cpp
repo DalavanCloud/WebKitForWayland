@@ -52,6 +52,40 @@
 #include "DiscretixSession.h"
 #endif
 
+
+// ### ENABLE DEBUG LOG ###
+#undef LOG_MEDIA_MESSAGE
+#define LOG_MEDIA_MESSAGE(...) { \
+  printf("LOG %s: ", __PRETTY_FUNCTION__); \
+  printf(__VA_ARGS__); \
+  printf("\n"); \
+  fflush(stdout); \
+}
+
+#undef INFO_MEDIA_MESSAGE
+#define INFO_MEDIA_MESSAGE(...) { \
+  printf("INFO %s: ", __PRETTY_FUNCTION__); \
+  printf(__VA_ARGS__); \
+  printf("\n"); \
+  fflush(stdout); \
+}
+
+#undef TRACE_MEDIA_MESSAGE
+#define TRACE_MEDIA_MESSAGE(...) { \
+  printf("TRACE %s: ", __PRETTY_FUNCTION__); \
+  printf(__VA_ARGS__); \
+  printf("\n"); \
+  fflush(stdout); \
+}
+
+#undef ERROR_MEDIA_MESSAGE
+#define ERROR_MEDIA_MESSAGE(...) { \
+  printf("ERROR %s: ", __PRETTY_FUNCTION__); \
+  printf(__VA_ARGS__); \
+  printf("\n"); \
+  fflush(stdout); \
+}
+
 static const char* dumpReadyState(WebCore::MediaPlayer::ReadyState readyState)
 {
     switch (readyState) {
@@ -97,6 +131,7 @@ public:
     // Takes ownership of caps.
     void parseDemuxerCaps(GstCaps* demuxerSrcPadCaps);
     void appSinkCapsChanged();
+    void appSinkEndOfAppendData();
     void appSinkNewSample(GstSample* sample);
     void appSinkEOS();
     void didReceiveInitializationSegment();
@@ -123,8 +158,11 @@ public:
     void scheduleLastSampleTimer();
     void cancelLastSampleTimer();
 
+    void setAppendIdReceivedInSink(guint64 id) { m_appendIdReceivedInSink = id; }
+
 private:
     void resetPipeline();
+    void markEndOfAppendData();
 
 // TODO: Hide everything and use getters/setters.
 private:
@@ -158,6 +196,18 @@ private:
     GstCaps* m_appSinkCaps;
     GstCaps* m_demuxerSrcPadCaps;
     FloatSize m_presentationSize;
+
+    // Unique id of the current append operation. Used to mark
+    // custom events, detect them in the sink and trigger lastSampleTimeout
+    // ahead of time.
+
+    // This is the last id marked right after appending to appsrc
+    guint64 m_appendIdMarkedInSrc;
+
+    // This is the last id received by the probe in the appsink sink pad
+    guint64 m_appendIdReceivedInSink;
+
+    gulong m_endOfDataProbeId;
 
     // Some appended data are only headers and don't generate any
     // useful stream data for decoding. This is detected with a
@@ -1189,6 +1239,7 @@ static void appendPipelineDemuxerPadRemoved(GstElement*, GstPad*, AppendPipeline
 static gboolean appendPipelineDemuxerConnectToAppSinkMainThread(PadInfo*);
 static gboolean appendPipelineDemuxerDisconnectFromAppSinkMainThread(PadInfo*);
 static void appendPipelineAppSinkCapsChanged(GObject*, GParamSpec*, AppendPipeline*);
+static GstPadProbeReturn appendPipelineAppSinkEvent(GstPad *pad, GstPadProbeInfo *info, AppendPipeline* ap);
 static GstFlowReturn appendPipelineAppSinkNewSample(GstElement*, AppendPipeline*);
 static gboolean appendPipelineAppSinkNewSampleMainThread(NewSampleInfo*);
 static void appendPipelineAppSinkEOS(GstElement*, AppendPipeline*);
@@ -1208,6 +1259,8 @@ AppendPipeline::AppendPipeline(PassRefPtr<MediaSourceClientGStreamerMSE> mediaSo
     , m_id(0)
     , m_appSinkCaps(NULL)
     , m_demuxerSrcPadCaps(NULL)
+    , m_appendIdMarkedInSrc(0)
+    , m_appendIdReceivedInSink(0)
     , m_dataStarvedTimeoutTag(0)
     , m_lastSampleTimeoutTag(0)
     , m_appendStage(NotStarted)
@@ -1251,6 +1304,8 @@ AppendPipeline::AppendPipeline(PassRefPtr<MediaSourceClientGStreamerMSE> mediaSo
 
     GRefPtr<GstPad> appSinkPad = adoptGRef(gst_element_get_static_pad(m_appsink, "sink"));
     g_signal_connect(appSinkPad.get(), "notify::caps", G_CALLBACK(appendPipelineAppSinkCapsChanged), this);
+
+    m_endOfDataProbeId = gst_pad_add_probe(appSinkPad.get(), GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, reinterpret_cast<GstPadProbeCallback>(appendPipelineAppSinkEvent), this, nullptr);
 
     // These signals won't be connected outside of the lifetime of "this".
     g_signal_connect(m_qtdemux, "pad-added", G_CALLBACK(appendPipelineDemuxerPadAdded), this);
@@ -1327,6 +1382,8 @@ AppendPipeline::~AppendPipeline()
 
         g_signal_handlers_disconnect_by_func(m_appsink, (gpointer)appendPipelineAppSinkNewSample, this);
         g_signal_handlers_disconnect_by_func(m_appsink, (gpointer)appendPipelineAppSinkEOS, this);
+
+        gst_pad_remove_probe(appSinkPad.get(), m_endOfDataProbeId);
 
         gst_object_unref(m_appsink);
         m_appsink = NULL;
@@ -1488,6 +1545,7 @@ void AppendPipeline::setAppendStage(AppendStage newAppendStage)
             ok = true;
             if (m_pendingBuffer) {
                 gst_app_src_push_buffer(GST_APP_SRC(appsrc()), m_pendingBuffer.leakRef());
+                markEndOfAppendData();
                 nextAppendStage = Ongoing;
             }
             break;
@@ -1751,6 +1809,27 @@ void AppendPipeline::appSinkCapsChanged()
     gst_caps_unref(caps);
 }
 
+/*
+void AppendPipeline::appSinkEndOfAppendData()
+{
+    ASSERT(WTF::isMainThread());
+
+    printf("### %s\n", __PRETTY_FUNCTION__); fflush(stdout);
+
+    switch (m_appendStage) {
+    case Ongoing:
+        setAppendStage(NoDataToDecode);
+        break;
+    case Sampling:
+        setAppendStage(LastSample);
+        break;
+    default:
+        LOG_MEDIA_MESSAGE("Unexpected appSinkEndOfAppendData");
+        break;
+    }
+}
+*/
+
 void AppendPipeline::appSinkNewSample(GstSample* sample)
 {
     ASSERT(WTF::isMainThread());
@@ -1797,6 +1876,14 @@ void AppendPipeline::appSinkNewSample(GstSample* sample)
     m_flowReturn = GST_FLOW_OK;
     g_cond_signal(&m_newSampleCondition);
     g_mutex_unlock(&m_newSampleMutex);
+
+    printf("### %s: m_appendIdMarkedInSrc=%" G_GUINT64_FORMAT ", m_appendIdReceivedInSink=%" G_GUINT64_FORMAT "\n", __PRETTY_FUNCTION__, m_appendIdMarkedInSrc, m_appendIdReceivedInSink); fflush(stdout);
+
+    if (m_appendIdReceivedInSink && m_appendIdMarkedInSrc == m_appendIdReceivedInSink) {
+        LOG_MEDIA_MESSAGE("Marked and received append ids match, this must be the LastSample of the batch");
+        m_appendIdReceivedInSink = 0;
+        setAppendStage(LastSample);
+    }
 }
 
 void AppendPipeline::appSinkEOS()
@@ -1902,12 +1989,24 @@ void AppendPipeline::abort()
 
 GstFlowReturn AppendPipeline::pushNewBuffer(GstBuffer* buffer)
 {
+    GstFlowReturn result;
+
     if (m_abortPending) {
         m_pendingBuffer = adoptGRef(buffer);
-        return GST_FLOW_OK;
+        result = GST_FLOW_OK;
+    } else {
+        setAppendStage(AppendPipeline::Ongoing);
+        result = gst_app_src_push_buffer(GST_APP_SRC(appsrc()), buffer);
+        markEndOfAppendData();
     }
-    setAppendStage(AppendPipeline::Ongoing);
-    return gst_app_src_push_buffer(GST_APP_SRC(appsrc()), buffer);
+
+    return result;
+}
+
+void AppendPipeline::markEndOfAppendData()
+{
+    gst_element_send_event(m_appsrc, gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM,
+            gst_structure_new("end-of-append-data", "id", G_TYPE_UINT64, ++m_appendIdMarkedInSrc, nullptr)));
 }
 
 GstFlowReturn AppendPipeline::handleNewSample(GstElement* appsink)
@@ -2125,6 +2224,41 @@ static void appendPipelineAppSinkCapsChanged(GObject*, GParamSpec*, AppendPipeli
 {
     ap->ref();
     g_timeout_add(0, appSinkCapsChangedFromMainThread, ap);
+}
+
+/*
+static gboolean appSinkEndOfAppendDataFromMainThread(gpointer data)
+{
+    AppendPipeline* ap = reinterpret_cast<AppendPipeline*>(data);
+    ap->appSinkEndOfAppendData();
+    ap->deref();
+    return G_SOURCE_REMOVE;
+}
+*/
+
+static GstPadProbeReturn appendPipelineAppSinkEvent(GstPad *, GstPadProbeInfo *info, AppendPipeline* ap)
+{
+    GstEvent* event = GST_PAD_PROBE_INFO_EVENT(info);
+    if (GST_EVENT_TYPE(event) != GST_EVENT_CUSTOM_DOWNSTREAM)
+        return GST_PAD_PROBE_OK;
+
+    const GstStructure* structure = gst_event_get_structure(event);
+    if (!gst_structure_has_name(structure, "end-of-append-data"))
+        return GST_PAD_PROBE_OK;
+
+    guint64 id = 0;
+    gst_structure_get_uint64(structure, "id", &id);
+
+    printf("### %s: id=%" G_GUINT64_FORMAT "\n", __PRETTY_FUNCTION__, id); fflush(stdout);
+
+    ap->setAppendIdReceivedInSink(id);
+
+    /*
+    ap->ref();
+    g_timeout_add(0, appSinkEndOfAppendDataFromMainThread, ap);
+    */
+
+    return GST_PAD_PROBE_OK;
 }
 
 static void appendPipelineDemuxerPadAdded(GstElement*, GstPad* demuxerSrcPad, AppendPipeline* ap)
