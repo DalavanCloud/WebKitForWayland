@@ -85,6 +85,20 @@
   printf("\n"); \
   fflush(stdout); \
 }
+
+// ### ENABLE ASSERTIONS ###
+#undef ASSERT
+#define ASSERT(assertion) \
+    (!(assertion) ? \
+        (WTFReportAssertionFailure(__FILE__, __LINE__, WTF_PRETTY_FUNCTION, #assertion), \
+         CRASH()) : \
+        (void)0)
+
+#undef ASSERT_NOT_REACHED
+#define ASSERT_NOT_REACHED() do { \
+    WTFReportAssertionFailure(__FILE__, __LINE__, WTF_PRETTY_FUNCTION, 0); \
+    CRASH(); \
+} while (0)
 */
 
 static const char* dumpReadyState(WebCore::MediaPlayer::ReadyState readyState)
