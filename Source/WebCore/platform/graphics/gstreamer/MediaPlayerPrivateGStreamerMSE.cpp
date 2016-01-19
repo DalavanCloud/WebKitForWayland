@@ -1817,8 +1817,8 @@ void AppendPipeline::receiveEndOfAppendData()
 
     switch (m_appendStage) {
     case Ongoing:
-        printf("### %s NoDataToDecode\n", __PRETTY_FUNCTION__); fflush(stdout);
-        setAppendStage(NoDataToDecode);
+        printf("### %s DataStarve\n", __PRETTY_FUNCTION__); fflush(stdout);
+        setAppendStage(DataStarve);
         break;
     case Sampling:
         printf("### %s LastSample\n", __PRETTY_FUNCTION__); fflush(stdout);
