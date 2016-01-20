@@ -1831,16 +1831,15 @@ void AppendPipeline::receiveEndOfAppendData()
 
     switch (m_appendStage) {
     case Ongoing:
-        printf("### %s DataStarve\n", __PRETTY_FUNCTION__); fflush(stdout);
+        TRACE_MEDIA_MESSAGE("DataStarve");
         setAppendStage(DataStarve);
         break;
     case Sampling:
-        printf("### %s LastSample\n", __PRETTY_FUNCTION__); fflush(stdout);
+        TRACE_MEDIA_MESSAGE("LastSample");
         setAppendStage(LastSample);
         break;
     default:
-        printf("### %s Unexpected\n", __PRETTY_FUNCTION__); fflush(stdout);
-        LOG_MEDIA_MESSAGE("Unexpected receiveEndOfAppendData");
+        ERROR_MEDIA_MESSAGE("Unexpected");
         break;
     }
 }
@@ -1892,7 +1891,7 @@ void AppendPipeline::appSinkNewSample(GstSample* sample)
     g_cond_signal(&m_newSampleCondition);
     g_mutex_unlock(&m_newSampleMutex);
 
-    printf("### %s: m_appendIdMarkedInSrc=%" G_GUINT64_FORMAT ", m_appendIdReceivedInSink=%" G_GUINT64_FORMAT "\n", __PRETTY_FUNCTION__, m_appendIdMarkedInSrc, m_appendIdReceivedInSink); fflush(stdout);
+    TRACE_MEDIA_MESSAGE("m_appendIdMarkedInSrc=%" G_GUINT64_FORMAT ", m_appendIdReceivedInSink=%" G_GUINT64_FORMAT, m_appendIdMarkedInSrc, m_appendIdReceivedInSink);
 
     if (m_appendIdReceivedInSink && m_appendIdMarkedInSrc == m_appendIdReceivedInSink) {
         LOG_MEDIA_MESSAGE("Marked and received append ids match, this must be the LastSample of the batch");
@@ -2284,7 +2283,7 @@ static GstPadProbeReturn appendPipelineAppSinkEvent(GstPad *, GstPadProbeInfo *i
 
     guint64 id = guint64(gst_event_get_seqnum(event));
 
-    printf("### %s: id=%" G_GUINT64_FORMAT "\n", __PRETTY_FUNCTION__, id); fflush(stdout);
+    TRACE_MEDIA_MESSAGE("id=%" G_GUINT64_FORMAT, id);
 
     ap->setAppendIdReceivedInSink(id);
 
