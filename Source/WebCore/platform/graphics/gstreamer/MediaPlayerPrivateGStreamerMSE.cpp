@@ -56,7 +56,7 @@
 // ### ENABLE DEBUG LOG ###
 #undef LOG_MEDIA_MESSAGE
 #define LOG_MEDIA_MESSAGE(...) { \
-  printf("LOG %s: ", __PRETTY_FUNCTION__); \
+  printf("LOG %s:%d: ", __PRETTY_FUNCTION__,__LINE__);    \
   printf(__VA_ARGS__); \
   printf("\n"); \
   fflush(stdout); \
@@ -64,7 +64,7 @@
 
 #undef INFO_MEDIA_MESSAGE
 #define INFO_MEDIA_MESSAGE(...) { \
-  printf("INFO %s: ", __PRETTY_FUNCTION__); \
+  printf("INFO %s:%d: ", __PRETTY_FUNCTION__,__LINE__); \
   printf(__VA_ARGS__); \
   printf("\n"); \
   fflush(stdout); \
@@ -72,7 +72,7 @@
 
 #undef TRACE_MEDIA_MESSAGE
 #define TRACE_MEDIA_MESSAGE(...) { \
-  printf("TRACE %s: ", __PRETTY_FUNCTION__); \
+  printf("TRACE %s:%d: ", __PRETTY_FUNCTION__,__LINE__);  \
   printf(__VA_ARGS__); \
   printf("\n"); \
   fflush(stdout); \
@@ -80,7 +80,7 @@
 
 #undef ERROR_MEDIA_MESSAGE
 #define ERROR_MEDIA_MESSAGE(...) { \
-  printf("ERROR %s: ", __PRETTY_FUNCTION__); \
+  printf("ERROR %s:%d: ", __PRETTY_FUNCTION__,__LINE__);  \
   printf(__VA_ARGS__); \
   printf("\n"); \
   fflush(stdout); \
