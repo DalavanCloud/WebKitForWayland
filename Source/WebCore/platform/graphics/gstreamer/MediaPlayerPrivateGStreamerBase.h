@@ -40,6 +40,8 @@
 #include "TextureMapperPlatformLayerProxy.h"
 #endif
 
+typedef struct _GstHttpCookie GstHttpCookie;
+typedef struct _GstHttpCookieJar GstHttpCookieJar;
 typedef struct _GstMessage GstMessage;
 typedef struct _GstStreamVolume GstStreamVolume;
 typedef struct _GstVideoInfo GstVideoInfo;
@@ -171,6 +173,11 @@ public:
     virtual PassNativeImagePtr nativeImageForCurrentTime() override;
 #endif
 
+#if USE(GSTREAMER_HTTP)
+    void ensureGstCookieJar();
+    void updateHTTPCookie(GstHttpCookie* oldCookie, GstHttpCookie* newCookie);
+#endif
+
 protected:
     MediaPlayerPrivateGStreamerBase(MediaPlayer*);
 
@@ -261,6 +268,7 @@ private:
     TextureMapperGL::Flags m_textureMapperRotationFlag ;
 #endif
 
+    GRefPtr<GstHttpCookieJar> m_gstCookieJar;
 };
 }
 

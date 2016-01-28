@@ -608,8 +608,9 @@ private:
 
 #if PLATFORM(IOS)
     virtual String mediaPlayerNetworkInterfaceName() const override;
-    virtual bool mediaPlayerGetRawCookies(const URL&, Vector<Cookie>&) const override;
 #endif
+
+    virtual bool mediaPlayerGetRawCookies(const URL&, Vector<Cookie>&) const override;
 
     virtual bool mediaPlayerIsInMediaDocument() const override final;
     virtual void mediaPlayerEngineFailedToLoad() const override final;

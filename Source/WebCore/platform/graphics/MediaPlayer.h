@@ -255,9 +255,10 @@ public:
 #endif
 #endif
 
+    virtual bool mediaPlayerGetRawCookies(const URL&, Vector<Cookie>&) const { return false; }
+
 #if PLATFORM(IOS)
     virtual String mediaPlayerNetworkInterfaceName() const { return String(); }
-    virtual bool mediaPlayerGetRawCookies(const URL&, Vector<Cookie>&) const { return false; }
 #endif
     
     virtual bool mediaPlayerShouldWaitForResponseToAuthenticationChallenge(const AuthenticationChallenge&) { return false; }
@@ -566,9 +567,9 @@ public:
 #endif
 #endif
 
+    bool getRawCookies(const URL&, Vector<Cookie>&) const;
 #if PLATFORM(IOS)
     String mediaPlayerNetworkInterfaceName() const;
-    bool getRawCookies(const URL&, Vector<Cookie>&) const;
 #endif
 
     static void resetMediaEngines();
