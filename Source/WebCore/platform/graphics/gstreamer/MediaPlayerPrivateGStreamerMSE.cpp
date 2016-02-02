@@ -199,6 +199,7 @@ public:
 private:
     void resetPipeline();
     void markEndOfAppendData();
+    void handleEndOfAppendDataMarkReceived(const GstStructure*);
 
 // TODO: Hide everything and use getters/setters.
 private:
@@ -1494,8 +1495,17 @@ void AppendPipeline::handleApplicationMessage(GstMessage* message)
     ASSERT(WTF::isMainThread());
 
     const GstStructure* structure = gst_message_get_structure(message);
-    ASSERT(gst_structure_has_name(structure, "end-of-append-data-mark-received"));
 
+    if (gst_structure_has_name(structure, "end-of-append-data-mark-received")) {
+        handleEndOfAppendDataMarkReceived(structure);
+        return;
+    }
+
+    ASSERT_NOT_REACHED();
+}
+
+void AppendPipeline::handleEndOfAppendDataMarkReceived(const GstStructure* structure)
+{
     gst_structure_get(structure, "id", G_TYPE_UINT64, &m_appendIdReceivedInSink, NULL);
     ASSERT(m_appendIdReceivedInSink);
 
