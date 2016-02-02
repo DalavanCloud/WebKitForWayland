@@ -272,6 +272,8 @@ private:
     RefPtr<WebCore::TrackPrivateBase> m_track;
 
     GRefPtr<GstBuffer> m_pendingBuffer;
+
+    int m_samplesReceivedDuringThisAppend;
 };
 
 void MediaPlayerPrivateGStreamerMSE::registerMediaEngine(MediaEngineRegistrar registrar)
@@ -1307,6 +1309,7 @@ AppendPipeline::AppendPipeline(PassRefPtr<MediaSourceClientGStreamerMSE> mediaSo
     , m_appendStage(NotStarted)
     , m_abortPending(false)
     , m_streamType(Unknown)
+    , m_samplesReceivedDuringThisAppend(0)
 {
     ASSERT(WTF::isMainThread());
 
@@ -1602,6 +1605,7 @@ void AppendPipeline::setAppendStage(AppendStage newAppendStage)
             ok = true;
             if (m_pendingBuffer) {
                 TRACE_BUFFER(m_pendingBuffer.get());
+                m_samplesReceivedDuringThisAppend = 0;
                 gst_app_src_push_buffer(GST_APP_SRC(appsrc()), m_pendingBuffer.leakRef());
                 markEndOfAppendData();
                 nextAppendStage = Ongoing;
@@ -1907,6 +1911,7 @@ void AppendPipeline::appSinkNewSample(GstSample* sample)
     RefPtr<GStreamerMediaSample> mediaSample = WebCore::GStreamerMediaSample::create(sample, m_presentationSize, trackId());
 
     TRACE_MEDIA_MESSAGE("append: trackId=%s PTS=%f presentationSize=%.0fx%.0f", mediaSample->trackID().string().utf8().data(), mediaSample->presentationTime().toFloat(), mediaSample->presentationSize().width(), mediaSample->presentationSize().height());
+    ++m_samplesReceivedDuringThisAppend;
 
     // If we're beyond the duration, ignore this sample and the remaining ones.
     MediaTime duration = m_mediaSourceClient->duration();
@@ -2053,6 +2058,7 @@ GstFlowReturn AppendPipeline::pushNewBuffer(GstBuffer* buffer)
     } else {
         setAppendStage(AppendPipeline::Ongoing);
         TRACE_BUFFER(buffer);
+        m_samplesReceivedDuringThisAppend = 0;
         result = gst_app_src_push_buffer(GST_APP_SRC(appsrc()), buffer);
         markEndOfAppendData();
     }
@@ -2074,6 +2080,7 @@ void AppendPipeline::markEndOfAppendData()
 
 void AppendPipeline::reportAppendIdReceivedInSink(guint64 id)
 {
+    ASSERT(m_samplesReceivedDuringThisAppend);
     GstStructure* structure = gst_structure_new("end-of-append-data", "id", G_TYPE_UINT64, id, NULL);
     GstMessage* message = gst_message_new_application(GST_OBJECT(m_appsink), structure);
     gst_bus_post(m_bus.get(), message);
