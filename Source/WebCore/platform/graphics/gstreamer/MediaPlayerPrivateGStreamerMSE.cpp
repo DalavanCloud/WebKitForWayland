@@ -193,7 +193,7 @@ public:
     void scheduleLastSampleTimer();
     void cancelLastSampleTimer();
 
-    void reportAppendIdReceivedInSink(guint64 id);
+    void reportEndOfAppendDataMarkReceived(guint64 id);
     void checkEndOfAppendDataMarkReceived();
 
 private:
@@ -1494,7 +1494,7 @@ void AppendPipeline::handleApplicationMessage(GstMessage* message)
     ASSERT(WTF::isMainThread());
 
     const GstStructure* structure = gst_message_get_structure(message);
-    ASSERT(gst_structure_has_name(structure, "end-of-append-data"));
+    ASSERT(gst_structure_has_name(structure, "end-of-append-data-mark-received"));
 
     gst_structure_get(structure, "id", G_TYPE_UINT64, &m_appendIdReceivedInSink, NULL);
     ASSERT(m_appendIdReceivedInSink);
@@ -2071,7 +2071,7 @@ GstFlowReturn AppendPipeline::pushNewBuffer(GstBuffer* buffer)
 
 void AppendPipeline::markEndOfAppendData()
 {
-    GstEvent* event = gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM, gst_structure_new_empty("end-of-append-data"));
+    GstEvent* event = gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM, gst_structure_new_empty("end-of-append-data-mark"));
     m_appendIdMarkedInSrc = guint64(gst_event_get_seqnum(event));
     m_appendIdReceivedInSink = 0;
 
@@ -2084,10 +2084,10 @@ void AppendPipeline::markEndOfAppendData()
     gst_app_src_push_buffer(GST_APP_SRC(appsrc()), emptyBuffer);
 }
 
-void AppendPipeline::reportAppendIdReceivedInSink(guint64 id)
+void AppendPipeline::reportEndOfAppendDataMarkReceived(guint64 id)
 {
     ASSERT(m_samplesReceivedDuringThisAppend);
-    GstStructure* structure = gst_structure_new("end-of-append-data", "id", G_TYPE_UINT64, id, NULL);
+    GstStructure* structure = gst_structure_new("end-of-append-data-mark-received", "id", G_TYPE_UINT64, id, NULL);
     GstMessage* message = gst_message_new_application(GST_OBJECT(m_appsink), structure);
     gst_bus_post(m_bus.get(), message);
     TRACE_MEDIA_MESSAGE("received message with id %" G_GUINT64_FORMAT ", re-posted to bus", id);
@@ -2321,14 +2321,14 @@ static GstPadProbeReturn appendPipelineAppSinkEvent(GstPad *, GstPadProbeInfo *i
         return GST_PAD_PROBE_OK;
 
     const GstStructure* structure = gst_event_get_structure(event);
-    if (!gst_structure_has_name(structure, "end-of-append-data"))
+    if (!gst_structure_has_name(structure, "end-of-append-data-mark"))
         return GST_PAD_PROBE_OK;
 
     guint64 id = guint64(gst_event_get_seqnum(event));
 
     TRACE_MEDIA_MESSAGE("id=%" G_GUINT64_FORMAT, id);
 
-    ap->reportAppendIdReceivedInSink(id);
+    ap->reportEndOfAppendDataMarkReceived(id);
 
     return GST_PAD_PROBE_OK;
 }
