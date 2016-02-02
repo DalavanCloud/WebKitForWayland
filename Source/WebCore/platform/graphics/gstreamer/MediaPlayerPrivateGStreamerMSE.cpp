@@ -194,7 +194,7 @@ public:
     void cancelLastSampleTimer();
 
     void reportAppendIdReceivedInSink(guint64 id);
-    void receiveEndOfAppendData();
+    void checkEndOfAppendDataMarkReceived();
 
 private:
     void resetPipeline();
@@ -1501,7 +1501,7 @@ void AppendPipeline::handleApplicationMessage(GstMessage* message)
 
     TRACE_MEDIA_MESSAGE("received end of append id %" G_GUINT64_FORMAT " in the sink", m_appendIdReceivedInSink);
     if (m_appendStage == Sampling)
-        receiveEndOfAppendData();
+        checkEndOfAppendDataMarkReceived();
 }
 
 gint AppendPipeline::id()
@@ -1872,19 +1872,24 @@ void AppendPipeline::appSinkCapsChanged()
     gst_caps_unref(caps);
 }
 
-void AppendPipeline::receiveEndOfAppendData()
+void AppendPipeline::checkEndOfAppendDataMarkReceived()
 {
     ASSERT(WTF::isMainThread());
+
+    if (!m_appendIdReceivedInSink || m_appendIdMarkedInSrc != m_appendIdReceivedInSink)
+        return;
 
     TRACE_MEDIA_MESSAGE("end of append data mark was received");
 
     switch (m_appendStage) {
     case Ongoing:
         TRACE_MEDIA_MESSAGE("DataStarve");
+        m_appendIdReceivedInSink = 0;
         setAppendStage(DataStarve);
         break;
     case Sampling:
         TRACE_MEDIA_MESSAGE("LastSample");
+        m_appendIdReceivedInSink = 0;
         setAppendStage(LastSample);
         break;
     default:
@@ -1941,13 +1946,7 @@ void AppendPipeline::appSinkNewSample(GstSample* sample)
     g_cond_signal(&m_newSampleCondition);
     g_mutex_unlock(&m_newSampleMutex);
 
-    TRACE_MEDIA_MESSAGE("m_appendIdMarkedInSrc=%" G_GUINT64_FORMAT ", m_appendIdReceivedInSink=%" G_GUINT64_FORMAT, m_appendIdMarkedInSrc, m_appendIdReceivedInSink);
-
-    if (m_appendIdReceivedInSink && m_appendIdMarkedInSrc == m_appendIdReceivedInSink) {
-        LOG_MEDIA_MESSAGE("Marked and received append ids match, this must be the LastSample of the batch");
-        m_appendIdReceivedInSink = 0;
-        receiveEndOfAppendData();
-    }
+    checkEndOfAppendDataMarkReceived();
 }
 
 void AppendPipeline::appSinkEOS()
@@ -2074,6 +2073,7 @@ void AppendPipeline::markEndOfAppendData()
 {
     GstEvent* event = gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM, gst_structure_new_empty("end-of-append-data"));
     m_appendIdMarkedInSrc = guint64(gst_event_get_seqnum(event));
+    m_appendIdReceivedInSink = 0;
 
     TRACE_MEDIA_MESSAGE("marking end of append with id %" G_GUINT64_FORMAT, m_appendIdMarkedInSrc);
 
