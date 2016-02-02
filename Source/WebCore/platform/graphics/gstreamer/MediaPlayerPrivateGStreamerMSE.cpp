@@ -194,12 +194,13 @@ public:
     void cancelLastSampleTimer();
 
     void reportEndOfAppendDataMarkReceived(guint64 id);
+    void reportEndOfAppendDataMarkNeeded();
     void checkEndOfAppendDataMarkReceived();
 
 private:
     void resetPipeline();
-    void markEndOfAppendData();
     void handleEndOfAppendDataMarkReceived(const GstStructure*);
+    void handleEndOfAppendDataMarkNeeded();
 
 // TODO: Hide everything and use getters/setters.
 private:
@@ -245,6 +246,7 @@ private:
     guint64 m_appendIdReceivedInSink;
 
     gulong m_endOfDataProbeId;
+    gulong m_endOfSrcProcessProbeId;
 
     // Some appended data are only headers and don't generate any
     // useful stream data for decoding. This is detected with a
@@ -1279,6 +1281,7 @@ static gboolean appendPipelineDemuxerConnectToAppSinkMainThread(PadInfo*);
 static gboolean appendPipelineDemuxerDisconnectFromAppSinkMainThread(PadInfo*);
 static void appendPipelineAppSinkCapsChanged(GObject*, GParamSpec*, AppendPipeline*);
 static GstPadProbeReturn appendPipelineAppSinkEvent(GstPad *pad, GstPadProbeInfo *info, AppendPipeline* ap);
+static GstPadProbeReturn appendPipelineAppSrcBufferLeaving(GstPad*, GstPadProbeInfo*, AppendPipeline*);
 static GstFlowReturn appendPipelineAppSinkNewSample(GstElement*, AppendPipeline*);
 static gboolean appendPipelineAppSinkNewSampleMainThread(NewSampleInfo*);
 static void appendPipelineAppSinkEOS(GstElement*, AppendPipeline*);
@@ -1353,6 +1356,9 @@ AppendPipeline::AppendPipeline(PassRefPtr<MediaSourceClientGStreamerMSE> mediaSo
 
     m_endOfDataProbeId = gst_pad_add_probe(appSinkPad.get(), GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, reinterpret_cast<GstPadProbeCallback>(appendPipelineAppSinkEvent), this, nullptr);
 
+    GRefPtr<GstPad> appSrcPad = adoptGRef(gst_element_get_static_pad(m_appsrc, "src"));
+    m_endOfSrcProcessProbeId = gst_pad_add_probe(appSrcPad.get(), GST_PAD_PROBE_TYPE_BUFFER, reinterpret_cast<GstPadProbeCallback>(appendPipelineAppSrcBufferLeaving), this, nullptr);
+
     // These signals won't be connected outside of the lifetime of "this".
     g_signal_connect(m_qtdemux, "pad-added", G_CALLBACK(appendPipelineDemuxerPadAdded), this);
     g_signal_connect(m_qtdemux, "pad-removed", G_CALLBACK(appendPipelineDemuxerPadRemoved), this);
@@ -1402,6 +1408,8 @@ AppendPipeline::~AppendPipeline()
     }
 
     if (m_appsrc) {
+        GRefPtr<GstPad> appSrcPad = adoptGRef(gst_element_get_static_pad(m_appsrc, "src"));
+        gst_pad_remove_probe(appSrcPad.get(), m_endOfSrcProcessProbeId);
         gst_object_unref(m_appsrc);
         m_appsrc = NULL;
     }
@@ -1498,6 +1506,11 @@ void AppendPipeline::handleApplicationMessage(GstMessage* message)
 
     if (gst_structure_has_name(structure, "end-of-append-data-mark-received")) {
         handleEndOfAppendDataMarkReceived(structure);
+        return;
+    }
+
+    if (gst_structure_has_name(structure, "end-of-append-data-mark-needed")) {
+        handleEndOfAppendDataMarkNeeded();
         return;
     }
 
@@ -1618,7 +1631,6 @@ void AppendPipeline::setAppendStage(AppendStage newAppendStage)
                 TRACE_BUFFER(m_pendingBuffer.get());
                 m_samplesReceivedDuringThisAppend = 0;
                 gst_app_src_push_buffer(GST_APP_SRC(appsrc()), m_pendingBuffer.leakRef());
-                markEndOfAppendData();
                 nextAppendStage = Ongoing;
             }
             break;
@@ -2073,13 +2085,12 @@ GstFlowReturn AppendPipeline::pushNewBuffer(GstBuffer* buffer)
         TRACE_BUFFER(buffer);
         m_samplesReceivedDuringThisAppend = 0;
         result = gst_app_src_push_buffer(GST_APP_SRC(appsrc()), buffer);
-        markEndOfAppendData();
     }
 
     return result;
 }
 
-void AppendPipeline::markEndOfAppendData()
+void AppendPipeline::handleEndOfAppendDataMarkNeeded()
 {
     GstEvent* event = gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM, gst_structure_new_empty("end-of-append-data-mark"));
     m_appendIdMarkedInSrc = guint64(gst_event_get_seqnum(event));
@@ -2101,6 +2112,14 @@ void AppendPipeline::reportEndOfAppendDataMarkReceived(guint64 id)
     GstMessage* message = gst_message_new_application(GST_OBJECT(m_appsink), structure);
     gst_bus_post(m_bus.get(), message);
     TRACE_MEDIA_MESSAGE("received message with id %" G_GUINT64_FORMAT ", re-posted to bus", id);
+}
+
+void AppendPipeline::reportEndOfAppendDataMarkNeeded()
+{
+    GstStructure* structure = gst_structure_new_empty("end-of-append-data-mark-needed");
+    GstMessage* message = gst_message_new_application(GST_OBJECT(m_appsrc), structure);
+    gst_bus_post(m_bus.get(), message);
+    TRACE_MEDIA_MESSAGE("received buffer going thru, re-posted to bus");
 }
 
 GstFlowReturn AppendPipeline::handleNewSample(GstElement* appsink)
@@ -2259,7 +2278,7 @@ void AppendPipeline::connectToAppSink(GstPad* demuxerSrcPad)
 
     // The previous mark has probably been lost because appsink was disconnected. Mark again.
     TRACE_MEDIA_MESSAGE("previous append end mark lost, reinsterting");
-    markEndOfAppendData();
+    handleEndOfAppendDataMarkNeeded();
 
     g_cond_signal(&m_padAddRemoveCondition);
 }
@@ -2322,6 +2341,17 @@ static void appendPipelineAppSinkCapsChanged(GObject*, GParamSpec*, AppendPipeli
 {
     ap->ref();
     g_timeout_add(0, appSinkCapsChangedFromMainThread, ap);
+}
+
+static GstPadProbeReturn appendPipelineAppSrcBufferLeaving(GstPad*, GstPadProbeInfo* info, AppendPipeline* self)
+{
+    TRACE_MEDIA_MESSAGE("buffer going thru");
+
+    GstBuffer* buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+    if (gst_buffer_get_size(buffer) > 0)
+        self->reportEndOfAppendDataMarkNeeded();
+
+    return GST_PAD_PROBE_OK;
 }
 
 static GstPadProbeReturn appendPipelineAppSinkEvent(GstPad *, GstPadProbeInfo *info, AppendPipeline* ap)
