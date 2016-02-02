@@ -52,6 +52,8 @@
 #include "DiscretixSession.h"
 #endif
 
+#define TRACE_BUFFER(buffer) ((void)0)
+
 /*
 // ### ENABLE DEBUG LOG ###
 #undef LOG_MEDIA_MESSAGE
@@ -99,6 +101,24 @@
     WTFReportAssertionFailure(__FILE__, __LINE__, WTF_PRETTY_FUNCTION, 0); \
     CRASH(); \
 } while (0)
+
+#include <wtf/MD5.h>
+#undef TRACE_BUFFER
+#define TRACE_BUFFER(buffer) \
+{ \
+    GstMapInfo gstMapInfo; \
+    ASSERT(gst_buffer_map(buffer, &gstMapInfo, GST_MAP_READ)); \
+    MD5 md5; \
+    md5.addBytes(gstMapInfo.data, gstMapInfo.size); \
+    MD5::Digest hash; \
+    md5.checksum(hash); \
+    char hashString[33]; \
+    snprintf(hashString, 33, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", \
+        hash[0], hash[1], hash[2], hash[3], hash[4], hash[5], hash[6], hash[7], \
+        hash[8], hash[9], hash[10], hash[11], hash[12], hash[13], hash[14], hash[15]); \
+    TRACE_MEDIA_MESSAGE("buffer has md5sum %s", hashString); \
+    gst_buffer_unmap(buffer, &gstMapInfo); \
+}
 */
 
 static const char* dumpReadyState(WebCore::MediaPlayer::ReadyState readyState)
@@ -1581,6 +1601,7 @@ void AppendPipeline::setAppendStage(AppendStage newAppendStage)
         case NotStarted:
             ok = true;
             if (m_pendingBuffer) {
+                TRACE_BUFFER(m_pendingBuffer.get());
                 gst_app_src_push_buffer(GST_APP_SRC(appsrc()), m_pendingBuffer.leakRef());
                 markEndOfAppendData();
                 nextAppendStage = Ongoing;
@@ -2031,6 +2052,7 @@ GstFlowReturn AppendPipeline::pushNewBuffer(GstBuffer* buffer)
         result = GST_FLOW_OK;
     } else {
         setAppendStage(AppendPipeline::Ongoing);
+        TRACE_BUFFER(buffer);
         result = gst_app_src_push_buffer(GST_APP_SRC(appsrc()), buffer);
         markEndOfAppendData();
     }
