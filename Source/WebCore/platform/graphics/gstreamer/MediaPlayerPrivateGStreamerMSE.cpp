@@ -245,7 +245,7 @@ private:
     // This is the last id received by the probe in the appsink sink pad
     guint64 m_appendIdReceivedInSink;
 
-    gulong m_endOfSrcProcessProbeId;
+    gulong m_appsrcDataLeavingProbeId;
     gulong m_appsinkDataEnteringProbeId;
 
     // Some appended data are only headers and don't generate any
@@ -1278,7 +1278,7 @@ static void appendPipelineDemuxerPadRemoved(GstElement*, GstPad*, AppendPipeline
 static gboolean appendPipelineDemuxerConnectToAppSinkMainThread(PadInfo*);
 static gboolean appendPipelineDemuxerDisconnectFromAppSinkMainThread(PadInfo*);
 static void appendPipelineAppSinkCapsChanged(GObject*, GParamSpec*, AppendPipeline*);
-static GstPadProbeReturn appendPipelineAppSrcBufferLeaving(GstPad*, GstPadProbeInfo*, AppendPipeline*);
+static GstPadProbeReturn appendPipelineAppSrcDataLeaving(GstPad*, GstPadProbeInfo*, AppendPipeline*);
 static GstPadProbeReturn appendPipelineAppSinkDataEntering(GstPad *pad, GstPadProbeInfo *info, AppendPipeline* ap);
 static GstFlowReturn appendPipelineAppSinkNewSample(GstElement*, AppendPipeline*);
 static gboolean appendPipelineAppSinkNewSampleMainThread(NewSampleInfo*);
@@ -1354,7 +1354,7 @@ AppendPipeline::AppendPipeline(PassRefPtr<MediaSourceClientGStreamerMSE> mediaSo
     m_appsinkDataEnteringProbeId = gst_pad_add_probe(appSinkPad.get(), GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, reinterpret_cast<GstPadProbeCallback>(appendPipelineAppSinkDataEntering), this, nullptr);
 
     GRefPtr<GstPad> appSrcPad = adoptGRef(gst_element_get_static_pad(m_appsrc, "src"));
-    m_endOfSrcProcessProbeId = gst_pad_add_probe(appSrcPad.get(), GST_PAD_PROBE_TYPE_BUFFER, reinterpret_cast<GstPadProbeCallback>(appendPipelineAppSrcBufferLeaving), this, nullptr);
+    m_appsrcDataLeavingProbeId = gst_pad_add_probe(appSrcPad.get(), GST_PAD_PROBE_TYPE_BUFFER, reinterpret_cast<GstPadProbeCallback>(appendPipelineAppSrcDataLeaving), this, nullptr);
 
     // These signals won't be connected outside of the lifetime of "this".
     g_signal_connect(m_qtdemux, "pad-added", G_CALLBACK(appendPipelineDemuxerPadAdded), this);
@@ -1406,7 +1406,7 @@ AppendPipeline::~AppendPipeline()
 
     if (m_appsrc) {
         GRefPtr<GstPad> appSrcPad = adoptGRef(gst_element_get_static_pad(m_appsrc, "src"));
-        gst_pad_remove_probe(appSrcPad.get(), m_endOfSrcProcessProbeId);
+        gst_pad_remove_probe(appSrcPad.get(), m_appsrcDataLeavingProbeId);
         gst_object_unref(m_appsrc);
         m_appsrc = NULL;
     }
@@ -2336,7 +2336,7 @@ static void appendPipelineAppSinkCapsChanged(GObject*, GParamSpec*, AppendPipeli
     g_timeout_add(0, appSinkCapsChangedFromMainThread, ap);
 }
 
-static GstPadProbeReturn appendPipelineAppSrcBufferLeaving(GstPad*, GstPadProbeInfo* info, AppendPipeline* self)
+static GstPadProbeReturn appendPipelineAppSrcDataLeaving(GstPad*, GstPadProbeInfo* info, AppendPipeline* self)
 {
     TRACE_MEDIA_MESSAGE("buffer going thru");
 
