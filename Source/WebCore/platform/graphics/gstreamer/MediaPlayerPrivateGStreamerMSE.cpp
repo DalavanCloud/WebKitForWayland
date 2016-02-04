@@ -227,7 +227,6 @@ private:
     GstElement* m_pipeline;
     GRefPtr<GstBus> m_bus;
     GstElement* m_appsrc;
-    GstElement* m_typefind;
     GstElement* m_qtdemux;
 
     GstElement* m_decryptor;
@@ -256,8 +255,6 @@ private:
 
     gulong m_appsrcDataLeavingProbeId;
 #ifdef DEBUG_APPEND_PIPELINE_PADS
-    struct PadProbeInformation m_typefindDataEnteringPadProbeInformation;
-    struct PadProbeInformation m_typefindDataLeavingPadProbeInformation;
     struct PadProbeInformation m_demuxerDataEnteringPadProbeInformation;
 #endif
     gulong m_appsinkDataEnteringProbeId;
@@ -1352,7 +1349,6 @@ AppendPipeline::AppendPipeline(PassRefPtr<MediaSourceClientGStreamerMSE> mediaSo
 
     m_decryptor = NULL;
     m_appsrc = gst_element_factory_make("appsrc", NULL);
-    m_typefind = gst_element_factory_make("typefind", NULL);
     m_qtdemux = gst_element_factory_make("qtdemux", NULL);
     {
         GValue val = G_VALUE_INIT;
@@ -1378,16 +1374,6 @@ AppendPipeline::AppendPipeline(PassRefPtr<MediaSourceClientGStreamerMSE> mediaSo
 #endif
 
 #ifdef DEBUG_APPEND_PIPELINE_PADS
-    GRefPtr<GstPad> typefindSinkPad = adoptGRef(gst_element_get_static_pad(m_typefind, "sink"));
-    m_typefindDataEnteringPadProbeInformation.m_appendPipeline = this;
-    m_typefindDataEnteringPadProbeInformation.m_description = "typefind data entering";
-    m_typefindDataEnteringPadProbeInformation.m_probeId = gst_pad_add_probe(typefindSinkPad.get(), static_cast<GstPadProbeType>(GST_PAD_PROBE_TYPE_BUFFER | GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM), reinterpret_cast<GstPadProbeCallback>(appendPipelinePadProbeDebugInformation), &m_typefindDataEnteringPadProbeInformation, nullptr);
-
-    GRefPtr<GstPad> typefindSrcPad = adoptGRef(gst_element_get_static_pad(m_typefind, "src"));
-    m_typefindDataLeavingPadProbeInformation.m_appendPipeline = this;
-    m_typefindDataLeavingPadProbeInformation.m_description = "typefind data leaving";
-    m_typefindDataLeavingPadProbeInformation.m_probeId = gst_pad_add_probe(typefindSrcPad.get(), static_cast<GstPadProbeType>(GST_PAD_PROBE_TYPE_BUFFER | GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM), reinterpret_cast<GstPadProbeCallback>(appendPipelinePadProbeDebugInformation), &m_typefindDataLeavingPadProbeInformation, nullptr);
-
     GRefPtr<GstPad> demuxerPad = adoptGRef(gst_element_get_static_pad(m_qtdemux, "sink"));
     m_demuxerDataEnteringPadProbeInformation.m_appendPipeline = this;
     m_demuxerDataEnteringPadProbeInformation.m_description = "demuxer data entering";
@@ -1402,12 +1388,11 @@ AppendPipeline::AppendPipeline(PassRefPtr<MediaSourceClientGStreamerMSE> mediaSo
 
     // Add_many will take ownership of a reference. Request one ref more for ourselves.
     gst_object_ref(m_appsrc);
-    gst_object_ref(m_typefind);
     gst_object_ref(m_qtdemux);
     gst_object_ref(m_appsink);
 
-    gst_bin_add_many(GST_BIN(m_pipeline), m_appsrc, m_typefind, m_qtdemux, NULL);
-    gst_element_link_many(m_appsrc, m_typefind, m_qtdemux, NULL);
+    gst_bin_add_many(GST_BIN(m_pipeline), m_appsrc, m_qtdemux, NULL);
+    gst_element_link(m_appsrc, m_qtdemux);
 
     gst_element_set_state(m_pipeline, GST_STATE_READY);
 };
@@ -1447,17 +1432,6 @@ AppendPipeline::~AppendPipeline()
         gst_pad_remove_probe(appSrcPad.get(), m_appsrcDataLeavingProbeId);
         gst_object_unref(m_appsrc);
         m_appsrc = NULL;
-    }
-
-    if (m_typefind) {
-#ifdef DEBUG_APPEND_PIPELINE_PADS
-        GRefPtr<GstPad> sinkPad = adoptGRef(gst_element_get_static_pad(m_typefind, "sink"));
-        gst_pad_remove_probe(sinkPad.get(), m_typefindDataEnteringPadProbeInformation.m_probeId);
-        GRefPtr<GstPad> srcPad = adoptGRef(gst_element_get_static_pad(m_typefind, "src"));
-        gst_pad_remove_probe(srcPad.get(), m_typefindDataLeavingPadProbeInformation.m_probeId);
-#endif
-        gst_object_unref(m_typefind);
-        m_typefind = NULL;
     }
 
     if (m_qtdemux) {
