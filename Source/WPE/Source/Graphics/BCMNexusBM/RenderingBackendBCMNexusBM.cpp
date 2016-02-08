@@ -18,22 +18,22 @@ namespace Graphics {
 
 RenderingBackendBCMNexusBM::RenderingBackendBCMNexusBM() : m_nxplHandle (NULL)
 {
-    // NEXUS_DisplayHandle displayHandle (NULL);
-    // NxClient_AllocSettings allocSettings;
-    // NxClient_JoinSettings joinSettings;
-    // NxClient_GetDefaultJoinSettings( &joinSettings );
+    NEXUS_DisplayHandle displayHandle (NULL);
+    NxClient_AllocSettings allocSettings;
+    NxClient_JoinSettings joinSettings;
+    NxClient_GetDefaultJoinSettings( &joinSettings );
 
-    // strcpy( joinSettings.name, "wpe" );
+    strcpy( joinSettings.name, "wpe" );
 
-    // NEXUS_Error rc = NxClient_Join( &joinSettings );
-    // BDBG_ASSERT(!rc);
+    NEXUS_Error rc = NxClient_Join( &joinSettings );
+    BDBG_ASSERT(!rc);
 
-    // NxClient_GetDefaultAllocSettings(&allocSettings);
-    // allocSettings.surfaceClient = 1;
-    // rc = NxClient_Alloc(&allocSettings, &m_AllocResults);
-    // BDBG_ASSERT(!rc);
+    NxClient_GetDefaultAllocSettings(&allocSettings);
+    allocSettings.surfaceClient = 1;
+    rc = NxClient_Alloc(&allocSettings, &m_AllocResults);
+    BDBG_ASSERT(!rc);
 
-    // NXPL_RegisterNexusDisplayPlatform(&m_nxplHandle, displayHandle);
+    NXPL_RegisterNexusDisplayPlatform(&m_nxplHandle, displayHandle);
 }
 
 RenderingBackendBCMNexusBM::~RenderingBackendBCMNexusBM()
@@ -58,19 +58,17 @@ std::unique_ptr<RenderingBackend::OffscreenSurface> RenderingBackendBCMNexusBM::
     return std::unique_ptr<RenderingBackendBCMNexusBM::OffscreenSurface>(new RenderingBackendBCMNexusBM::OffscreenSurface(*this));
 }
 
-RenderingBackendBCMNexusBM::Surface::Surface(const RenderingBackendBCMNexusBM&, uint32_t width, uint32_t height, uint32_t targetHandle, Client&)
+RenderingBackendBCMNexusBM::Surface::Surface(const RenderingBackendBCMNexusBM&, uint32_t width, uint32_t height, uint32_t, Client&)
 {
-    printf("creating window for client %d\n", targetHandle);
+    printf("creating window with size %dx%d\n",width, height);
     NXPL_NativeWindowInfo windowInfo;
     windowInfo.x = 0;
     windowInfo.y = 0;
     windowInfo.width = width;
     windowInfo.height = height;
     windowInfo.stretch = false;
-    // windowInfo.clientID = 0;
-    windowInfo.clientID = targetHandle;
+    windowInfo.clientID = 0;
     m_nativeWindow = NXPL_CreateNativeWindow(&windowInfo);
-    printf("window created is %p\n", m_nativeWindow);
 }
 
 RenderingBackendBCMNexusBM::Surface::~Surface()
@@ -80,7 +78,7 @@ RenderingBackendBCMNexusBM::Surface::~Surface()
 
 EGLNativeWindowType RenderingBackendBCMNexusBM::Surface::nativeWindow()
 {
-    return nullptr;
+    return m_nativeWindow;
 }
 
 void RenderingBackendBCMNexusBM::Surface::resize(uint32_t, uint32_t)

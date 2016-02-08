@@ -139,9 +139,12 @@ static const struct wl_nsc_listener nsc_listener = {
         printf("client received is %d\n", nscData.clientID);
     },
     // display_geometry
-    [](void*, struct wl_nsc*, uint32_t, uint32_t)
+    [](void* data, struct wl_nsc*, uint32_t width, uint32_t height)
     {
-        printf("display geometry\n");
+        printf("display geometry %dx%d\n", width, height);
+        auto& nscData = *static_cast<ViewBackendWayland::NscData*>(data);
+        nscData.width = width;
+        nscData.height = height;
     },
     // audiosettings
     [](void*, struct wl_nsc*, struct wl_array*) { },
@@ -179,6 +182,8 @@ ViewBackendWayland::ViewBackendWayland()
         wl_display_roundtrip(m_nscData.display);
         wl_nsc_authenticate(m_nscData.nsc);
         wl_display_roundtrip(m_nscData.display);
+        wl_nsc_get_display_geometry(m_nscData.nsc);
+        wl_display_roundtrip(m_nscData.display);
     }
 
     m_bufferFactory = Graphics::BufferFactory::create();
@@ -215,12 +220,12 @@ void ViewBackendWayland::setClient(Client* client)
     m_bufferData.client = client;
     m_callbackData.client = client;
     m_resizingData.client = client;
+    m_nscData.client = client;
+    m_nscData.client->setSize(m_nscData.width, m_nscData.height);
 }
 
 uint32_t ViewBackendWayland::constructRenderingTarget(uint32_t width, uint32_t height)
 {
-    if (m_nscData.clientID)
-        return m_nscData.clientID;
     return m_bufferFactory->constructRenderingTarget(width, height);
 }
 
@@ -228,7 +233,7 @@ void ViewBackendWayland::commitBuffer(int fd, const uint8_t* data, size_t size)
 {
     std::pair<bool, std::pair<uint32_t, struct wl_buffer*>> result = m_bufferFactory->createBuffer(fd, data, size);
     if (!result.first) {
-        fprintf(stderr, "ViewBackendWayland: failed to validate the committed buffer\n");
+        m_nscData.client->frameComplete();
         return;
     }
 
