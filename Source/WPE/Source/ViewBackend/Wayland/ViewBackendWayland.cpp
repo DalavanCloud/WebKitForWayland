@@ -43,6 +43,14 @@
 #include <cstdio>
 #include <glib.h>
 #include <unistd.h>
+#include <string.h>
+
+#include <refsw/nexus_config.h>
+#include <refsw/nexus_platform.h>
+#include <refsw/nexus_display.h>
+#include <refsw/nexus_core_utils.h>
+#include <refsw/default_nexus.h>
+#include <refsw/nxclient.h>
 
 namespace WPE {
 
@@ -106,9 +114,20 @@ static const struct wl_nsc_listener nsc_listener = {
     // composition
     [](void*, struct wl_nsc*, struct wl_array*) { },
     // authenticated
-    [](void*, struct wl_nsc*, const char*, uint32_t)
+    [](void*, struct wl_nsc*, const char* certData, uint32_t certLength)
     {
-        printf("authenticated\n");
+        NEXUS_Certificate certificate;
+        memcpy(certificate.data, certData, certLength);
+        certificate.length = certLength;
+
+        NEXUS_ClientAuthenticationSettings authSettings;
+        NEXUS_Platform_GetDefaultClientAuthenticationSettings(&authSettings);
+        authSettings.certificate = certificate;
+
+        if(NEXUS_Platform_AuthenticatedJoin( &authSettings))
+            printf("### Failed to join platform\n");
+        else
+            printf("### authenticated\n");
     },
     // clientID_created
     [](void* data, struct wl_nsc*, struct wl_array* clientIDArray)
@@ -117,6 +136,7 @@ static const struct wl_nsc_listener nsc_listener = {
         auto pClientID = static_cast<uint*>(clientIDArray->data);
 
         nscData.clientID = pClientID[0];
+        printf("client received is %d\n", nscData.clientID);
     },
     // display_geometry
     [](void*, struct wl_nsc*, uint32_t, uint32_t)
@@ -156,6 +176,8 @@ ViewBackendWayland::ViewBackendWayland()
         m_nscData.nsc = m_display.interfaces().nsc;
         wl_nsc_add_listener(m_nscData.nsc, &nsc_listener, &m_nscData);
         wl_nsc_request_clientID(m_nscData.nsc, WL_NSC_CLIENT_SURFACE);
+        wl_display_roundtrip(m_nscData.display);
+        wl_nsc_authenticate(m_nscData.nsc);
         wl_display_roundtrip(m_nscData.display);
     }
 
@@ -197,7 +219,9 @@ void ViewBackendWayland::setClient(Client* client)
 
 uint32_t ViewBackendWayland::constructRenderingTarget(uint32_t width, uint32_t height)
 {
-        return m_bufferFactory->constructRenderingTarget(width, height);
+    if (m_nscData.clientID)
+        return m_nscData.clientID;
+    return m_bufferFactory->constructRenderingTarget(width, height);
 }
 
 void ViewBackendWayland::commitBuffer(int fd, const uint8_t* data, size_t size)
