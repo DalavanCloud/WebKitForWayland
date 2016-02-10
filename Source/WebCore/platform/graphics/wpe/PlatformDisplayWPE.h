@@ -43,6 +43,8 @@ class IntSize;
 
 class PlatformDisplayWPE final : public PlatformDisplay {
 public:
+    static void initialize(std::pair<const uint8_t*, size_t>);
+
     PlatformDisplayWPE();
     virtual ~PlatformDisplayWPE();
 
