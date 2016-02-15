@@ -3786,6 +3786,8 @@ if (CMAKE_COMPILER_IS_GNUCXX AND "${LOWERCASE_CMAKE_HOST_SYSTEM_PROCESSOR}" MATC
     ADD_TARGET_PROPERTIES(WebCore COMPILE_FLAGS "-fno-tree-sra")
 endif ()
 
+ADD_TARGET_PROPERTIES(WebCore COMPILE_FLAGS "-O0 -g")
+
 if (WebCore_PRE_BUILD_COMMAND)
     add_custom_target(WebCorePreBuild COMMAND ${WebCore_PRE_BUILD_COMMAND} VERBATIM)
     add_dependencies(WebCore WebCorePreBuild)
