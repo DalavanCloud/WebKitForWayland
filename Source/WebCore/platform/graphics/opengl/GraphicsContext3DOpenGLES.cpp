@@ -39,10 +39,41 @@
 
 namespace WebCore {
 
+#define GLCOMMAND(command) do { command; checkOpenGLError(__FILE__, __LINE__); } while(0)
+
+static void checkOpenGLError(const char *file, int line)
+{
+    GLenum error = GL_NO_ERROR;
+    for (error = ::glGetError(); error != GL_NO_ERROR;) {
+        fprintf(stderr, "glError in file %s @ line %d: ", file, line);
+        switch (error) {
+            case GL_INVALID_ENUM:
+                fprintf(stderr, "GL_INVALID_ENUM\n");
+                break;
+            case GL_INVALID_VALUE:
+                fprintf(stderr, "GL_INVALID_VALUE\n");
+                break;
+            case GL_INVALID_OPERATION:
+                fprintf(stderr, "GL_INVALID_OPERATION\n");
+                break;
+            case GL_OUT_OF_MEMORY:
+                fprintf(stderr, "GL_OUT_OF_MEMORY\n");
+                break;
+            case GL_INVALID_FRAMEBUFFER_OPERATION:
+                fprintf(stderr, "GL_INVALID_FRAMEBUFFER_OPERATION\n");
+                break;
+            default:
+                fprintf(stderr, "ERROR CODE 0x0%X\n", (int)error);
+                break;
+        }
+        fflush(stderr);
+    }
+}
+
 void GraphicsContext3D::releaseShaderCompiler()
 {
     makeContextCurrent();
-    ::glReleaseShaderCompiler();
+    GLCOMMAND(::glReleaseShaderCompiler());
 }
 
 void GraphicsContext3D::readPixels(GC3Dint x, GC3Dint y, GC3Dsizei width, GC3Dsizei height, GC3Denum format, GC3Denum type, void* data)
@@ -50,22 +81,22 @@ void GraphicsContext3D::readPixels(GC3Dint x, GC3Dint y, GC3Dsizei width, GC3Dsi
     makeContextCurrent();
     // FIXME: remove the two glFlush calls when the driver bug is fixed, i.e.,
     // all previous rendering calls should be done before reading pixels.
-    ::glFlush();
+    GLCOMMAND(::glFlush());
     if (m_attrs.antialias && m_state.boundFBO == m_multisampleFBO) {
          resolveMultisamplingIfNecessary(IntRect(x, y, width, height));
-        ::glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
-        ::glFlush();
+        GLCOMMAND(::glBindFramebuffer(GL_FRAMEBUFFER, m_fbo));
+        GLCOMMAND(::glFlush());
     }
 
-    ::glReadPixels(x, y, width, height, format, type, data);
+    GLCOMMAND(::glReadPixels(x, y, width, height, format, type, data));
 
     if (m_attrs.antialias && m_state.boundFBO == m_multisampleFBO)
-        ::glBindFramebuffer(GL_FRAMEBUFFER, m_multisampleFBO);
+        GLCOMMAND(::glBindFramebuffer(GL_FRAMEBUFFER, m_multisampleFBO));
 }
 
 void GraphicsContext3D::readPixelsAndConvertToBGRAIfNecessary(int x, int y, int width, int height, unsigned char* pixels)
 {
-    ::glReadPixels(x, y, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    GLCOMMAND(::glReadPixels(x, y, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels));
     int totalBytes = width * height * 4;
     if (isGLES2Compliant()) {
         for (int i = 0; i < totalBytes; i += 4)
@@ -98,35 +129,35 @@ bool GraphicsContext3D::reshapeFBOs(const IntSize& size)
     bool mustRestoreFBO = false;
     if (m_state.boundFBO != m_fbo) {
         mustRestoreFBO = true;
-        ::glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+        GLCOMMAND(::glBindFramebuffer(GL_FRAMEBUFFER, m_fbo));
     }
 
     ASSERT(m_texture);
-    ::glBindTexture(GL_TEXTURE_2D, m_texture);
-    ::glTexImage2D(GL_TEXTURE_2D, 0, m_internalColorFormat, width, height, 0, colorFormat, pixelDataType, 0);
-    ::glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_texture, 0);
+    GLCOMMAND(::glBindTexture(GL_TEXTURE_2D, m_texture));
+    GLCOMMAND(::glTexImage2D(GL_TEXTURE_2D, 0, m_internalColorFormat, width, height, 0, colorFormat, pixelDataType, 0));
+    GLCOMMAND(::glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_texture, 0));
 
     Extensions3DOpenGLES* extensions = static_cast<Extensions3DOpenGLES*>(getExtensions());
     if (extensions->isImagination() && m_attrs.antialias) {
         GLint maxSampleCount;
-        ::glGetIntegerv(Extensions3D::MAX_SAMPLES_IMG, &maxSampleCount);
+        GLCOMMAND(::glGetIntegerv(Extensions3D::MAX_SAMPLES_IMG, &maxSampleCount));
         sampleCount = std::min(8, maxSampleCount);
 
         extensions->framebufferTexture2DMultisampleIMG(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_texture, 0, sampleCount);
     }
 
     if (m_compositorTexture) {
-        ::glBindTexture(GL_TEXTURE_2D, m_compositorTexture);
-        ::glTexImage2D(GL_TEXTURE_2D, 0, m_internalColorFormat, width, height, 0, colorFormat, pixelDataType, 0);
-        ::glBindTexture(GL_TEXTURE_2D, 0);
+        GLCOMMAND(::glBindTexture(GL_TEXTURE_2D, m_compositorTexture));
+        GLCOMMAND(::glTexImage2D(GL_TEXTURE_2D, 0, m_internalColorFormat, width, height, 0, colorFormat, pixelDataType, 0));
+        GLCOMMAND(::glBindTexture(GL_TEXTURE_2D, 0));
 #if USE(COORDINATED_GRAPHICS_THREADED)
-        ::glBindFramebuffer(GL_FRAMEBUFFER, m_compositorFBO);
+        GLCOMMAND(::glBindFramebuffer(GL_FRAMEBUFFER, m_compositorFBO));
         if (extensions->isImagination() && m_attrs.antialias)
             extensions->framebufferTexture2DMultisampleIMG(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_compositorTexture, 0, sampleCount);
         else
-            ::glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_compositorTexture, 0);
+            GLCOMMAND(::glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_compositorTexture, 0));
         attachDepthAndStencilBufferIfNeeded(internalDepthStencilFormat, width, height);
-        ::glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+        GLCOMMAND(::glBindFramebuffer(GL_FRAMEBUFFER, m_fbo));
 #endif
     }
 
@@ -140,55 +171,55 @@ void GraphicsContext3D::attachDepthAndStencilBufferIfNeeded(GLuint internalDepth
     Extensions3DOpenGLES* extensions = static_cast<Extensions3DOpenGLES*>(getExtensions());
     if (extensions->isImagination() && m_attrs.antialias) {
         GLint maxSampleCount;
-        ::glGetIntegerv(Extensions3D::MAX_SAMPLES_IMG, &maxSampleCount);
+        GLCOMMAND(::glGetIntegerv(Extensions3D::MAX_SAMPLES_IMG, &maxSampleCount));
         GLint sampleCount = std::min(8, maxSampleCount);
 
         if (m_attrs.stencil || m_attrs.depth) {
             // Use a 24 bit depth buffer where we know we have it.
             if (internalDepthStencilFormat == GL_DEPTH24_STENCIL8_OES) {
-                ::glBindRenderbuffer(GL_RENDERBUFFER, m_depthStencilBuffer);
+                GLCOMMAND(::glBindRenderbuffer(GL_RENDERBUFFER, m_depthStencilBuffer));
                 extensions->renderbufferStorageMultisample(GL_RENDERBUFFER, sampleCount, GL_DEPTH24_STENCIL8_OES, width, height);
                 if (m_attrs.stencil)
-                    ::glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_depthStencilBuffer);
+                    GLCOMMAND(::glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_depthStencilBuffer));
                 if (m_attrs.depth)
-                    ::glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depthStencilBuffer);
+                    GLCOMMAND(::glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depthStencilBuffer));
             } else {
                 if (m_attrs.stencil) {
-                    ::glBindRenderbuffer(GL_RENDERBUFFER, m_stencilBuffer);
+                    GLCOMMAND(::glBindRenderbuffer(GL_RENDERBUFFER, m_stencilBuffer));
                     extensions->renderbufferStorageMultisample(GL_RENDERBUFFER, sampleCount, GL_STENCIL_INDEX8, width, height);
-                    ::glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_stencilBuffer);
+                    GLCOMMAND(::glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_stencilBuffer));
                 }
                 if (m_attrs.depth) {
-                    ::glBindRenderbuffer(GL_RENDERBUFFER, m_depthBuffer);
+                    GLCOMMAND(::glBindRenderbuffer(GL_RENDERBUFFER, m_depthBuffer));
                     extensions->renderbufferStorageMultisample(GL_RENDERBUFFER, sampleCount, GL_DEPTH_COMPONENT16, width, height);
-                    ::glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depthBuffer);
+                    GLCOMMAND(::glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depthBuffer));
                 }
             }
-            ::glBindRenderbuffer(GL_RENDERBUFFER, 0);
+            GLCOMMAND(::glBindRenderbuffer(GL_RENDERBUFFER, 0));
         }
     } else {
         if (m_attrs.stencil || m_attrs.depth) {
             // Use a 24 bit depth buffer where we know we have it.
             if (internalDepthStencilFormat == GL_DEPTH24_STENCIL8_OES) {
-                ::glBindRenderbuffer(GL_RENDERBUFFER, m_depthStencilBuffer);
-                ::glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8_OES, width, height);
+                GLCOMMAND(::glBindRenderbuffer(GL_RENDERBUFFER, m_depthStencilBuffer));
+                GLCOMMAND(::glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8_OES, width, height));
                 if (m_attrs.stencil)
-                    ::glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_depthStencilBuffer);
+                    GLCOMMAND(::glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_depthStencilBuffer));
                 if (m_attrs.depth)
-                    ::glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depthStencilBuffer);
+                    GLCOMMAND(::glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depthStencilBuffer));
             } else {
                 if (m_attrs.stencil) {
-                    ::glBindRenderbuffer(GL_RENDERBUFFER, m_stencilBuffer);
-                    ::glRenderbufferStorage(GL_RENDERBUFFER, GL_STENCIL_INDEX8, width, height);
-                    ::glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_stencilBuffer);
+                    GLCOMMAND(::glBindRenderbuffer(GL_RENDERBUFFER, m_stencilBuffer));
+                    GLCOMMAND(::glRenderbufferStorage(GL_RENDERBUFFER, GL_STENCIL_INDEX8, width, height));
+                    GLCOMMAND(::glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_stencilBuffer));
                 }
                 if (m_attrs.depth) {
-                    ::glBindRenderbuffer(GL_RENDERBUFFER, m_depthBuffer);
-                    ::glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, width, height);
-                    ::glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depthBuffer);
+                    GLCOMMAND(::glBindRenderbuffer(GL_RENDERBUFFER, m_depthBuffer));
+                    GLCOMMAND(::glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, width, height));
+                    GLCOMMAND(::glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depthBuffer));
                 }
             }
-            ::glBindRenderbuffer(GL_RENDERBUFFER, 0);
+            GLCOMMAND(::glBindRenderbuffer(GL_RENDERBUFFER, 0));
         }
     }
 
@@ -207,13 +238,13 @@ void GraphicsContext3D::resolveMultisamplingIfNecessary(const IntRect&)
 void GraphicsContext3D::renderbufferStorage(GC3Denum target, GC3Denum internalformat, GC3Dsizei width, GC3Dsizei height)
 {
     makeContextCurrent();
-    ::glRenderbufferStorage(target, internalformat, width, height);
+    GLCOMMAND(::glRenderbufferStorage(target, internalformat, width, height));
 }
 
 void GraphicsContext3D::getIntegerv(GC3Denum pname, GC3Dint* value)
 {
     makeContextCurrent();
-    ::glGetIntegerv(pname, value);
+    GLCOMMAND(::glGetIntegerv(pname, value));
 }
 
 void GraphicsContext3D::getShaderPrecisionFormat(GC3Denum shaderType, GC3Denum precisionType, GC3Dint* range, GC3Dint* precision)
@@ -222,7 +253,7 @@ void GraphicsContext3D::getShaderPrecisionFormat(GC3Denum shaderType, GC3Denum p
     ASSERT(precision);
 
     makeContextCurrent();
-    ::glGetShaderPrecisionFormat(shaderType, precisionType, range, precision);
+    GLCOMMAND(::glGetShaderPrecisionFormat(shaderType, precisionType, range, precision));
 }
 
 bool GraphicsContext3D::texImage2D(GC3Denum target, GC3Dint level, GC3Denum internalformat, GC3Dsizei width, GC3Dsizei height, GC3Dint border, GC3Denum format, GC3Denum type, const void* pixels)
@@ -250,13 +281,13 @@ void GraphicsContext3D::validateAttributes()
 void GraphicsContext3D::depthRange(GC3Dclampf zNear, GC3Dclampf zFar)
 {
     makeContextCurrent();
-    ::glDepthRangef(zNear, zFar);
+    GLCOMMAND(::glDepthRangef(zNear, zFar));
 }
 
 void GraphicsContext3D::clearDepth(GC3Dclampf depth)
 {
     makeContextCurrent();
-    ::glClearDepthf(depth);
+    GLCOMMAND(::glClearDepthf(depth));
 }
 
 Extensions3D* GraphicsContext3D::getExtensions()
