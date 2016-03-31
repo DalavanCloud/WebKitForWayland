@@ -262,7 +262,12 @@ void MediaPlayerPrivateGStreamer::load(const String& urlString)
 
     ASSERT(m_pipeline);
 
+#if USE(FUSION_SINK)
+    GstElement* src = gst_bin_get_by_name(GST_BIN(m_pipeline.get()), "src");
+    g_object_set(src, "location", m_url.string().utf8().data(), nullptr);
+#else
     g_object_set(m_pipeline.get(), "uri", m_url.string().utf8().data(), nullptr);
+#endif
 
     INFO_MEDIA_MESSAGE("Load %s", m_url.string().utf8().data());
 
@@ -1965,6 +1970,9 @@ MediaPlayer::SupportsType MediaPlayerPrivateGStreamer::supportsType(const MediaE
 
 void MediaPlayerPrivateGStreamer::setDownloadBuffering()
 {
+#if USE(FUSION_SINK)
+    return;
+#endif
     if (!m_pipeline)
         return;
 
@@ -2090,6 +2098,11 @@ void MediaPlayerPrivateGStreamer::createGSTPlayBin()
 {
     ASSERT(!m_pipeline);
 
+#if USE(FUSION_SINK)
+    GError* error = NULL;
+    GstElement* pipeline = gst_parse_launch("webkitwebsrc name=src ! qtdemux name=demux demux.video_0 ! h264parse ! queue ! ciscofusion name=sink demux.audio_0 ! queue ! aacparse ! sink.", &error);
+    setPipeline(pipeline);
+#else
     // gst_element_factory_make() returns a floating reference so
     // we should not adopt.
     setPipeline(gst_element_factory_make("playbin", "play"));
@@ -2100,6 +2113,7 @@ void MediaPlayerPrivateGStreamer::createGSTPlayBin()
     unsigned flagVideo = getGstPlayFlag("video");
     unsigned flagNativeVideo = getGstPlayFlag("native-video");
     g_object_set(m_pipeline.get(), "flags", flagText | flagAudio | flagVideo | flagNativeVideo, nullptr);
+#endif
 
     GRefPtr<GstBus> bus = adoptGRef(gst_pipeline_get_bus(GST_PIPELINE(m_pipeline.get())));
     gst_bus_set_sync_handler(bus.get(), [](GstBus*, GstMessage* message, gpointer userData) {
@@ -2122,10 +2136,13 @@ void MediaPlayerPrivateGStreamer::createGSTPlayBin()
     // If we load a MediaSource later, we will also listen the signals from
     // WebKitMediaSrc, which will be connected later in sourceChanged()
     // METRO FIXME: In that case, we shouldn't listen to these signals coming from playbin, or the callbacks will be called twice.
+#if !USE(FUSION_SINK)
     g_signal_connect_swapped(m_pipeline.get(), "notify::source", G_CALLBACK(sourceChangedCallback), this);
     g_signal_connect_swapped(m_pipeline.get(), "video-changed", G_CALLBACK(videoChangedCallback), this);
     g_signal_connect_swapped(m_pipeline.get(), "audio-changed", G_CALLBACK(audioChangedCallback), this);
-#if ENABLE(VIDEO_TRACK)
+#endif
+
+#if ENABLE(VIDEO_TRACK) && !USE(FUSION_SINK)
     if (webkitGstCheckVersion(1, 1, 2)) {
         g_signal_connect_swapped(m_pipeline.get(), "text-changed", G_CALLBACK(textChangedCallback), this);
 
@@ -2146,7 +2163,7 @@ void MediaPlayerPrivateGStreamer::createGSTPlayBin()
     }
 #endif
 
-#if !USE(HOLE_PUNCH_GSTREAMER)
+#if !USE(HOLE_PUNCH_GSTREAMER) && !USE(FUSION_SINK)
     // If we are using the gstreamer hole punch then we rely on autovideosink
     // to use the appropriate sink
 

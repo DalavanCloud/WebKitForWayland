@@ -321,14 +321,28 @@ void MediaPlayerPrivateGStreamerBase::setPipeline(GstElement* pipeline)
     m_pipeline = pipeline;
 #if USE(HOLE_PUNCH_GSTREAMER)
     GstElement* sinkElement = nullptr;
+
+    INFO_MEDIA_MESSAGE("setPipeline: Setting video sink size and position to x:%d y:%d, width=%d, height=%d\n",m_position.x(),m_position.y(), m_size.width(),m_size.height());
+
+
+#if USE(WESTEROS_SINK)
     g_object_get(m_pipeline.get(), "video-sink", &sinkElement, nullptr);
     if(!sinkElement)
         return;
 
-    INFO_MEDIA_MESSAGE("setPipeline: Setting video sink size and position to x:%d y:%d, width=%d, height=%d\n",m_position.x(),m_position.y(), m_size.width(),m_size.height());
     gchar rectString[64] = {0};
     g_snprintf(rectString, sizeof(rectString), "%d,%d,%d,%d", m_position.x(), m_position.y(), m_size.width(),m_size.height());
     g_object_set(G_OBJECT(sinkElement),"window_set",rectString, nullptr);
+#endif
+
+#if USE(FUSION_SINK)
+    sinkElement = gst_bin_get_by_name(GST_BIN(m_pipeline.get()), "sink");
+    if(!sinkElement)
+        return;
+    // FIXME: handle empty size.
+    g_object_set(sinkElement, "left", m_position.x(), "top", m_position.y(), "width", 1920, "height", 1080, NULL);
+    // g_object_set(sinkElement, "left", m_position.x(), "top", m_position.y(), "width", m_size.width(), "height", m_size.height(), NULL);
+#endif
 #endif
 }
 
@@ -858,15 +872,25 @@ void MediaPlayerPrivateGStreamerBase::setPosition(const IntPoint& position)
     if(!m_pipeline)
         return;
 
+    INFO_MEDIA_MESSAGE("Setting video sink size and position to x:%d y:%d, width=%d, height=%d\n",m_position.x(),m_position.y(), m_size.width(),m_size.height());
+
+#if USE(WESTEROS_SINK)
     GstElement* sinkElement = nullptr;
     g_object_get(m_pipeline.get(), "video-sink", &sinkElement, nullptr);
     if(!sinkElement)
         return;
 
-    INFO_MEDIA_MESSAGE("setPosition: Setting video sink size and position to x:%d y:%d, width=%d, height=%d\n",m_position.x(),m_position.y(), m_size.width(),m_size.height());
     gchar rectString[64] = {0};
     g_snprintf(rectString, sizeof(rectString), "%d,%d,%d,%d", m_position.x(), m_position.y(), m_size.width(),m_size.height());
     g_object_set(G_OBJECT(sinkElement),"window_set",rectString, nullptr);
+#endif
+#if USE(FUSION_SINK)
+    GstElement* sinkElement = gst_bin_get_by_name(GST_BIN(m_pipeline.get()), "sink");
+    if(!sinkElement)
+        return;
+    g_object_set(sinkElement, "left", m_position.x(), "top", m_position.y(), "width", m_size.width(), "height", m_size.height(), NULL);
+#endif
+
 }
 
 void MediaPlayerPrivateGStreamerBase::paint(GraphicsContext& context, const FloatRect& rect)
@@ -1002,6 +1026,9 @@ MediaPlayer::MovieLoadType MediaPlayerPrivateGStreamerBase::movieLoadType() cons
 #if !USE(HOLE_PUNCH_GSTREAMER)
 GstElement* MediaPlayerPrivateGStreamerBase::createVideoSink()
 {
+#if USE(FUSION_SINK)
+    return nullptr;
+#endif
     GstElement* videoSink = nullptr;
 #if USE(GSTREAMER_GL)
     if (webkitGstCheckVersion(1, 7, 1)) {
