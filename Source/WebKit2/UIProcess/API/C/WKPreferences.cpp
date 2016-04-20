@@ -35,6 +35,10 @@
 
 using namespace WebKit;
 
+#if USE(APPLE_INTERNAL_SDK)
+#include <WebKitAdditions/WKPreferencesAdditions.cpp>
+#endif
+
 WKTypeID WKPreferencesGetTypeID()
 {
     return toAPI(WebPreferences::APIType);
@@ -459,6 +463,16 @@ bool WKPreferencesGetWebGLEnabled(WKPreferencesRef preferencesRef)
     return toImpl(preferencesRef)->webGLEnabled();
 }
 
+void WKPreferencesSetWebGL2Enabled(WKPreferencesRef preferencesRef, bool flag)
+{
+    toImpl(preferencesRef)->setWebGL2Enabled(flag);
+}
+
+bool WKPreferencesGetWebGL2Enabled(WKPreferencesRef preferencesRef)
+{
+    return toImpl(preferencesRef)->webGL2Enabled();
+}
+
 void WKPreferencesSetForceSoftwareWebGLRendering(WKPreferencesRef preferencesRef, bool flag)
 {
     toImpl(preferencesRef)->setForceSoftwareWebGLRendering(flag);
@@ -758,6 +772,16 @@ bool WKPreferencesGetMediaPlaybackRequiresUserGesture(WKPreferencesRef preferenc
     return toImpl(preferencesRef)->requiresUserGestureForMediaPlayback();
 }
 
+void WKPreferencesSetVideoPlaybackRequiresUserGesture(WKPreferencesRef preferencesRef, bool flag)
+{
+    toImpl(preferencesRef)->setRequiresUserGestureForVideoPlayback(flag);
+}
+
+bool WKPreferencesGetVideoPlaybackRequiresUserGesture(WKPreferencesRef preferencesRef)
+{
+    return toImpl(preferencesRef)->requiresUserGestureForVideoPlayback();
+}
+
 void WKPreferencesSetAudioPlaybackRequiresUserGesture(WKPreferencesRef preferencesRef, bool flag)
 {
     toImpl(preferencesRef)->setRequiresUserGestureForAudioPlayback(flag);
@@ -766,6 +790,16 @@ void WKPreferencesSetAudioPlaybackRequiresUserGesture(WKPreferencesRef preferenc
 bool WKPreferencesGetAudioPlaybackRequiresUserGesture(WKPreferencesRef preferencesRef)
 {
     return toImpl(preferencesRef)->requiresUserGestureForAudioPlayback();
+}
+
+void WKPreferencesSetMainContentUserGestureOverrideEnabled(WKPreferencesRef preferencesRef, bool flag)
+{
+    toImpl(preferencesRef)->setMainContentUserGestureOverrideEnabled(flag);
+}
+
+bool WKPreferencesGetMainContentUserGestureOverrideEnabled(WKPreferencesRef preferencesRef)
+{
+    return toImpl(preferencesRef)->mainContentUserGestureOverrideEnabled();
 }
 
 void WKPreferencesSetMediaPlaybackAllowsInline(WKPreferencesRef preferencesRef, bool flag)
@@ -1172,9 +1206,19 @@ void WKPreferencesSetHiddenPageDOMTimerThrottlingEnabled(WKPreferencesRef prefer
     toImpl(preferencesRef)->setHiddenPageDOMTimerThrottlingEnabled(enabled);
 }
 
+void WKPreferencesSetHiddenPageDOMTimerThrottlingAutoIncreases(WKPreferencesRef preferencesRef, bool enabled)
+{
+    toImpl(preferencesRef)->setHiddenPageDOMTimerThrottlingAutoIncreases(enabled);
+}
+
 bool WKPreferencesGetHiddenPageDOMTimerThrottlingEnabled(WKPreferencesRef preferencesRef)
 {
     return toImpl(preferencesRef)->hiddenPageDOMTimerThrottlingEnabled();
+}
+
+bool WKPreferencesGetHiddenPageDOMTimerThrottlingAutoIncreases(WKPreferencesRef preferencesRef)
+{
+    return toImpl(preferencesRef)->hiddenPageDOMTimerThrottlingAutoIncreases();
 }
 
 void WKPreferencesSetHiddenPageCSSAnimationSuspensionEnabled(WKPreferencesRef preferencesRef, bool enabled)
@@ -1357,6 +1401,16 @@ bool WKPreferencesGetGamepadsEnabled(WKPreferencesRef preferencesRef)
     return toImpl(preferencesRef)->gamepadsEnabled();
 }
 
+void WKPreferencesSetMediaDataLoadsAutomatically(WKPreferencesRef preferencesRef, bool enabled)
+{
+    toImpl(preferencesRef)->setMediaDataLoadsAutomatically(enabled);
+}
+
+bool WKPreferencesGetMediaDataLoadsAutomatically(WKPreferencesRef preferencesRef)
+{
+    return toImpl(preferencesRef)->mediaDataLoadsAutomatically();
+}
+
 // FIXME: Remove these when possible.
 void WKPreferencesSetLongMousePressEnabled(WKPreferencesRef preferencesRef, bool enabled)
 {
@@ -1377,14 +1431,14 @@ double WKPreferencesGetMinimumZoomFontSize(WKPreferencesRef preferencesRef)
     return toImpl(preferencesRef)->minimumZoomFontSize();
 }
 
-void WKPreferencesSetAntialiasedFontDilationEnabled(WKPreferencesRef preferencesRef, bool enabled)
+void WKPreferencesSetAntialiasedFontDilationEnabled(WKPreferencesRef, bool)
 {
-    toImpl(preferencesRef)->setAntialiasedFontDilationEnabled(enabled);
+    // Feature removed.
 }
 
-bool WKPreferencesGetAntialiasedFontDilationEnabled(WKPreferencesRef preferencesRef)
+bool WKPreferencesGetAntialiasedFontDilationEnabled(WKPreferencesRef)
 {
-    return toImpl(preferencesRef)->antialiasedFontDilationEnabled();
+    return false; // Feature removed.
 }
 
 void WKPreferencesSetVisibleDebugOverlayRegions(WKPreferencesRef preferencesRef, WKDebugOverlayRegions visibleRegions)
@@ -1455,6 +1509,36 @@ void WKPreferencesSetMockCaptureDevicesEnabled(WKPreferencesRef preferencesRef, 
 bool WKPreferencesGetMockCaptureDevicesEnabled(WKPreferencesRef preferencesRef)
 {
     return toImpl(preferencesRef)->mockCaptureDevicesEnabled();
+}
+
+void WKPreferencesSetShadowDOMEnabled(WKPreferencesRef preferencesRef, bool flag)
+{
+    toImpl(preferencesRef)->setShadowDOMEnabled(flag);
+}
+
+bool WKPreferencesGetShadowDOMEnabled(WKPreferencesRef preferencesRef)
+{
+    return toImpl(preferencesRef)->shadowDOMEnabled();
+}
+
+void WKPreferencesSetCustomElementsEnabled(WKPreferencesRef preferencesRef, bool flag)
+{
+    toImpl(preferencesRef)->setShadowDOMEnabled(flag);
+}
+
+bool WKPreferencesGetCustomElementsEnabled(WKPreferencesRef preferencesRef)
+{
+    return toImpl(preferencesRef)->shadowDOMEnabled();
+}
+
+void WKPreferencesSetFetchAPIEnabled(WKPreferencesRef preferencesRef, bool flag)
+{
+    toImpl(preferencesRef)->setFetchAPIEnabled(flag);
+}
+
+bool WKPreferencesGetFetchAPIEnabled(WKPreferencesRef preferencesRef)
+{
+    return toImpl(preferencesRef)->fetchAPIEnabled();
 }
 
 void WKPreferencesSetAllowRunningOfInsecureContent(WKPreferencesRef preferencesRef, bool enabled)

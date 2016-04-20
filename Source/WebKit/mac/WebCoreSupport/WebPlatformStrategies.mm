@@ -112,6 +112,11 @@ void WebPlatformStrategies::deleteCookie(const NetworkStorageSession& session, c
     WebCore::deleteCookie(session, url, cookieName);
 }
 
+void WebPlatformStrategies::addCookie(const NetworkStorageSession& session, const URL& url, const Cookie& cookie)
+{
+    WebCore::addCookie(session, url, cookie);
+}
+
 void WebPlatformStrategies::refreshPlugins()
 {
     [[WebPluginDatabase sharedDatabaseIfExists] refresh];
@@ -155,7 +160,7 @@ void WebPlatformStrategies::getTypes(Vector<String>& types, const String& pasteb
     PlatformPasteboard(pasteboardName).getTypes(types);
 }
 
-PassRefPtr<SharedBuffer> WebPlatformStrategies::bufferForType(const String& pasteboardType, const String& pasteboardName)
+RefPtr<SharedBuffer> WebPlatformStrategies::bufferForType(const String& pasteboardType, const String& pasteboardName)
 {
     return PlatformPasteboard(pasteboardName).bufferForType(pasteboardType);
 }
@@ -241,7 +246,7 @@ int WebPlatformStrategies::getPasteboardItemsCount()
     return PlatformPasteboard().count();
 }
 
-PassRefPtr<WebCore::SharedBuffer> WebPlatformStrategies::readBufferFromPasteboard(int index, const String& type)
+RefPtr<WebCore::SharedBuffer> WebPlatformStrategies::readBufferFromPasteboard(int index, const String& type)
 {
     return PlatformPasteboard().readBuffer(index, type);
 }

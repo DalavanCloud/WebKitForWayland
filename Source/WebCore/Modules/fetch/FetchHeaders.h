@@ -32,6 +32,12 @@
 #if ENABLE(FETCH_API)
 
 #include "HTTPHeaderMap.h"
+#include <wtf/HashTraits.h>
+#include <wtf/Optional.h>
+
+namespace JSC {
+class ExecState;
+}
 
 namespace WebCore {
 
@@ -56,8 +62,9 @@ public:
     bool has(const String&, ExceptionCode&) const;
     void set(const String& name, const String& value, ExceptionCode&);
 
-    void initializeWith(const FetchHeaders*, ExceptionCode&);
     void fill(const FetchHeaders*);
+
+    void filterAndFill(const HTTPHeaderMap&, Guard);
 
     String fastGet(HTTPHeaderName name) const { return m_headers.get(name); }
     void fastSet(HTTPHeaderName name, const String& value) { m_headers.set(name, value); }
@@ -65,12 +72,7 @@ public:
     class Iterator {
     public:
         explicit Iterator(FetchHeaders&);
-
-        // FIXME: Binding generator should be able to generate iterator key and value types.
-        using Key = String;
-        using Value = String;
-
-        bool next(String& nextKey, String& nextValue);
+        Optional<WTF::KeyValuePair<String, String>> next(JSC::ExecState&);
 
     private:
         Ref<FetchHeaders> m_headers;
@@ -78,6 +80,8 @@ public:
         Vector<String> m_keys;
     };
     Iterator createIterator() { return Iterator(*this); }
+
+    const HTTPHeaderMap& internalHeaders() const { return m_headers; }
 
 private:
     FetchHeaders(Guard guard) : m_guard(guard) { }

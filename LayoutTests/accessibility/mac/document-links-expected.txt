@@ -24,6 +24,9 @@ AXTopLevelUIElement: <AXLink>
 AXLanguage: 
 AXDOMIdentifier: 
 AXDOMClassList: <array of size 0>
+AXFocusableAncestor: <AXLink>
+AXEditableAncestor: (null)
+AXHighestEditableAncestor: (null)
 AXURL: http://www.apple.com/
 AXAccessKey: (null)
 AXElementBusy: 0
@@ -54,6 +57,9 @@ AXTopLevelUIElement: <AXLink>
 AXLanguage: 
 AXDOMIdentifier: 
 AXDOMClassList: <array of size 0>
+AXFocusableAncestor: <AXLink>
+AXEditableAncestor: (null)
+AXHighestEditableAncestor: (null)
 AXURL: http://www.apple.com/
 AXAccessKey: (null)
 AXElementBusy: 0
@@ -84,6 +90,9 @@ AXTopLevelUIElement: <AXLink: 'link 3'>
 AXLanguage: 
 AXDOMIdentifier: 
 AXDOMClassList: <array of size 0>
+AXFocusableAncestor: <AXLink: 'link 3'>
+AXEditableAncestor: (null)
+AXHighestEditableAncestor: (null)
 AXURL: http://webkit.org/
 AXAccessKey: (null)
 AXElementBusy: 0
@@ -95,7 +104,7 @@ AXRoleDescription: link
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXLink: 'link 4'>
-AXSize: NSSize: {38, 18}
+AXSize: NSSize: {37, 18}
 AXTitle: link 4
 AXDescription: 
 AXValue: 
@@ -113,6 +122,9 @@ AXTopLevelUIElement: <AXLink: 'link 4'>
 AXLanguage: 
 AXDOMIdentifier: 
 AXDOMClassList: <array of size 0>
+AXFocusableAncestor: <AXLink: 'link 4'>
+AXEditableAncestor: (null)
+AXHighestEditableAncestor: (null)
 AXURL: LayoutTests/accessibility/mac/document-links.html#asdf
 AXAccessKey: (null)
 AXElementBusy: 0

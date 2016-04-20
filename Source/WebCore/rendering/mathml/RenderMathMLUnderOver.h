@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2009 Alex Milowski (alex@milowski.com). All rights reserved.
+ * Copyright (C) 2016 Igalia S.L.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -36,19 +37,27 @@ class RenderMathMLUnderOver final : public RenderMathMLBlock {
 public:
     RenderMathMLUnderOver(Element&, Ref<RenderStyle>&&);
     
-    virtual RenderMathMLOperator* unembellishedOperator() override;
+    RenderMathMLOperator* unembellishedOperator() override;
 
-    virtual Optional<int> firstLineBaseline() const override;
-    
-protected:
-    virtual void layout() override;
+    Optional<int> firstLineBaseline() const override;
+
+    void computePreferredLogicalWidths() final;
+    void layoutBlock(bool relayoutChildren, LayoutUnit pageLogicalHeight = 0) final;
+    void paintChildren(PaintInfo& forSelf, const LayoutPoint&, PaintInfo& forChild, bool usePrintRect) final;
 
 private:
-    virtual bool isRenderMathMLUnderOver() const override { return true; }
-    virtual const char* renderName() const override { return "RenderMathMLUnderOver"; }
+    bool isRenderMathMLUnderOver() const override { return true; }
+    const char* renderName() const override { return "RenderMathMLUnderOver"; }
+
+    void computeOperatorsHorizontalStretch();
+    bool isValid() const;
+    RenderBox& base() const;
+    RenderBox& under() const;
+    RenderBox& over() const;
+    LayoutUnit horizontalOffset(const RenderBox&) const;
 
     enum UnderOverType { Under, Over, UnderOver };
-    UnderOverType m_kind;
+    UnderOverType m_scriptType;
 };
     
 }

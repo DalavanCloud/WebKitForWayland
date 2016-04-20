@@ -1,6 +1,6 @@
 /*
  *  Copyright (C) 1999-2001 Harri Porten (porten@kde.org)
- *  Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2015 Apple Inc. All rights reserved.
+ *  Copyright (C) 2003-2009, 2015-2016 Apple Inc. All rights reserved.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -77,7 +77,7 @@ static EncodedJSValue JSC_HOST_CALL callFunctionPrototype(ExecState*)
 CallType FunctionPrototype::getCallData(JSCell*, CallData& callData)
 {
     callData.native.function = callFunctionPrototype;
-    return CallTypeHost;
+    return CallType::Host;
 }
 
 EncodedJSValue JSC_HOST_CALL functionProtoFuncToString(ExecState* exec)
@@ -85,23 +85,21 @@ EncodedJSValue JSC_HOST_CALL functionProtoFuncToString(ExecState* exec)
     JSValue thisValue = exec->thisValue();
     if (thisValue.inherits(JSFunction::info())) {
         JSFunction* function = jsCast<JSFunction*>(thisValue);
-        if (function->isHostOrBuiltinFunction()) {
-            String name;
-            if (JSBoundFunction* boundFunction = jsDynamicCast<JSBoundFunction*>(function))
-                name = boundFunction->toStringName(exec);
-            else
-                name = function->name(exec);
-            return JSValue::encode(jsMakeNontrivialString(exec, "function ", name, "() {\n    [native code]\n}"));
-        }
+        if (function->isHostOrBuiltinFunction())
+            return JSValue::encode(jsMakeNontrivialString(exec, "function ", function->name(), "() {\n    [native code]\n}"));
 
         FunctionExecutable* executable = function->jsExecutable();
-        
+        if (executable->isClass()) {
+            StringView classSource = executable->classSource().view();
+            return JSValue::encode(jsString(exec, classSource.toStringWithoutCopying()));
+        }
+
         String functionHeader = executable->isArrowFunction() ? "" : "function ";
         
         StringView source = executable->source().provider()->getRange(
             executable->parametersStartOffset(),
             executable->parametersStartOffset() + executable->source().length());
-        return JSValue::encode(jsMakeNontrivialString(exec, functionHeader, function->name(exec), source));
+        return JSValue::encode(jsMakeNontrivialString(exec, functionHeader, function->name(), source));
     }
 
     if (thisValue.inherits(InternalFunction::info())) {
@@ -113,7 +111,7 @@ EncodedJSValue JSC_HOST_CALL functionProtoFuncToString(ExecState* exec)
         JSObject* object = asObject(thisValue);
         if (object->inlineTypeFlags() & TypeOfShouldCallGetCallData) {
             CallData callData;
-            if (object->methodTable(exec->vm())->getCallData(object, callData) != CallTypeNone) {
+            if (object->methodTable(exec->vm())->getCallData(object, callData) != CallType::None) {
                 if (auto* classInfo = object->classInfo())
                     return JSValue::encode(jsMakeNontrivialString(exec, "function ", classInfo->className, "() {\n    [native code]\n}"));
             }
@@ -134,7 +132,7 @@ EncodedJSValue JSC_HOST_CALL functionProtoFuncBind(ExecState* exec)
     // If IsCallable(Target) is false, throw a TypeError exception.
     CallData callData;
     CallType callType = getCallData(target, callData);
-    if (callType == CallTypeNone)
+    if (callType == CallType::None)
         return throwVMTypeError(exec);
     // Primitive values are not callable.
     ASSERT(target.isObject());
@@ -153,17 +151,23 @@ EncodedJSValue JSC_HOST_CALL functionProtoFuncBind(ExecState* exec)
     // If the [[Class]] internal property of Target is "Function", then ...
     // Else set the length own property of F to 0.
     unsigned length = 0;
-    if (targetObject->inherits(JSFunction::info())) {
-        ASSERT(target.get(exec, exec->propertyNames().length).isNumber());
+    if (targetObject->hasOwnProperty(exec, exec->propertyNames().length)) {
+        if (exec->hadException())
+            return JSValue::encode(jsUndefined());
+
         // a. Let L be the length property of Target minus the length of A.
         // b. Set the length own property of F to either 0 or L, whichever is larger.
-        unsigned targetLength = (unsigned)target.get(exec, exec->propertyNames().length).asNumber();
-        if (targetLength > numBoundArgs)
-            length = targetLength - numBoundArgs;
+        JSValue lengthValue = target.get(exec, exec->propertyNames().length);
+        if (lengthValue.isNumber()) {
+            unsigned targetLength = (unsigned)lengthValue.asNumber();
+            if (targetLength > numBoundArgs)
+                length = targetLength - numBoundArgs;
+        }
     }
 
-    JSString* name = target.get(exec, exec->propertyNames().name).toString(exec);
-    return JSValue::encode(JSBoundFunction::create(vm, globalObject, targetObject, exec->argument(0), boundArgs, length, name->value(exec)));
+    JSValue nameProp = target.get(exec, exec->propertyNames().name);
+    JSString* name = nameProp.isString() ? nameProp.toString(exec) : jsEmptyString(exec);
+    return JSValue::encode(JSBoundFunction::create(vm, exec, globalObject, targetObject, exec->argument(0), boundArgs, length, name->value(exec)));
 }
 
 } // namespace JSC

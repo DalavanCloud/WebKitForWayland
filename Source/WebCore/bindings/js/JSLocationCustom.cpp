@@ -24,6 +24,7 @@
 #include "JSLocation.h"
 
 #include "JSDOMBinding.h"
+#include "RuntimeApplicationChecks.h"
 #include <runtime/JSFunction.h>
 
 using namespace JSC;
@@ -47,32 +48,21 @@ bool JSLocation::getOwnPropertySlotDelegate(ExecState* exec, PropertyName proper
     if (shouldAllowAccessToFrame(exec, frame, message))
         return false;
 
-    // Check for the few functions that we allow, even when called cross-domain.
-    // Make these read-only / non-configurable to prevent writes via defineProperty.
+    // We only allow access to Location.replace() cross origin.
+    // Make it read-only / non-configurable to prevent writes via defineProperty.
     if (propertyName == exec->propertyNames().replace) {
-        slot.setCustom(this, ReadOnly | DontDelete | DontEnum, nonCachingStaticFunctionGetter<jsLocationPrototypeFunctionReplace, 1>);
+        slot.setCustom(this, ReadOnly | DontDelete | DontEnum, nonCachingStaticFunctionGetter<jsLocationInstanceFunctionReplace, 1>);
         return true;
     }
-    if (propertyName == exec->propertyNames().reload) {
-        slot.setCustom(this, ReadOnly | DontDelete | DontEnum, nonCachingStaticFunctionGetter<jsLocationPrototypeFunctionReload, 0>);
-        return true;
-    }
-    if (propertyName == exec->propertyNames().assign) {
-        slot.setCustom(this, ReadOnly | DontDelete | DontEnum, nonCachingStaticFunctionGetter<jsLocationPrototypeFunctionAssign, 1>);
-        return true;
-    }
-
-    // FIXME: Other implementers of the Window cross-domain scheme (Window, History) allow toString,
-    // but for now we have decided not to, partly because it seems silly to return "[Object Location]" in
-    // such cases when normally the string form of Location would be the URL.
 
     printErrorMessageForFrame(frame, message);
     slot.setUndefined();
     return true;
 }
 
-bool JSLocation::putDelegate(ExecState* exec, PropertyName propertyName, JSValue value, PutPropertySlot& slot)
+bool JSLocation::putDelegate(ExecState* exec, PropertyName propertyName, JSValue value, PutPropertySlot& slot, bool& putResult)
 {
+    putResult = false;
     Frame* frame = wrapped().frame();
     if (!frame)
         return true;
@@ -82,10 +72,11 @@ bool JSLocation::putDelegate(ExecState* exec, PropertyName propertyName, JSValue
 
     bool sameDomainAccess = shouldAllowAccessToFrame(exec, frame);
 
+    static_assert(hasStaticPropertyTable, "The implementation dereferences ClassInfo::staticPropHashTable without null check");
     const HashTableValue* entry = JSLocation::info()->staticPropHashTable->entry(propertyName);
     if (!entry) {
         if (sameDomainAccess)
-            JSObject::put(this, exec, propertyName, value, slot);
+            putResult = JSObject::put(this, exec, propertyName, value, slot);
         return true;
     }
 
@@ -94,6 +85,12 @@ bool JSLocation::putDelegate(ExecState* exec, PropertyName propertyName, JSValue
     // disclose other parts of the original location.
     if (propertyName != exec->propertyNames().href && !sameDomainAccess)
         return true;
+
+#if PLATFORM(MAC)
+    // FIXME: HipChat tries to set Location.reload which causes an exception to be thrown in strict mode (see <rdar://problem/24931959>).
+    if (MacApplication::isHipChat())
+        slot.setStrictMode(false);
+#endif
 
     return false;
 }
@@ -141,8 +138,9 @@ JSValue JSLocation::toStringFunction(ExecState& state)
     return jsStringWithCache(&state, wrapped().toString());
 }
 
-bool JSLocationPrototype::putDelegate(ExecState* exec, PropertyName propertyName, JSValue, PutPropertySlot&)
+bool JSLocationPrototype::putDelegate(ExecState* exec, PropertyName propertyName, JSValue, PutPropertySlot&, bool& putResult)
 {
+    putResult = false;
     return (propertyName == exec->propertyNames().toString || propertyName == exec->propertyNames().valueOf);
 }
 

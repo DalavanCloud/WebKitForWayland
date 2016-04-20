@@ -141,6 +141,12 @@ void TestRunner::waitForPolicyDelegate()
     waitUntilDone();
 }
 
+void TestRunner::waitUntilDownloadFinished()
+{
+    m_shouldFinishAfterDownload = true;
+    waitUntilDone();
+}
+
 void TestRunner::waitUntilDone()
 {
     m_waitToDump = true;
@@ -314,6 +320,34 @@ void TestRunner::setCanOpenWindows(bool)
 void TestRunner::setXSSAuditorEnabled(bool enabled)
 {
     WKRetainPtr<WKStringRef> key(AdoptWK, WKStringCreateWithUTF8CString("WebKitXSSAuditorEnabled"));
+    auto& injectedBundle = InjectedBundle::singleton();
+    WKBundleOverrideBoolPreferenceForTestRunner(injectedBundle.bundle(), injectedBundle.pageGroup(), key.get(), enabled);
+}
+
+void TestRunner::setShadowDOMEnabled(bool enabled)
+{
+    WKRetainPtr<WKStringRef> key(AdoptWK, WKStringCreateWithUTF8CString("WebKitShadowDOMEnabled"));
+    auto& injectedBundle = InjectedBundle::singleton();
+    WKBundleOverrideBoolPreferenceForTestRunner(injectedBundle.bundle(), injectedBundle.pageGroup(), key.get(), enabled);
+}
+
+void TestRunner::setCustomElementsEnabled(bool enabled)
+{
+    WKRetainPtr<WKStringRef> key(AdoptWK, WKStringCreateWithUTF8CString("WebKitCustomElementsEnabled"));
+    auto& injectedBundle = InjectedBundle::singleton();
+    WKBundleOverrideBoolPreferenceForTestRunner(injectedBundle.bundle(), injectedBundle.pageGroup(), key.get(), enabled);
+}
+
+void TestRunner::setWebGL2Enabled(bool enabled)
+{
+    WKRetainPtr<WKStringRef> key(AdoptWK, WKStringCreateWithUTF8CString("WebKitWebGL2Enabled"));
+    auto& injectedBundle = InjectedBundle::singleton();
+    WKBundleOverrideBoolPreferenceForTestRunner(injectedBundle.bundle(), injectedBundle.pageGroup(), key.get(), enabled);
+}
+
+void TestRunner::setFetchAPIEnabled(bool enabled)
+{
+    WKRetainPtr<WKStringRef> key(AdoptWK, WKStringCreateWithUTF8CString("WebKitFetchAPIEnabled"));
     auto& injectedBundle = InjectedBundle::singleton();
     WKBundleOverrideBoolPreferenceForTestRunner(injectedBundle.bundle(), injectedBundle.pageGroup(), key.get(), enabled);
 }
@@ -589,6 +623,11 @@ void TestRunner::setWindowIsKey(bool isKey)
     InjectedBundle::singleton().postSetWindowIsKey(isKey);
 }
 
+void TestRunner::setViewSize(double width, double height)
+{
+    InjectedBundle::singleton().postSetViewSize(width, height);
+}
+
 void TestRunner::callAddChromeInputFieldCallback()
 {
     callTestRunnerCallback(AddChromeInputFieldCallbackID);
@@ -775,10 +814,11 @@ void TestRunner::setUserMediaPermission(bool enabled)
     InjectedBundle::singleton().setUserMediaPermission(enabled);
 }
 
-void TestRunner::setUserMediaPermissionForOrigin(bool permission, JSStringRef url)
+void TestRunner::setUserMediaPermissionForOrigin(bool permission, JSStringRef origin, JSStringRef parentOrigin)
 {
-    WKRetainPtr<WKStringRef> urlWK = toWK(url);
-    InjectedBundle::singleton().setUserMediaPermissionForOrigin(permission, urlWK.get());
+    WKRetainPtr<WKStringRef> originWK = toWK(origin);
+    WKRetainPtr<WKStringRef> parentOriginWK = toWK(parentOrigin);
+    InjectedBundle::singleton().setUserMediaPermissionForOrigin(permission, originWK.get(), parentOriginWK.get());
 }
 
 bool TestRunner::callShouldCloseOnWebView()

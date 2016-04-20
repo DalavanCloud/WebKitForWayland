@@ -86,7 +86,7 @@ public:
     size_t capacity() const { return m_capacity; }
     size_t approximateSize() const;
 
-    static const unsigned version = 5;
+    static const unsigned version = 6;
 
     String basePath() const;
     String versionPath() const;
@@ -122,7 +122,7 @@ private:
     void readRecord(ReadOperation&, const Data&);
 
     void updateFileModificationTime(const String& path);
-    bool removeFromPendingWriteOperations(const Key&);
+    void removeFromPendingWriteOperations(const Key&);
 
     WorkQueue& ioQueue() { return m_ioQueue.get(); }
     WorkQueue& backgroundIOQueue() { return m_backgroundIOQueue.get(); }

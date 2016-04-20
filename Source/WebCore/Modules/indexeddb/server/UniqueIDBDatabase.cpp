@@ -33,6 +33,7 @@
 #include "IDBResultData.h"
 #include "IDBServer.h"
 #include "IDBTransactionInfo.h"
+#include "IDBValue.h"
 #include "Logging.h"
 #include "ScopeGuard.h"
 #include "UniqueIDBDatabaseConnection.h"
@@ -50,15 +51,17 @@ UniqueIDBDatabase::UniqueIDBDatabase(IDBServer& server, const IDBDatabaseIdentif
     , m_identifier(identifier)
     , m_operationAndTransactionTimer(*this, &UniqueIDBDatabase::operationAndTransactionTimerFired)
 {
+    LOG(IndexedDB, "UniqueIDBDatabase::UniqueIDBDatabase() (%p) %s", this, m_identifier.debugString().utf8().data());
 }
 
 UniqueIDBDatabase::~UniqueIDBDatabase()
 {
-    LOG(IndexedDB, "UniqueIDBDatabase::~UniqueIDBDatabase() (%p)", this);
+    LOG(IndexedDB, "UniqueIDBDatabase::~UniqueIDBDatabase() (%p) %s", this, m_identifier.debugString().utf8().data());
     ASSERT(!hasAnyPendingCallbacks());
     ASSERT(m_inProgressTransactions.isEmpty());
     ASSERT(m_pendingTransactions.isEmpty());
     ASSERT(m_openDatabaseConnections.isEmpty());
+    ASSERT(m_closePendingDatabaseConnections.isEmpty());
 }
 
 const IDBDatabaseInfo& UniqueIDBDatabase::info() const
@@ -138,6 +141,14 @@ void UniqueIDBDatabase::performCurrentOpenOperation()
         return;
     }
 
+    if (!m_backingStoreOpenError.isNull()) {
+        auto result = IDBResultData::error(m_currentOpenDBRequest->requestData().requestIdentifier(), m_backingStoreOpenError);
+        m_currentOpenDBRequest->connection().didOpenDatabase(result);
+        m_currentOpenDBRequest = nullptr;
+
+        return;
+    }
+
     Ref<UniqueIDBDatabaseConnection> connection = UniqueIDBDatabaseConnection::create(*this, m_currentOpenDBRequest->connection());
     UniqueIDBDatabaseConnection* rawConnection = &connection.get();
 
@@ -181,12 +192,8 @@ void UniqueIDBDatabase::performCurrentDeleteOperation()
         return;
     }
 
-    // Even though we have no open database connections, we might have close-pending database connections
-    // that are waiting on transactions to complete.
-    if (!m_inProgressTransactions.isEmpty()) {
-        ASSERT(!m_closePendingDatabaseConnections.isEmpty());
+    if (!m_inProgressTransactions.isEmpty())
         return;
-    }
 
     ASSERT(!hasAnyPendingCallbacks());
     ASSERT(m_pendingTransactions.isEmpty());
@@ -196,30 +203,44 @@ void UniqueIDBDatabase::performCurrentDeleteOperation()
     // In that scenario only the first request will actually have to delete the database.
     // Subsequent requests can immediately notify their completion.
 
-    if (m_databaseInfo) {
-        m_deleteBackingStoreInProgress = true;
-        m_server.postDatabaseTask(createCrossThreadTask(*this, &UniqueIDBDatabase::deleteBackingStore));
-    } else {
-        ASSERT(m_mostRecentDeletedDatabaseInfo);
-        didDeleteBackingStore();
+    if (!m_deleteBackingStoreInProgress) {
+        if (!m_databaseInfo && m_mostRecentDeletedDatabaseInfo)
+            didDeleteBackingStore(0);
+        else {
+            m_deleteBackingStoreInProgress = true;
+            m_server.postDatabaseTask(createCrossThreadTask(*this, &UniqueIDBDatabase::deleteBackingStore, m_identifier));
+        }
     }
 }
 
-void UniqueIDBDatabase::deleteBackingStore()
+void UniqueIDBDatabase::deleteBackingStore(const IDBDatabaseIdentifier& identifier)
 {
     ASSERT(!isMainThread());
     LOG(IndexedDB, "(db) UniqueIDBDatabase::deleteBackingStore");
+
+    uint64_t deletedVersion = 0;
 
     if (m_backingStore) {
         m_backingStore->deleteBackingStore();
         m_backingStore = nullptr;
         m_backingStoreSupportsSimultaneousTransactions = false;
+        m_backingStoreIsEphemeral = false;
+    } else {
+        auto backingStore = m_server.createBackingStore(identifier);
+
+        IDBDatabaseInfo databaseInfo;
+        auto error = backingStore->getOrEstablishDatabaseInfo(databaseInfo);
+        if (!error.isNull())
+            LOG_ERROR("Error getting database info from database %s that we are trying to delete", identifier.debugString().utf8().data());
+
+        deletedVersion = databaseInfo.version();
+        backingStore->deleteBackingStore();
     }
 
-    m_server.postDatabaseTaskReply(createCrossThreadTask(*this, &UniqueIDBDatabase::didDeleteBackingStore));
+    m_server.postDatabaseTaskReply(createCrossThreadTask(*this, &UniqueIDBDatabase::didDeleteBackingStore, deletedVersion));
 }
 
-void UniqueIDBDatabase::didDeleteBackingStore()
+void UniqueIDBDatabase::didDeleteBackingStore(uint64_t deletedVersion)
 {
     ASSERT(isMainThread());
     LOG(IndexedDB, "(main) UniqueIDBDatabase::didDeleteBackingStore");
@@ -234,17 +255,23 @@ void UniqueIDBDatabase::didDeleteBackingStore()
     if (m_databaseInfo)
         m_mostRecentDeletedDatabaseInfo = WTFMove(m_databaseInfo);
 
-    ASSERT(m_mostRecentDeletedDatabaseInfo);
+    // If this UniqueIDBDatabase was brought into existence for the purpose of deleting the file on disk,
+    // we won't have a m_mostRecentDeletedDatabaseInfo. In that case, we'll manufacture one using the
+    // passed in deletedVersion argument.
+    if (!m_mostRecentDeletedDatabaseInfo)
+        m_mostRecentDeletedDatabaseInfo = std::make_unique<IDBDatabaseInfo>(m_identifier.databaseName(), deletedVersion);
+
     m_currentOpenDBRequest->notifyDidDeleteDatabase(*m_mostRecentDeletedDatabaseInfo);
     m_currentOpenDBRequest = nullptr;
 
-    m_deletePending = false;
     m_deleteBackingStoreInProgress = false;
 
-    if (m_pendingOpenDBRequests.isEmpty())
-        m_server.deleteUniqueIDBDatabase(*this);
-    else
-        invokeOperationAndTransactionTimer();
+    if (m_closePendingDatabaseConnections.isEmpty()) {
+        if (m_pendingOpenDBRequests.isEmpty())
+            m_server.closeUniqueIDBDatabase(*this);
+        else
+            invokeOperationAndTransactionTimer();
+    }
 }
 
 void UniqueIDBDatabase::handleDatabaseOperations()
@@ -452,17 +479,21 @@ void UniqueIDBDatabase::openBackingStore(const IDBDatabaseIdentifier& identifier
     ASSERT(!m_backingStore);
     m_backingStore = m_server.createBackingStore(identifier);
     m_backingStoreSupportsSimultaneousTransactions = m_backingStore->supportsSimultaneousTransactions();
-    auto databaseInfo = m_backingStore->getOrEstablishDatabaseInfo();
+    m_backingStoreIsEphemeral = m_backingStore->isEphemeral();
 
-    m_server.postDatabaseTaskReply(createCrossThreadTask(*this, &UniqueIDBDatabase::didOpenBackingStore, databaseInfo));
+    IDBDatabaseInfo databaseInfo;
+    auto error = m_backingStore->getOrEstablishDatabaseInfo(databaseInfo);
+
+    m_server.postDatabaseTaskReply(createCrossThreadTask(*this, &UniqueIDBDatabase::didOpenBackingStore, databaseInfo, error));
 }
 
-void UniqueIDBDatabase::didOpenBackingStore(const IDBDatabaseInfo& info)
+void UniqueIDBDatabase::didOpenBackingStore(const IDBDatabaseInfo& info, const IDBError& error)
 {
     ASSERT(isMainThread());
     LOG(IndexedDB, "(main) UniqueIDBDatabase::didOpenBackingStore");
     
     m_databaseInfo = std::make_unique<IDBDatabaseInfo>(info);
+    m_backingStoreOpenError = error;
 
     ASSERT(m_isOpeningBackingStore);
     m_isOpeningBackingStore = false;
@@ -653,13 +684,13 @@ void UniqueIDBDatabase::didPerformDeleteIndex(uint64_t callbackIdentifier, const
     performErrorCallback(callbackIdentifier, error);
 }
 
-void UniqueIDBDatabase::putOrAdd(const IDBRequestData& requestData, const IDBKeyData& keyData, const ThreadSafeDataBuffer& valueData, IndexedDB::ObjectStoreOverwriteMode overwriteMode, KeyDataCallback callback)
+void UniqueIDBDatabase::putOrAdd(const IDBRequestData& requestData, const IDBKeyData& keyData, const IDBValue& value, IndexedDB::ObjectStoreOverwriteMode overwriteMode, KeyDataCallback callback)
 {
     ASSERT(isMainThread());
     LOG(IndexedDB, "(main) UniqueIDBDatabase::putOrAdd");
 
     uint64_t callbackID = storeCallback(callback);
-    m_server.postDatabaseTask(createCrossThreadTask(*this, &UniqueIDBDatabase::performPutOrAdd, callbackID, requestData.transactionIdentifier(), requestData.objectStoreIdentifier(), keyData, valueData, overwriteMode));
+    m_server.postDatabaseTask(createCrossThreadTask(*this, &UniqueIDBDatabase::performPutOrAdd, callbackID, requestData.transactionIdentifier(), requestData.objectStoreIdentifier(), keyData, value, overwriteMode));
 }
 
 VM& UniqueIDBDatabase::databaseThreadVM()
@@ -679,7 +710,7 @@ ExecState& UniqueIDBDatabase::databaseThreadExecState()
     return *globalObject.get()->globalExec();
 }
 
-void UniqueIDBDatabase::performPutOrAdd(uint64_t callbackIdentifier, const IDBResourceIdentifier& transactionIdentifier, uint64_t objectStoreIdentifier, const IDBKeyData& keyData, const ThreadSafeDataBuffer& originalRecordValue, IndexedDB::ObjectStoreOverwriteMode overwriteMode)
+void UniqueIDBDatabase::performPutOrAdd(uint64_t callbackIdentifier, const IDBResourceIdentifier& transactionIdentifier, uint64_t objectStoreIdentifier, const IDBKeyData& keyData, const IDBValue& originalRecordValue, IndexedDB::ObjectStoreOverwriteMode overwriteMode)
 {
     ASSERT(!isMainThread());
     LOG(IndexedDB, "(db) UniqueIDBDatabase::performPutOrAdd");
@@ -734,7 +765,7 @@ void UniqueIDBDatabase::performPutOrAdd(uint64_t callbackIdentifier, const IDBRe
     if (usedKeyIsGenerated && !objectStoreInfo->keyPath().isNull()) {
         JSLockHolder locker(databaseThreadVM());
 
-        JSValue value = deserializeIDBValueDataToJSValue(databaseThreadExecState(), originalRecordValue);
+        JSValue value = deserializeIDBValueDataToJSValue(databaseThreadExecState(), originalRecordValue.data());
         if (value.isUndefined()) {
             m_server.postDatabaseTaskReply(createCrossThreadTask(*this, &UniqueIDBDatabase::didPerformPutOrAdd, callbackIdentifier, IDBError(IDBDatabaseException::ConstraintError, ASCIILiteral("Unable to deserialize record value for record key injection")), usedKey));
             return;
@@ -764,7 +795,11 @@ void UniqueIDBDatabase::performPutOrAdd(uint64_t callbackIdentifier, const IDBRe
         return;
     }
 
-    error = m_backingStore->addRecord(transactionIdentifier, *objectStoreInfo, usedKey, injectedRecordValue.data() ? injectedRecordValue : originalRecordValue);
+    if (injectedRecordValue.data())
+        error = m_backingStore->addRecord(transactionIdentifier, *objectStoreInfo, usedKey, { injectedRecordValue, originalRecordValue.blobURLs(), originalRecordValue.blobFilePaths() });
+    else
+        error = m_backingStore->addRecord(transactionIdentifier, *objectStoreInfo, usedKey, originalRecordValue);
+
     if (!error.isNull()) {
         m_server.postDatabaseTaskReply(createCrossThreadTask(*this, &UniqueIDBDatabase::didPerformPutOrAdd, callbackIdentifier, error, usedKey));
         return;
@@ -805,10 +840,10 @@ void UniqueIDBDatabase::performGetRecord(uint64_t callbackIdentifier, const IDBR
 
     ASSERT(m_backingStore);
 
-    ThreadSafeDataBuffer valueData;
-    IDBError error = m_backingStore->getRecord(transactionIdentifier, objectStoreIdentifier, keyRangeData, valueData);
+    IDBGetResult result;
+    IDBError error = m_backingStore->getRecord(transactionIdentifier, objectStoreIdentifier, keyRangeData, result);
 
-    m_server.postDatabaseTaskReply(createCrossThreadTask(*this, &UniqueIDBDatabase::didPerformGetRecord, callbackIdentifier, error, valueData));
+    m_server.postDatabaseTaskReply(createCrossThreadTask(*this, &UniqueIDBDatabase::didPerformGetRecord, callbackIdentifier, error, result));
 }
 
 void UniqueIDBDatabase::performGetIndexRecord(uint64_t callbackIdentifier, const IDBResourceIdentifier& transactionIdentifier, uint64_t objectStoreIdentifier, uint64_t indexIdentifier, IndexedDB::IndexRecordType recordType, const IDBKeyRangeData& range)
@@ -978,9 +1013,9 @@ void UniqueIDBDatabase::didPerformCommitTransaction(uint64_t callbackIdentifier,
     ASSERT(isMainThread());
     LOG(IndexedDB, "(main) UniqueIDBDatabase::didPerformCommitTransaction");
 
-    inProgressTransactionCompleted(transactionIdentifier);
-
     performErrorCallback(callbackIdentifier, error);
+
+    inProgressTransactionCompleted(transactionIdentifier);
 }
 
 void UniqueIDBDatabase::abortTransaction(UniqueIDBDatabaseTransaction& transaction, ErrorCallback callback)
@@ -1028,9 +1063,9 @@ void UniqueIDBDatabase::didPerformAbortTransaction(uint64_t callbackIdentifier, 
         m_databaseInfo = std::make_unique<IDBDatabaseInfo>(*m_versionChangeTransaction->originalDatabaseInfo());
     }
 
-    inProgressTransactionCompleted(transactionIdentifier);
-
     performErrorCallback(callbackIdentifier, error);
+
+    inProgressTransactionCompleted(transactionIdentifier);
 }
 
 void UniqueIDBDatabase::transactionDestroyed(UniqueIDBDatabaseTransaction& transaction)
@@ -1085,6 +1120,11 @@ void UniqueIDBDatabase::enqueueTransaction(Ref<UniqueIDBDatabaseTransaction>&& t
     invokeOperationAndTransactionTimer();
 }
 
+bool UniqueIDBDatabase::isCurrentlyInUse() const
+{
+    return !m_openDatabaseConnections.isEmpty() || !m_closePendingDatabaseConnections.isEmpty() || !m_pendingOpenDBRequests.isEmpty() || m_currentOpenDBRequest || m_versionChangeDatabaseConnection || m_versionChangeTransaction || m_isOpeningBackingStore || m_deleteBackingStoreInProgress;
+}
+
 void UniqueIDBDatabase::invokeOperationAndTransactionTimer()
 {
     LOG(IndexedDB, "UniqueIDBDatabase::invokeOperationAndTransactionTimer()");
@@ -1097,6 +1137,15 @@ void UniqueIDBDatabase::operationAndTransactionTimerFired()
     LOG(IndexedDB, "(main) UniqueIDBDatabase::operationAndTransactionTimerFired");
 
     RefPtr<UniqueIDBDatabase> protector(this);
+
+    // This UniqueIDBDatabase might be no longer in use by any web page.
+    // Assuming it is not ephemeral, the server should now close it to free up resources.
+    if (!m_backingStoreIsEphemeral && !isCurrentlyInUse()) {
+        ASSERT(m_pendingTransactions.isEmpty());
+        ASSERT(m_inProgressTransactions.isEmpty());
+        m_server.closeUniqueIDBDatabase(*this);
+        return;
+    }
 
     // The current operation might require multiple attempts to handle, so try to
     // make further progress on it now.
@@ -1243,6 +1292,13 @@ void UniqueIDBDatabase::inProgressTransactionCompleted(const IDBResourceIdentifi
 
     if (!transaction->databaseConnection().hasNonFinishedTransactions())
         m_closePendingDatabaseConnections.remove(&transaction->databaseConnection());
+
+    // It's possible that this database had its backing store deleted but there were a few outstanding asynchronous operations.
+    // If this transaction completing was the last of those operations, we can finally delete this UniqueIDBDatabase.
+    if (m_closePendingDatabaseConnections.isEmpty() && m_pendingOpenDBRequests.isEmpty() && !m_databaseInfo) {
+        m_server.closeUniqueIDBDatabase(*this);
+        return;
+    }
 
     // Previously blocked operations might be runnable.
     invokeOperationAndTransactionTimer();

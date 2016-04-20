@@ -1,3 +1,4 @@
+'use strict';
 
 class DataModelObject {
     constructor(id)
@@ -6,6 +7,20 @@ class DataModelObject {
         this.ensureNamedStaticMap('id')[id] = this;
     }
     id() { return this._id; }
+
+    static ensureSingleton(id, object)
+    {
+        var singleton = this.findById(id);
+        if (singleton) {
+            singleton.updateSingleton(object)
+            return singleton;
+        }
+        return new (this)(id, object);
+    }
+
+    updateSingleton(object) { }
+
+    static clearStaticMap() { this[DataModelObject.StaticMapSymbol] = null; }
 
     static namedStaticMap(name)
     {
@@ -19,7 +34,7 @@ class DataModelObject {
             this[DataModelObject.StaticMapSymbol] = {};
         var staticMap = this[DataModelObject.StaticMapSymbol];
         if (!staticMap[name])
-            staticMap[name] = [];
+            staticMap[name] = {};
         return staticMap[name];
     }
 
@@ -32,10 +47,10 @@ class DataModelObject {
         return idMap ? idMap[id] : null;
     }
 
-    static all()
+    static listForStaticMap(name)
     {
         var list = [];
-        var idMap = this.namedStaticMap('id');
+        var idMap = this.namedStaticMap(name);
         if (idMap) {
             for (var id in idMap)
                 list.push(idMap[id]);
@@ -43,7 +58,9 @@ class DataModelObject {
         return list;
     }
 
-    static cachedFetch(path, params)
+    static all() { return this.listForStaticMap('id'); }
+
+    static cachedFetch(path, params, noCache)
     {
         var query = [];
         if (params) {
@@ -53,9 +70,12 @@ class DataModelObject {
         if (query.length)
             path += '?' + query.join('&');
 
+        if (noCache)
+            return RemoteAPI.getJSONWithStatus(path);
+
         var cacheMap = this.ensureNamedStaticMap(DataModelObject.CacheMapSymbol);
         if (!cacheMap[path])
-            cacheMap[path] = getJSONWithStatus(path);
+            cacheMap[path] = RemoteAPI.getJSONWithStatus(path);
 
         return cacheMap[path];
     }
@@ -69,14 +89,9 @@ class LabeledObject extends DataModelObject {
     {
         super(id);
         this._name = object.name;
-        this.ensureNamedStaticMap('name')[this._name] = this;
     }
 
-    static findByName(name)
-    {
-        var nameMap = this.namedStaticMap('id');
-        return nameMap ? nameMap[name] : null;
-    }
+    updateSingleton(object) { this._name = object.name; }
 
     static sortByName(list)
     {
@@ -92,4 +107,9 @@ class LabeledObject extends DataModelObject {
 
     name() { return this._name; }
     label() { return this.name(); }
+}
+
+if (typeof module != 'undefined') {
+    module.exports.DataModelObject = DataModelObject;
+    module.exports.LabeledObject = LabeledObject;
 }

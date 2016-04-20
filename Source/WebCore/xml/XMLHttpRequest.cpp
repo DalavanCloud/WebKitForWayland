@@ -238,7 +238,7 @@ Blob* XMLHttpRequest::responseBlob()
     if (!m_responseBlob) {
         if (m_binaryResponseBuilder) {
             // FIXME: We just received the data from NetworkProcess, and are sending it back. This is inefficient.
-            Vector<char> data;
+            Vector<uint8_t> data;
             data.append(m_binaryResponseBuilder->data(), m_binaryResponseBuilder->size());
             String normalizedContentType = Blob::normalizedContentType(responseMIMEType()); // responseMIMEType defaults to text/xml which may be incorrect.
             m_responseBlob = Blob::create(WTFMove(data), normalizedContentType);
@@ -497,13 +497,6 @@ void XMLHttpRequest::open(const String& method, const URL& url, bool async, Exce
         return;
     }
 
-    // FIXME: Convert this to check the isolated world's Content Security Policy once webkit.org/b/104520 is solved.
-    if (!scriptExecutionContext()->contentSecurityPolicy()->allowConnectToSource(url, scriptExecutionContext()->shouldBypassMainWorldContentSecurityPolicy())) {
-        // FIXME: Should this be throwing an exception?
-        ec = SECURITY_ERR;
-        return;
-    }
-
     if (!async && scriptExecutionContext()->isDocument()) {
         if (document()->settings() && !document()->settings()->syncXHRInDocumentsEnabled()) {
             logConsoleError(scriptExecutionContext(), "Synchronous XMLHttpRequests are disabled for this page.");
@@ -572,6 +565,17 @@ bool XMLHttpRequest::initSend(ExceptionCode& ec)
         return false;
     }
     ASSERT(!m_loader);
+
+    // FIXME: Convert this to check the isolated world's Content Security Policy once webkit.org/b/104520 is solved.
+    if (!scriptExecutionContext()->contentSecurityPolicy()->allowConnectToSource(m_url, scriptExecutionContext()->shouldBypassMainWorldContentSecurityPolicy())) {
+        if (m_async) {
+            setPendingActivity(this);
+            m_timeoutTimer.stop();
+            m_networkErrorTimer.startOneShot(0);
+        } else
+            ec = NETWORK_ERR;
+        return false;
+    }
 
     m_error = false;
     return true;
@@ -709,7 +713,7 @@ void XMLHttpRequest::sendBytesData(const void* data, size_t length, ExceptionCod
 void XMLHttpRequest::createRequest(ExceptionCode& ec)
 {
     // Only GET request is supported for blob URL.
-    if (m_url.protocolIs("blob") && m_method != "GET") {
+    if (m_url.protocolIsBlob() && m_method != "GET") {
         ec = NETWORK_ERR;
         return;
     }
@@ -976,7 +980,7 @@ void XMLHttpRequest::setRequestHeader(const String& name, const String& value, E
 String XMLHttpRequest::getAllResponseHeaders() const
 {
     if (m_state < HEADERS_RECEIVED || m_error)
-        return "";
+        return emptyString();
 
     StringBuilder stringBuilder;
 

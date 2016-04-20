@@ -247,7 +247,6 @@ private:
                 case AllocatePropertyStorage:
                 case ReallocatePropertyStorage:
                 case GetButterfly:
-                case GetButterflyReadOnly:
                 case GetByVal:
                 case PutByValDirect:
                 case PutByVal:
@@ -326,7 +325,6 @@ private:
                 case PutStructure:
                 case ReallocatePropertyStorage:
                 case GetButterfly:
-                case GetButterflyReadOnly:
                 case GetByVal:
                 case PutByValDirect:
                 case PutByVal:
@@ -528,7 +526,6 @@ private:
 
 bool performTypeCheckHoisting(Graph& graph)
 {
-    SamplingRegion samplingRegion("DFG Type Check Hoisting Phase");
     return runPhase<TypeCheckHoistingPhase>(graph);
 }
 

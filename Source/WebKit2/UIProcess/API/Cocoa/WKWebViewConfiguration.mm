@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014, 2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -36,12 +36,15 @@
 #import "WeakObjCPtr.h"
 #import "_WKVisitedLinkProvider.h"
 #import "_WKWebsiteDataStoreInternal.h"
+#import <WebCore/RuntimeApplicationChecks.h>
 #import <wtf/RetainPtr.h>
 
 #if PLATFORM(IOS)
 #import "UIKitSPI.h"
 #import <WebCore/Device.h>
 #endif
+
+using namespace WebCore;
 
 template<typename T> class LazyInitialized {
 public:
@@ -97,20 +100,30 @@ private:
     BOOL _allowsJavaScriptMarkup;
     BOOL _convertsPositionStyleOnCopy;
     BOOL _allowsMetaRefresh;
+    BOOL _allowUniversalAccessFromFileURLs;
 
 #if PLATFORM(IOS)
     LazyInitialized<RetainPtr<WKWebViewContentProviderRegistry>> _contentProviderRegistry;
     BOOL _alwaysRunsAtForegroundPriority;
     BOOL _allowsInlineMediaPlayback;
     BOOL _inlineMediaPlaybackRequiresPlaysInlineAttribute;
+#endif
+
     BOOL _invisibleAutoplayNotPermitted;
     BOOL _mediaDataLoadsAutomatically;
+    BOOL _attachmentElementEnabled;
+    BOOL _requiresUserActionForVideoPlayback;
     BOOL _requiresUserActionForAudioPlayback;
-#endif
+    BOOL _mainContentUserGestureOverrideEnabled;
+
 #if PLATFORM(MAC)
     BOOL _showsURLsInToolTips;
     BOOL _serviceControlsEnabled;
     BOOL _imageControlsEnabled;
+#endif
+
+#if USE(APPLE_INTERNAL_SDK)
+#import <WebKitAdditions/WKWebViewConfigurationIvars.mm>
 #endif
 }
 
@@ -121,12 +134,26 @@ private:
     
 #if PLATFORM(IOS)
     _requiresUserActionForMediaPlayback = YES;
-    _requiresUserActionForAudioPlayback = YES;
     _allowsPictureInPictureMediaPlayback = YES;
     _allowsInlineMediaPlayback = WebCore::deviceClass() == MGDeviceClassiPad;
     _inlineMediaPlaybackRequiresPlaysInlineAttribute = !_allowsInlineMediaPlayback;
-    _invisibleAutoplayNotPermitted = YES;
     _mediaDataLoadsAutomatically = NO;
+#else
+    _mediaDataLoadsAutomatically = YES;
+#endif
+    _requiresUserActionForVideoPlayback = NO;
+    _requiresUserActionForAudioPlayback = NO;
+    _mainContentUserGestureOverrideEnabled = NO;
+    _invisibleAutoplayNotPermitted = NO;
+
+// FIXME: <rdar://problem/25135244> Should default to NO once clients have adopted the setting.
+#if PLATFORM(IOS)
+    _attachmentElementEnabled = IOSApplication::isMobileMail();
+#else
+    _attachmentElementEnabled = MacApplication::isAppleMail();
+#endif
+
+#if PLATFORM(IOS)
     _respectsImageOrientation = YES;
     _printsBackgrounds = YES;
 #endif
@@ -147,6 +174,8 @@ private:
     _allowsJavaScriptMarkup = YES;
     _convertsPositionStyleOnCopy = NO;
     _allowsMetaRefresh = YES;
+    _allowUniversalAccessFromFileURLs = NO;
+    _treatsSHA1SignedCertificatesAsInsecure = YES;
 
     return self;
 }
@@ -154,6 +183,53 @@ private:
 - (NSString *)description
 {
     return [NSString stringWithFormat:@"<%@: %p; processPool = %@; preferences = %@>", NSStringFromClass(self.class), self, self.processPool, self.preferences];
+}
+
+// FIXME: Encode the process pool, user content controller and website data store.
+
+- (void)encodeWithCoder:(NSCoder *)coder
+{
+    [coder encodeObject:self.processPool forKey:@"processPool"];
+    [coder encodeObject:self.preferences forKey:@"preferences"];
+    [coder encodeObject:self.userContentController forKey:@"userContentController"];
+    [coder encodeObject:self.websiteDataStore forKey:@"websiteDataStore"];
+
+    [coder encodeBool:self.suppressesIncrementalRendering forKey:@"suppressesIncrementalRendering"];
+    [coder encodeObject:self.applicationNameForUserAgent forKey:@"applicationNameForUserAgent"];
+    [coder encodeBool:self.allowsAirPlayForMediaPlayback forKey:@"allowsAirPlayForMediaPlayback"];
+    [coder encodeInteger:self.dataDetectorTypes forKey:@"dataDetectorTypes"];
+
+#if PLATFORM(IOS)
+    [coder encodeBool:self.allowsInlineMediaPlayback forKey:@"allowsInlineMediaPlayback"];
+    [coder encodeBool:self.requiresUserActionForMediaPlayback forKey:@"requiresUserActionForMediaPlayback"];
+    [coder encodeInteger:self.selectionGranularity forKey:@"selectionGranularity"];
+    [coder encodeBool:self.allowsPictureInPictureMediaPlayback forKey:@"allowsPictureInPictureMediaPlayback"];
+#endif
+}
+
+- (instancetype)initWithCoder:(NSCoder *)coder
+{
+    if (!(self = [self init]))
+        return nil;
+
+    self.processPool = [coder decodeObjectForKey:@"processPool"];
+    self.preferences = [coder decodeObjectForKey:@"preferences"];
+    self.userContentController = [coder decodeObjectForKey:@"userContentController"];
+    self.websiteDataStore = [coder decodeObjectForKey:@"websiteDataStore"];
+
+    self.suppressesIncrementalRendering = [coder decodeBoolForKey:@"suppressesIncrementalRendering"];
+    self.applicationNameForUserAgent = [coder decodeObjectForKey:@"applicationNameForUserAgent"];
+    self.allowsAirPlayForMediaPlayback = [coder decodeBoolForKey:@"allowsAirPlayForMediaPlayback"];
+    self.dataDetectorTypes = [coder decodeIntegerForKey:@"dataDetectorTypes"];
+
+#if PLATFORM(IOS)
+    self.allowsInlineMediaPlayback = [coder decodeBoolForKey:@"allowsInlineMediaPlayback"];
+    self.requiresUserActionForMediaPlayback = [coder decodeBoolForKey:@"requiresUserActionForMediaPlayback"];
+    self.selectionGranularity = static_cast<WKSelectionGranularity>([coder decodeIntegerForKey:@"selectionGranularity"]);
+    self.allowsPictureInPictureMediaPlayback = [coder decodeBoolForKey:@"allowsPictureInPictureMediaPlayback"];
+#endif
+
+    return self;
 }
 
 - (id)copyWithZone:(NSZone *)zone
@@ -181,16 +257,21 @@ private:
     configuration->_allowsJavaScriptMarkup = self->_allowsJavaScriptMarkup;
     configuration->_convertsPositionStyleOnCopy = self->_convertsPositionStyleOnCopy;
     configuration->_allowsMetaRefresh = self->_allowsMetaRefresh;
+    configuration->_allowUniversalAccessFromFileURLs = self->_allowUniversalAccessFromFileURLs;
+
+    configuration->_invisibleAutoplayNotPermitted = self->_invisibleAutoplayNotPermitted;
+    configuration->_mediaDataLoadsAutomatically = self->_mediaDataLoadsAutomatically;
+    configuration->_attachmentElementEnabled = self->_attachmentElementEnabled;
+    configuration->_requiresUserActionForVideoPlayback = self->_requiresUserActionForVideoPlayback;
+    configuration->_requiresUserActionForAudioPlayback = self->_requiresUserActionForAudioPlayback;
+    configuration->_mainContentUserGestureOverrideEnabled = self->_mainContentUserGestureOverrideEnabled;
 
 #if PLATFORM(IOS)
     configuration->_allowsInlineMediaPlayback = self->_allowsInlineMediaPlayback;
     configuration->_inlineMediaPlaybackRequiresPlaysInlineAttribute = self->_inlineMediaPlaybackRequiresPlaysInlineAttribute;
-    configuration->_invisibleAutoplayNotPermitted = self->_invisibleAutoplayNotPermitted;
-    configuration->_mediaDataLoadsAutomatically = self->_mediaDataLoadsAutomatically;
+    configuration->_requiresUserActionForMediaPlayback = self->_requiresUserActionForMediaPlayback;
     configuration->_allowsPictureInPictureMediaPlayback = self->_allowsPictureInPictureMediaPlayback;
     configuration->_alwaysRunsAtForegroundPriority = _alwaysRunsAtForegroundPriority;
-    configuration->_requiresUserActionForMediaPlayback = self->_requiresUserActionForMediaPlayback;
-    configuration->_requiresUserActionForAudioPlayback = self->_requiresUserActionForAudioPlayback;
     configuration->_selectionGranularity = self->_selectionGranularity;
 #endif
 #if PLATFORM(MAC)
@@ -203,6 +284,10 @@ private:
 #endif
 #if ENABLE(WIRELESS_TARGET_PLAYBACK)
     configuration->_allowsAirPlayForMediaPlayback = self->_allowsAirPlayForMediaPlayback;
+#endif
+
+#if USE(APPLE_INTERNAL_SDK)
+#import <WebKitAdditions/WKWebViewConfigurationCopy.mm>
 #endif
 
     return configuration;
@@ -421,6 +506,16 @@ static NSString *defaultApplicationNameForUserAgent()
     _allowsJavaScriptMarkup = allowsJavaScriptMarkup;
 }
 
+- (BOOL)_allowUniversalAccessFromFileURLs
+{
+    return _allowUniversalAccessFromFileURLs;
+}
+
+- (void)_setAllowUniversalAccessFromFileURLs:(BOOL)allowUniversalAccessFromFileURLs
+{
+    _allowUniversalAccessFromFileURLs = allowUniversalAccessFromFileURLs;
+}
+
 - (BOOL)_convertsPositionStyleOnCopy
 {
     return _convertsPositionStyleOnCopy;
@@ -461,6 +556,7 @@ static NSString *defaultApplicationNameForUserAgent()
 {
     _inlineMediaPlaybackRequiresPlaysInlineAttribute = requires;
 }
+#endif // PLATFORM(IOS)
 
 - (BOOL)_invisibleAutoplayNotPermitted
 {
@@ -482,6 +578,26 @@ static NSString *defaultApplicationNameForUserAgent()
     _mediaDataLoadsAutomatically = mediaDataLoadsAutomatically;
 }
 
+- (BOOL)_attachmentElementEnabled
+{
+    return _attachmentElementEnabled;
+}
+
+- (void)_setAttachmentElementEnabled:(BOOL)attachmentElementEnabled
+{
+    _attachmentElementEnabled = attachmentElementEnabled;
+}
+
+- (BOOL)_requiresUserActionForVideoPlayback
+{
+    return _requiresUserActionForVideoPlayback;
+}
+
+- (void)_setRequiresUserActionForVideoPlayback:(BOOL)requiresUserActionForVideoPlayback
+{
+    _requiresUserActionForVideoPlayback = requiresUserActionForVideoPlayback;
+}
+
 - (BOOL)_requiresUserActionForAudioPlayback
 {
     return _requiresUserActionForAudioPlayback;
@@ -492,7 +608,15 @@ static NSString *defaultApplicationNameForUserAgent()
     _requiresUserActionForAudioPlayback = requiresUserActionForAudioPlayback;
 }
 
-#endif // PLATFORM(IOS)
+- (BOOL)_mainContentUserGestureOverrideEnabled
+{
+    return _mainContentUserGestureOverrideEnabled;
+}
+
+- (void)_setMainContentUserGestureOverrideEnabled:(BOOL)mainContentUserGestureOverrideEnabled
+{
+    _mainContentUserGestureOverrideEnabled = mainContentUserGestureOverrideEnabled;
+}
 
 #if PLATFORM(MAC)
 - (BOOL)_showsURLsInToolTips
@@ -525,6 +649,10 @@ static NSString *defaultApplicationNameForUserAgent()
     _imageControlsEnabled = imageControlsEnabled;
 }
 #endif // PLATFORM(MAC)
+
+#if USE(APPLE_INTERNAL_SDK)
+#import <WebKitAdditions/WKWebViewConfigurationPrivateMethods.mm>
+#endif
 
 @end
 

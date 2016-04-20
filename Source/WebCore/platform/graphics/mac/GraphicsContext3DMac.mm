@@ -156,7 +156,8 @@ GraphicsContext3D::GraphicsContext3D(GraphicsContext3D::Attributes attrs, HostWi
     UNUSED_PARAM(renderStyle);
 
 #if PLATFORM(IOS)
-    m_contextObj = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
+    EAGLRenderingAPI api = m_attrs.useGLES3 ? kEAGLRenderingAPIOpenGLES3 : kEAGLRenderingAPIOpenGLES2;
+    m_contextObj = [[EAGLContext alloc] initWithAPI:api];
     makeContextCurrent();
 #else
     Vector<CGLPixelFormatAttribute> attribs;
@@ -227,9 +228,6 @@ GraphicsContext3D::GraphicsContext3D(GraphicsContext3D::Attributes attrs, HostWi
     // Create the WebGLLayer
     BEGIN_BLOCK_OBJC_EXCEPTIONS
         m_webGLLayer = adoptNS([[WebGLLayer alloc] initWithGraphicsContext3D:this]);
-#if PLATFORM(IOS)
-        [m_webGLLayer setOpaque:0];
-#endif
 #ifndef NDEBUG
         [m_webGLLayer setName:@"WebGL Layer"];
 #endif
@@ -345,7 +343,9 @@ GraphicsContext3D::~GraphicsContext3D()
 bool GraphicsContext3D::setRenderbufferStorageFromDrawable(GC3Dsizei width, GC3Dsizei height)
 {
     [m_webGLLayer setBounds:CGRectMake(0, 0, width, height)];
-    return [m_contextObj renderbufferStorage:GL_RENDERBUFFER fromDrawable:static_cast<NSObject<EAGLDrawable>*>(m_webGLLayer.get())];
+    [m_webGLLayer setOpaque:(m_internalColorFormat != GL_RGBA8)];
+
+    return [m_contextObj renderbufferStorage:GL_RENDERBUFFER fromDrawable:static_cast<id<EAGLDrawable>>(m_webGLLayer.get())];
 }
 #endif
 

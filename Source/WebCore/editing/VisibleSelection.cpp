@@ -123,19 +123,19 @@ void VisibleSelection::setExtent(const VisiblePosition& visiblePosition)
     validate();
 }
 
-PassRefPtr<Range> VisibleSelection::firstRange() const
+RefPtr<Range> VisibleSelection::firstRange() const
 {
     if (isNone())
-        return 0;
+        return nullptr;
     Position start = m_start.parentAnchoredEquivalent();
     Position end = m_end.parentAnchoredEquivalent();
     return Range::create(start.anchorNode()->document(), start, end);
 }
 
-PassRefPtr<Range> VisibleSelection::toNormalizedRange() const
+RefPtr<Range> VisibleSelection::toNormalizedRange() const
 {
     if (isNone())
-        return 0;
+        return nullptr;
 
     // Make sure we have an updated layout since this function is called
     // in the course of running edit commands which modify the DOM.
@@ -145,7 +145,7 @@ PassRefPtr<Range> VisibleSelection::toNormalizedRange() const
 
     // Check again, because updating layout can clear the selection.
     if (isNone())
-        return 0;
+        return nullptr;
 
     Position s, e;
     if (isCaret()) {
@@ -181,7 +181,7 @@ PassRefPtr<Range> VisibleSelection::toNormalizedRange() const
     }
 
     if (!s.containerNode() || !e.containerNode())
-        return 0;
+        return nullptr;
 
     // VisibleSelections are supposed to always be valid.  This constructor will ASSERT
     // if a valid range could not be created, which is fine for this callsite.
@@ -197,17 +197,17 @@ bool VisibleSelection::expandUsingGranularity(TextGranularity granularity)
     return true;
 }
 
-static PassRefPtr<Range> makeSearchRange(const Position& pos)
+static RefPtr<Range> makeSearchRange(const Position& pos)
 {
     Node* n = pos.deprecatedNode();
     if (!n)
-        return 0;
+        return nullptr;
     Node* de = n->document().documentElement();
     if (!de)
-        return 0;
+        return nullptr;
     Element* boundary = deprecatedEnclosingBlockFlowElement(n);
     if (!boundary)
-        return 0;
+        return nullptr;
 
     RefPtr<Range> searchRange(Range::create(n->document()));
     ExceptionCode ec = 0;
@@ -218,9 +218,9 @@ static PassRefPtr<Range> makeSearchRange(const Position& pos)
 
     ASSERT(!ec);
     if (ec)
-        return 0;
+        return nullptr;
 
-    return searchRange.release();
+    return searchRange;
 }
 
 bool VisibleSelection::isAll(EditingBoundaryCrossingRule rule) const

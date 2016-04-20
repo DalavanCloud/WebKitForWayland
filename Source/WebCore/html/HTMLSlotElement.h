@@ -39,12 +39,18 @@ public:
 
     const Vector<Node*>* assignedNodes() const;
 
+    void enqueueSlotChangeEvent();
+
 private:
     HTMLSlotElement(const QualifiedName&, Document&);
 
-    virtual InsertionNotificationRequest insertedInto(ContainerNode&) override;
-    virtual void removedFrom(ContainerNode&) override;
-    virtual void attributeChanged(const QualifiedName&, const AtomicString& oldValue, const AtomicString& newValue, AttributeModificationReason) override;
+    InsertionNotificationRequest insertedInto(ContainerNode&) override;
+    void removedFrom(ContainerNode&) override;
+    void attributeChanged(const QualifiedName&, const AtomicString& oldValue, const AtomicString& newValue, AttributeModificationReason) override;
+
+    bool dispatchEvent(Event&) override;
+
+    bool m_hasEnqueuedSlotChangeEvent { false };
 };
 
 }

@@ -40,6 +40,7 @@
 #include "WebKitWebSourceGStreamer.h"
 #include <gst/gst.h>
 #include <wtf/glib/GMutexLocker.h>
+#include <wtf/glib/GUniquePtr.h>
 #include <wtf/text/CString.h>
 
 #include <gst/audio/streamvolume.h>
@@ -282,13 +283,15 @@ MediaPlayerPrivateGStreamerBase::~MediaPlayerPrivateGStreamerBase()
 {
     m_notifier.cancelPendingNotifications();
 
-    g_signal_handlers_disconnect_matched(m_videoSink.get(), G_SIGNAL_MATCH_DATA, 0, 0, nullptr, nullptr, this);
+    if (m_videoSink)
+        g_signal_handlers_disconnect_matched(m_videoSink.get(), G_SIGNAL_MATCH_DATA, 0, 0, nullptr, nullptr, this);
 
     g_mutex_clear(&m_sampleMutex);
 
     m_player = nullptr;
 
-    g_signal_handlers_disconnect_matched(m_volumeElement.get(), G_SIGNAL_MATCH_DATA, 0, 0, nullptr, nullptr, this);
+    if (m_volumeElement)
+        g_signal_handlers_disconnect_matched(m_volumeElement.get(), G_SIGNAL_MATCH_DATA, 0, 0, nullptr, nullptr, this);
 
 
 #if ENABLE(ENCRYPTED_MEDIA)
@@ -317,6 +320,9 @@ MediaPlayerPrivateGStreamerBase::~MediaPlayerPrivateGStreamerBase()
 void MediaPlayerPrivateGStreamerBase::setPipeline(GstElement* pipeline)
 {
     m_pipeline = pipeline;
+#if USE(HOLE_PUNCH_GSTREAMER) && (USE(WESTEROS_SINK) || USE(FUSION_SINK))
+    updateVideoRectangle();
+#endif
 }
 
 void MediaPlayerPrivateGStreamerBase::clearSamples()
@@ -466,7 +472,7 @@ FloatSize MediaPlayerPrivateGStreamerBase::naturalSize() const
 #if USE(HOLE_PUNCH_GSTREAMER)
     // We don't care about the natural size of the video, the external sink will deal with it.
     // This means that the video will always have the size of the <video> component or the default 300x150
-    return m_videoSize;
+    return m_size;
 #endif
 
     if (!hasVideo())
@@ -553,6 +559,7 @@ void MediaPlayerPrivateGStreamerBase::setVolume(float volume)
     gst_stream_volume_set_volume(m_volumeElement.get(), GST_STREAM_VOLUME_FORMAT_CUBIC, static_cast<double>(volume));
 }
 
+#if PLATFORM(WPE)
 float MediaPlayerPrivateGStreamerBase::volume() const
 {
     if (!m_volumeElement)
@@ -560,7 +567,7 @@ float MediaPlayerPrivateGStreamerBase::volume() const
 
     return gst_stream_volume_get_volume(m_volumeElement.get(), GST_STREAM_VOLUME_FORMAT_CUBIC);
 }
-
+#endif
 
 void MediaPlayerPrivateGStreamerBase::notifyPlayerOfVolumeChange()
 {
@@ -578,7 +585,9 @@ void MediaPlayerPrivateGStreamerBase::notifyPlayerOfVolumeChange()
 void MediaPlayerPrivateGStreamerBase::volumeChangedCallback(MediaPlayerPrivateGStreamerBase* player)
 {
     // This is called when m_volumeElement receives the notify::volume signal.
+#if PLATFORM(WPE)
     LOG_MEDIA_MESSAGE("Volume changed to: %f", player->volume());
+#endif
 
     player->m_notifier.notify(MainThreadNotification::VolumeChanged, [player] { player->notifyPlayerOfVolumeChange(); });
 }
@@ -740,7 +749,6 @@ void MediaPlayerPrivateGStreamerBase::pushTextureToCompositor()
     std::unique_ptr<TextureMapperPlatformLayerBuffer> layerBuffer = std::make_unique<TextureMapperPlatformLayerBuffer>(frameHolder->textureID(), frameHolder->size(), frameHolder->flags());
     layerBuffer->setUnmanagedBufferDataHolder(WTFMove(frameHolder));
     m_platformLayerProxy->pushNextBuffer(WTFMove(layerBuffer));
-    m_platformLayerProxy->requestUpdate();
 #else
     GstVideoInfo videoInfo;
     if (UNLIKELY(!getSampleVideoInfo(m_sample.get(), videoInfo)))
@@ -759,7 +767,6 @@ void MediaPlayerPrivateGStreamerBase::pushTextureToCompositor()
     }
     updateTexture(buffer->textureGL(), videoInfo);
     m_platformLayerProxy->pushNextBuffer(WTFMove(buffer));
-    m_platformLayerProxy->requestUpdate();
 #endif
 }
 #endif
@@ -835,7 +842,41 @@ void MediaPlayerPrivateGStreamerBase::setSize(const IntSize& size)
 
     INFO_MEDIA_MESSAGE("Setting size to %dx%d", size.width(), size.height());
     m_size = size;
+
+#if USE(WESTEROS_SINK) || USE(FUSION_SINK)
+    updateVideoRectangle();
+#endif
 }
+
+void MediaPlayerPrivateGStreamerBase::setPosition(const IntPoint& position)
+{
+    if (position == m_position)
+        return;
+
+    m_position = position;
+
+    if(!m_pipeline)
+        return;
+
+#if USE(WESTEROS_SINK) || USE(FUSION_SINK)
+    updateVideoRectangle();
+#endif
+}
+
+#if USE(WESTEROS_SINK) || USE(FUSION_SINK)
+void MediaPlayerPrivateGStreamerBase::updateVideoRectangle()
+{
+    GstElement* sinkElement = nullptr;
+    g_object_get(m_pipeline.get(), "video-sink", &sinkElement, nullptr);
+    if(!sinkElement)
+        return;
+
+    INFO_MEDIA_MESSAGE("Setting video sink size and position to x:%d y:%d, width=%d, height=%d", m_position.x(), m_position.y(), m_size.width(), m_size.height());
+
+    GUniquePtr<gchar> rectString(g_strdup_printf("%d,%d,%d,%d", m_position.x(), m_position.y(), m_size.width(),m_size.height()));
+    g_object_set(sinkElement, "rectangle", rectString.get(), nullptr);
+}
+#endif
 
 void MediaPlayerPrivateGStreamerBase::paint(GraphicsContext& context, const FloatRect& rect)
 {
@@ -910,7 +951,7 @@ void MediaPlayerPrivateGStreamerBase::paintToTextureMapper(TextureMapper& textur
 #endif
 
 #if USE(GSTREAMER_GL)
-PassNativeImagePtr MediaPlayerPrivateGStreamerBase::nativeImageForCurrentTime()
+NativeImagePtr MediaPlayerPrivateGStreamerBase::nativeImageForCurrentTime()
 {
 #if !USE(CAIRO) || !ENABLE(ACCELERATED_2D_CANVAS)
     return nullptr;
@@ -1282,7 +1323,7 @@ void MediaPlayerPrivateGStreamerBase::needKey(RefPtr<Uint8Array> initData)
         GST_DEBUG("no event handler for key needed");
 }
 
-std::unique_ptr<CDMSession> MediaPlayerPrivateGStreamerBase::createSession(const String& keySystem)
+std::unique_ptr<CDMSession> MediaPlayerPrivateGStreamerBase::createSession(const String& keySystem, CDMSessionClient* client)
 {
     if (!supportsKeySystem(keySystem, emptyString()))
         return nullptr;
@@ -1291,7 +1332,7 @@ std::unique_ptr<CDMSession> MediaPlayerPrivateGStreamerBase::createSession(const
 #if USE(DXDRM) || USE(PLAYREADY)
     if (equalIgnoringASCIICase(keySystem, "com.microsoft.playready")
         || equalIgnoringASCIICase(keySystem, "com.youtube.playready"))
-        return std::make_unique<CDMPRSessionGStreamer>();
+        return std::make_unique<CDMPRSessionGStreamer>(client);
 #endif
 
     return nullptr;
@@ -1299,7 +1340,7 @@ std::unique_ptr<CDMSession> MediaPlayerPrivateGStreamerBase::createSession(const
 
 void MediaPlayerPrivateGStreamerBase::setCDMSession(CDMSession* session)
 {
-    LOG_MEDIA_MESSAGE("setting CDM session");
+    LOG_MEDIA_MESSAGE("setting CDM session to %p", session);
     m_cdmSession = session;
 }
 

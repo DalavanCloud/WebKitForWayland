@@ -137,7 +137,7 @@ StyledElement::~StyledElement()
         cssomWrapper->clearParentElement();
 }
 
-CSSStyleDeclaration* StyledElement::style()
+CSSStyleDeclaration* StyledElement::cssomStyle()
 {
     return ensureMutableInlineStyle().ensureInlineCSSStyleDeclaration(this);
 }
@@ -202,7 +202,7 @@ void StyledElement::styleAttributeChanged(const AtomicString& newStyleString, At
         if (PropertySetCSSStyleDeclaration* cssomWrapper = inlineStyleCSSOMWrapper())
             cssomWrapper->clearParentElement();
         ensureUniqueElementData().m_inlineStyle = nullptr;
-    } else if (reason == ModifiedByCloning || document().contentSecurityPolicy()->allowInlineStyle(document().url(), startLineNumber, isInUserAgentShadowTree()))
+    } else if (reason == ModifiedByCloning || document().contentSecurityPolicy()->allowInlineStyle(document().url(), startLineNumber, String(), isInUserAgentShadowTree()))
         setInlineStyleFromString(newStyleString);
 
     elementData()->setStyleAttributeIsDirty(false);

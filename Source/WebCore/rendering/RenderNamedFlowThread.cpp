@@ -298,7 +298,7 @@ LayoutRect RenderNamedFlowThread::decorationsClipRectForBoxInNamedFlowFragment(c
     // Take the scrolled offset of this object's parents into consideration.
     IntSize scrolledContentOffset;
     RenderBlock* containingBlock = box.containingBlock();
-    while (containingBlock) {
+    while (containingBlock && !is<RenderView>(*containingBlock)) {
         if (containingBlock->isRenderNamedFlowThread()) {
             // We've reached the flow thread, take the scrolled offset of the region into consideration.
             ASSERT(containingBlock == this);
@@ -548,10 +548,10 @@ bool RenderNamedFlowThread::isChildAllowed(const RenderObject& child, const Rend
     ASSERT(is<Element>(*child.node()));
 
     auto* originalParent = composedTreeAncestors(*child.node()).first();
-    if (!is<Element>(originalParent) || !originalParent->renderer())
+    if (!originalParent || !originalParent->renderer())
         return true;
 
-    return downcast<Element>(*originalParent).renderer()->isChildAllowed(child, style);
+    return originalParent->renderer()->isChildAllowed(child, style);
 }
 
 void RenderNamedFlowThread::dispatchRegionOversetChangeEventIfNeeded()

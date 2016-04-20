@@ -1,3 +1,1100 @@
+2016-04-09  Jon Lee  <jonlee@apple.com>
+
+        Update Animometer to accommodate different screens
+        https://bugs.webkit.org/show_bug.cgi?id=156449
+
+        Reviewed by Darin Adler.
+        Provisionally reviewed by Said Abou-Hallawa.
+
+        * Animometer/index.html: Wrap button in a container to add padding at the bottom.
+        * Animometer/resources/debug-runner/animometer.css:
+        (@media screen and (min-device-width: 1800px)): Deleted.
+        (@media screen and (min-width: 1800px)): Cannot use min-device-width since it may match incorrectly.
+        (screen and (max-device-height: 414px) and (orientation: landscape)): Some devices swap device width
+        and height with orientation change.
+        * Animometer/resources/runner/animometer.css: Similar.
+        (screen and (min-device-width: 1024px) and (orientation: landscape)):
+        (screen and (max-device-height: 414px) and (orientation: landscape)):
+        (.frame-container): On smaller iPhones, adding 1px prevents the navigation bars from appearing.
+        (@media screen and (min-device-width: 768px) and (max-device-width: 1024px)): Deleted.
+        (@media (min-device-height: 768px) and (max-device-height: 1024px)): Target iPad Airs and similar.
+        (@media screen and (min-device-width: 1024px) and (max-device-width: 1366px)): Deleted.
+        (@media screen and (max-device-width: 1024px) and (min-device-height: 1366px)): Target iPad Pro.
+        (#results footer): Add padding below the button for testing again.
+        * Animometer/tests/master/multiply.html: Remove the center text.
+        * Animometer/tests/master/resources/text.js: Update the test so that in every frame the text moves.
+        * Animometer/tests/master/text.html: Update the text sizing depending on the size of the device.
+
+2016-04-08  Jon Lee  <jonlee@apple.com>
+
+        Have Animometer benchmark always start with complexity of 1
+        https://bugs.webkit.org/show_bug.cgi?id=156432
+
+        Reviewed by Ryosuke Niwa.
+
+        * Animometer/tests/resources/main.js: Update the default Controller and RampController to
+        set its minimum complexities to 1 instead of 0.
+
+2016-04-08  Jon Lee  <jonlee@apple.com>
+
+        Fix SVG benchmark test
+        https://bugs.webkit.org/show_bug.cgi?id=156410
+
+        Reviewed by Dean Jackson.
+
+        * Animometer/resources/extensions.js: Update Point.zero to be a static Point.
+        * Animometer/tests/simple/resources/tiled-canvas-image.js:
+        (Stage.call._setupTiles): Refactor.
+        * Animometer/tests/master/resources/particles.js:
+        (Particle.prototype.reset): Use Point.center.
+        (complexity): We are not using a gradient background anymore, so remove the +1.
+        * Animometer/tests/master/resources/svg-particles.js: Update to use SVG transform
+        instead of CSS transform.
+
+2016-04-06  Jon Lee  <jonlee@apple.com>
+
+        Update master benchmark with SVG test
+        https://bugs.webkit.org/show_bug.cgi?id=156273
+
+        Reviewed by Dean Jackson.
+        Provisionally reviewed by Said Abou-Hallawa.
+
+        Switch masks tests for SVG path test.
+
+        * Animometer/resources/debug-runner/tests.js: Move mask test here.
+        * Animometer/resources/runner/tests.js: Add SVG test here.
+        * Animometer/tests/dom/particles.html: Renamed from PerformanceTests/Animometer/tests/master/particles.html.
+        * Animometer/tests/dom/resources/dom-particles.js: Renamed from PerformanceTests/Animometer/tests/master/resources/dom-particles.js.
+
+        * Animometer/tests/master/resources/particles.js: Add minPosition for bounds checking. Prevents particle from being
+        partially obscured.
+        * Animometer/tests/master/resources/svg-particles.js: Added.
+        (Particle): The particle is either a path object or a rect using a path as a clip. The
+        same path is used either way. For each particle create a linear gradient with a random
+        rotation.
+        (SVGParticlesStage): Look in #shapes to see how many different kinds of paths are available.
+        This makes the test more generic in case other shapes need to be tested.
+        * Animometer/tests/master/svg-particles.html: Added. Have two defs, one that houses each
+        particle's gradient, and one that holds the shape templates.
+
+2016-03-27  Hunseop Jeong  <hs85.jeong@samsung.com>
+
+        [EFL] REGRESSION(r188793): It made 200 layout tests and Bindings/event-target-wrapper.html performance test fail
+        https://bugs.webkit.org/show_bug.cgi?id=148470 
+
+        Reviewed by Darin Adler.
+
+        * Skipped: Unskip the Bindings/event-target-wrapper test.
+
+2016-03-23  Jon Lee  <jonlee@apple.com>
+
+        Update focus and leaves tests
+        https://bugs.webkit.org/show_bug.cgi?id=155825
+
+        Reviewed by Simon Fraser.
+
+        Particles would improperly disappear, before they were fully off stage. Update the calculation.
+        * Animometer/tests/dom/resources/leaves.js:
+        * Animometer/tests/master/resources/leaves.js:
+
+        * Animometer/tests/master/focus.html: Update the center element styling.
+        * Animometer/tests/master/resources/focus.js:
+        (FocusElement.Utilities.createClass): Give enough space in the container for each particle for the blur
+        to spread. It should be about 3x more space than the blur radius on each side.
+        (Stage.call.initialize): Ditto for the center element.
+
+2016-03-23  Jon Lee  <jonlee@apple.com>
+
+        Update support for other platforms
+        https://bugs.webkit.org/show_bug.cgi?id=155824
+
+        Reviewed by Simon Fraser.
+
+        * Animometer/resources/debug-runner/animometer.css: Remove extraneous media query. All of it should
+        be handled in the release stylesheet.
+        * Animometer/resources/debug-runner/animometer.js: Add support for browsers that return an HTMLCollection
+        when retrieving radio elements with a name, instead of the selected value.
+        * Animometer/resources/runner/animometer.css: Adjust the queries for devices of varying widths.
+        (.frame-container): Move overflow:hidden to #stage.
+        * Animometer/tests/master/resources/stage.css: Consolidate into tests/resources/stage.css.
+        * Animometer/tests/resources/stage.css:
+        (body): Remove overflow:hidden.
+        (#stage): Set overflow:hidden here.
+        (#center-text): Moved from master/resources/stage.css.
+
+        Update stylesheet hrefs.
+        * Animometer/tests/master/canvas-stage.html:
+        * Animometer/tests/master/focus.html:
+        * Animometer/tests/master/leaves.html:
+        * Animometer/tests/master/multiply.html:
+        * Animometer/tests/master/particles.html:
+        * Animometer/tests/master/text.html: Adjust text size to fit in the device screen.
+
+2016-03-23  Jon Lee  <jonlee@apple.com>
+
+        Make the benchmark require device to be in landscape orientation
+        https://bugs.webkit.org/show_bug.cgi?id=155822
+        rdar://problem/25258650
+
+        Reviewed by Ryosuke Niwa.
+
+        Check that the device is in landscape orientation. If not, disable the button to start it,
+        and show a warning message.
+
+        * Animometer/developer.html: Add a message about how the browser should be set up. Include a
+        warning message that appears if the orientation is incorrect on mobile devices.
+        * Animometer/index.html: Ditto.
+
+        * Animometer/resources/debug-runner/animometer.css: Migrate the .hidden rule into the release
+        stylesheet. Update the style to accommodate the new UI.
+        * Animometer/resources/runner/animometer.css:
+
+        * Animometer/resources/runner/animometer.js:
+        (window.benchmarkController.initialize): Add the orientation listener is needed.
+        (window.benchmarkController.addOrientationListenerIfNecessary): Only mobile devices need this. Check
+        to see for support of window.orientation.
+        (window.benchmarkController._orientationChanged): Toggle the warning based on whether we match the
+        landscape query. Set a state variable, which is needed for the debug harness. Call updateStartButtonState.
+        (window.benchmarkController.updateStartButtonState):
+        * Animometer/resources/debug-runner/animometer.js: Change _updateStartButtonState to return
+        a boolean about whether at least one test is selected. That will be used in
+        benchmarkController.updateStartButtonState(). Move the load event listener to the release version.
+        (window.benchmarkController.updateStartButtonState): Override the release version, and also check
+        that at least one test is selected.
+
+2016-03-22  Geoffrey Garen  <ggaren@apple.com>
+
+        MallocBench: consolidate regression testing for aligned allocation
+        https://bugs.webkit.org/show_bug.cgi?id=155762
+
+        Reviewed by Michael Saboff.
+
+        * MallocBench/MallocBench.xcodeproj/project.pbxproj:
+        * MallocBench/MallocBench/Benchmark.cpp:
+        * MallocBench/MallocBench/memalign.cpp: Removed.
+        * MallocBench/MallocBench/memalign.h: Removed. The stress_aligned test
+        covers this and much more.
+
+        * MallocBench/MallocBench/stress_aligned.cpp:
+        (benchmark_stress_aligned): Include specific tests for extreme sizes
+        and alignments.
+
+2016-03-21  Jon Lee  <jonlee@apple.com>
+
+        Update benchmark tests
+        https://bugs.webkit.org/show_bug.cgi?id=155723
+
+        Reviewed by Darin Adler.
+        Provisionally reviewed by Said Abou-Hallawa.
+
+        Add quadratic and bezier segments to the canvas path test.
+
+        * Animometer/resources/runner/tests.js: Some of the query strings are unnecessary.
+        Rename the test.
+        * Animometer/tests/master/resources/canvas-stage.js:
+        (tune): Update to be able to take an array of possible constructors. Choose one randomly.
+        * Animometer/tests/master/resources/canvas-tests.js:
+        (CanvasLinePoint.Utilities.createClass): Move the point selection out to a separate
+        function called randomPoint() for reuse. Move X_LOOPS, Y_LOOPS, and offsets into the
+        class definition.
+        (randomPoint): Scale the grid down a little bit so that the lines along the edge of the
+        canvas are not cut off when the stroke size is thick.
+        (CanvasQuadraticSegment): Added.
+        (CanvasBezierSegment): Added.
+        (SimpleCanvasStage): Pass in an array of the different segment types. Since line segments
+        are short compared to the curved ones, make it twice as likely to render a line segment.
+        (SimpleCanvasStage.animate): Update the drawing code so that we render all line segments.
+
+        Add a helper method that selects a random element from an array.
+
+        * Animometer/tests/resources/main.js:
+        (Stage.randomElementInArray): Select a random element from the provided array.
+
+        * Animometer/tests/bouncing-particles/resources/bouncing-tagged-images.js: Refactor.
+        * Animometer/tests/dom/resources/leaves.js: Ditto.
+        * Animometer/tests/master/resources/dom-particles.js: Ditto.
+        * Animometer/tests/master/resources/image-data.js: Ditto.
+        * Animometer/tests/master/resources/leaves.js: Ditto.
+        * Animometer/tests/simple/resources/simple-canvas-paths.js: Ditto.
+
+        Add canvas tests that includes all stroke and fill paths. This makes it possible to avoid having to
+        include the full simple canvas suite for perf testing.
+
+        * Animometer/resources/debug-runner/tests.js: Add new tests. Move the canvas test into the Canvas
+        suite.
+        * Animometer/tests/simple/resources/simple-canvas-paths.js: Add a CanvasStroke and CanvasFill particle
+        that random selects an object to render.
+
+        * Animometer/resources/debug-runner/tests.js: Move 3D suite before basic canvas suite.
+        When updating the perf bot script, we will include the suites up to this one, but exclude
+        the basic canvas suite.
+
+        Move compositing transforms test to HTML suite and remove the empty Miscellaneous suite.
+
+        * Animometer/resources/debug-runner/tests.js:
+        * Animometer/tests/dom/compositing-transforms.html: Renamed from PerformanceTests/Animometer/tests/misc/compositing-transforms.html.
+        * Animometer/tests/dom/resources/compositing-transforms.js: Renamed from PerformanceTests/Animometer/tests/misc/resources/compositing-transforms.js.
+
+        Clean up miscellaneous test suite. Add a canvas ellipse test, and remove the other
+        canvas tests.
+
+        * Animometer/resources/debug-runner/tests.js: Add ellipse tests to the simple suite.
+        * Animometer/tests/misc/canvas-electrons.html: Removed.
+        * Animometer/tests/misc/canvas-stars.html: Removed.
+        * Animometer/tests/misc/resources/canvas-electrons.js: Removed.
+        * Animometer/tests/misc/resources/canvas-stars.js: Removed.
+        * Animometer/tests/simple/resources/simple-canvas-paths.js: Add ellipse primitives.
+
+        Merge text tests together into one.
+
+        * Animometer/resources/runner/tests.js: Remove international.html.
+        * Animometer/tests/master/international.html: Removed.
+        * Animometer/tests/master/resources/text.js:
+        (animate): Update styling. Manually calculate gradients for the shadow particles.
+        Reduce the step size for y direction to avoid cutting text off at the margins. Increase
+        step for x since there will be a little more room.
+        * Animometer/tests/master/text.html: Add more translations and lay it out in a table.
+
+2016-03-20  Jon Lee  <jonlee@apple.com>
+
+        Add a link to show debug data
+        https://bugs.webkit.org/show_bug.cgi?id=155724
+
+        Reviewed by Simon Fraser.
+
+        * Animometer/developer.html: Attach the onclick handler to the score.
+        * Animometer/index.html: Ditto.
+
+2016-03-18  Dean Jackson  <dino@apple.com>
+
+        Add a basic WebGL test to Animometer
+        https://bugs.webkit.org/show_bug.cgi?id=155475
+        <rdar://problem/25156860>
+
+        Reviewed by Simon Fraser and Jon Lee.
+
+        Add a pretty simple WebGL test to Animometer
+        which tries to draw a number of animated triangles.
+        The result still needs a bit of tuning.
+
+        * Animometer/resources/debug-runner/tests.js: Add a new
+        Suite for "3D" tests.
+        * Animometer/tests/3d/resources/webgl.js: Added.
+        * Animometer/tests/3d/webgl.html: Added.
+
+2016-03-18  Jon Lee  <jonlee@apple.com>
+
+        Add support for statically linking to a specific test
+        https://bugs.webkit.org/show_bug.cgi?id=155631
+
+        Rubber-stamped by Darin Adler.
+
+        * Animometer/developer.html: Update to call restartBenchmark instead so that it works for
+        both the preset and the manually set test sessions.
+        * Animometer/resources/debug-runner/animometer.css:
+        (.tree .link): Style the "link" UI.
+        * Animometer/resources/debug-runner/animometer.js: Move updateDisplay from suitesManager
+        to optionsManager since this is a visual option and has nothing to do with the suites
+        settings. Update the construction of the test UI by including a "link" after each test.
+        Clicking on that link brings up a JS prompt with a URL and a query string with the current
+        parameters of the controller, and selected test. Pasting this URL into the location bar will
+        automatically start running the selected test.
+        (suitesManager.suitesFromQueryString): Iterate through the Suites and tests and find the one
+        that matches the provided parameters. Returns an object similar to the form in
+        suitesManager.updateLocalStorageFromUI.
+        (benchmarkController.initialize): After settings up the events and options, try parsing the
+        query string and running the benchmark immediately. Otherwise, fall back to the form.
+        (benchmarkController.startBenchmark): Store the options and suites into member variables for
+        reuse in restartBenchmark.
+        (benchmarkController.startBenchmarkImmediatelyIfEncoded): Convert the query string to an object.
+        If that's successful, find the suite and test referenced in the query string. Start the benchmark if
+        the search for the test succeeded.
+        * Animometer/resources/extensions.js:
+        (Utilities.stripNonASCIICharacters): Helper method to convert the name of the suite and test
+        into a query-string-friendly version.
+        (Utilities.convertObjectToQueryString): Helper method to convert an object to query string
+        format.
+        (Utilities.convertQueryStringToObject): Helper method to convert query string into an object
+        with properties and values.
+
+2016-03-16  Jon Lee  <jonlee@apple.com>
+
+        Add a new benchmark test
+        https://bugs.webkit.org/show_bug.cgi?id=155570
+
+        Reviewed by Simon Fraser.
+
+        New Leaves test includes various image sizes and opacity.
+
+        * Animometer/resources/debug-runner/tests.js: Add it to the HTML test suite.
+        * Animometer/tests/dom/leaves.html: Added.
+        * Animometer/tests/dom/resources/leaves.js: Added. Override the
+        (Particle.call.reset): Uses a range of sizes, and opacity.
+        (Particle.call.animate): Opacity goes up then down. When it hits 0, reset the particle.
+        (Particle.call.move): Set transform and opacity.
+        * Animometer/tests/master/resources/leaves.js: Get rid of the closure so that it
+        can be used in this test. Update the relative path so that it works in both the master
+        and dom test suite.
+
+2016-03-15  Simon Fraser  <simon.fraser@apple.com>
+
+        Add developer Animometer test that bounces P3-tagged images
+        https://bugs.webkit.org/show_bug.cgi?id=155511
+
+        Reviewed by Tim Horton.
+        
+        Add a test for rendering performance of tagged images. The 5 images are tagged
+        with the Display P3 colorspace.
+
+        * Animometer/resources/debug-runner/tests.js:
+        * Animometer/tests/bouncing-particles/bouncing-tagged-images.html: Added.
+        * Animometer/tests/bouncing-particles/resources/bouncing-tagged-images.js: Added.
+        * Animometer/tests/bouncing-particles/resources/image1.jpg: Added.
+        * Animometer/tests/bouncing-particles/resources/image2.jpg: Added.
+        * Animometer/tests/bouncing-particles/resources/image3.jpg: Added.
+        * Animometer/tests/bouncing-particles/resources/image4.jpg: Added.
+        * Animometer/tests/bouncing-particles/resources/image5.jpg: Added.
+
+2016-03-09  Jon Lee  <jonlee@apple.com>
+
+        Enhance existing Animometer tests
+        https://bugs.webkit.org/show_bug.cgi?id=155261
+
+        Reviewed by Simon Fraser.
+
+        * Animometer/tests/master/resources/canvas-tests.js: Add a gradient to
+        the filled circles. To expose more of the gradient, add another circle.
+        (SimpleCanvasStage.call.animate): For each frame, create a gradient with
+        undulating stop points and colors. Fill the circles twice; once with
+        the solid color, and once with the gradient.
+
+        * Animometer/tests/master/resources/dom-particles.js: Refactor the
+        emission variables into a separate stage for this test. Add a colorOffset
+        variable to make the colors of each particle slightly different, since
+        the ramp controller can add large numbers of particles all at once, which
+        would otherwise get all the same color.
+        * Animometer/tests/master/resources/particles.js:
+        (initialize): Remove the code specific to the SVG mask test.
+
+        * Animometer/tests/master/resources/image-data.js:
+        (initialize): Remove unused local variable.
+        * Animometer/tests/master/resources/multiply.js:
+        (initialize): Make the test harder by adding more total particles.
+
+2016-03-09  Jon Lee  <jonlee@apple.com>
+
+        Add text tests
+        https://bugs.webkit.org/show_bug.cgi?id=155257
+
+        Reviewed by Simon Fraser.
+
+        * Animometer/resources/extensions.js:
+        (UnitBezier.Utilities.createClass): Add a class that computes Bezier points
+        assuming that two of the control points are at (0,0) and (1,1). Taken from
+        WebCore/platform/graphics/UnitBezier.h
+        * Animometer/resources/runner/tests.js: Add a test for English text and one
+        for international text.
+        * Animometer/tests/master/international.html: Added.
+        * Animometer/tests/master/resources/text.js: Added. The test assumes there is
+        #template div which it will copy. The copies are placed behind the template, and
+        are set with different colors each frame. They are moved around with CSS transform.
+        * Animometer/tests/master/text.html: Added.
+
+        Remove the other text tests, since these ones cover the same techniques.
+        * Animometer/tests/text/layering-text.html: Removed.
+        * Animometer/tests/text/resources/layering-text.js: Removed.
+        * Animometer/tests/text/resources/text-boxes.js: Removed.
+        * Animometer/tests/text/text-boxes.html: Removed.
+        * Animometer/resources/debug-runner/tests.js:
+
+2016-03-09  Jon Lee  <jonlee@apple.com>
+
+        Add a new image test
+        https://bugs.webkit.org/show_bug.cgi?id=155232
+
+        Reviewed by Dean Jackson.
+        Provisionally reviewed by Said Abou-Hallawa.
+
+        The image test renders PNGs and moves them with translate and rotate
+        transforms. Each particle has a lifetime, and when the lifetime ends or
+        the particle goes offscreen, it resets itself somewhere on the stage.
+
+        * Animometer/resources/debug-runner/tests.js: Remove the CSS bouncing PNG
+        images test, because this one tests the same technique.
+        * Animometer/resources/runner/tests.js: Added here as "Leaves".
+        * Animometer/tests/master/leaves.html: Added.
+        * Animometer/tests/master/resources/particles.js: Refactor out the parts
+        specific to the DOM particles test. Consequently make velocity a public
+        member.
+        (initialize): The options parameter is never used, so remove it.
+        (animate): Remove unused local variable.
+        * Animometer/tests/master/resources/leaves.js: Maintains a focal point that
+        moves back and forth across the canvas. That point affects the velocity
+        of the particles. When the focal point is on the leftmost side, it is
+        between [-6, -2], and set in reset(). When the focal point is on the rightmost
+        side, it will be from [2, 6].
+        * Animometer/tests/master/resources/dom-particles.js: Move JS specific to
+        this test here from particles.js.
+
+        New images.
+        * Animometer/tests/master/resources/compass100.png: Added.
+        * Animometer/tests/master/resources/console100.png: Added.
+        * Animometer/tests/master/resources/contribute100.png: Added.
+        * Animometer/tests/master/resources/debugger100.png: Added.
+        * Animometer/tests/master/resources/inspector100.png: Added.
+        * Animometer/tests/master/resources/layout100.png: Added.
+        * Animometer/tests/master/resources/performance100.png: Added.
+        * Animometer/tests/master/resources/script100.png: Added.
+        * Animometer/tests/master/resources/shortcuts100.png: Added.
+        * Animometer/tests/master/resources/standards100.png: Added.
+        * Animometer/tests/master/resources/storage100.png: Added.
+        * Animometer/tests/master/resources/styles100.png: Added.
+        * Animometer/tests/master/resources/timeline100.png: Added.
+
+2016-03-03  Jon Lee  <jonlee@apple.com>
+
+        Add ability to retrieve raw data from release harness
+        https://bugs.webkit.org/show_bug.cgi?id=155026
+
+        Reviewed by Simon Fraser.
+
+        * Animometer/developer.html: Remove the special UI in the debug
+        harness.
+        * Animometer/resources/runner/animometer.css: Add styles for the
+        overlay.
+        * Animometer/resources/runner/animometer.js: Let 'j' show the JSON
+        results, but only if the overlay doesn't exist. Add 'esc' key to dismiss
+        the overlay.
+        (window.benchmarkController.selectResults): Cycle the cases around
+        so that the first 's' press selects both the benchmark score and
+        the individual test scores.
+        * Animometer/resources/debug-runner/animometer.css: Remove
+        unneeded rules.
+        * Animometer/resources/debug-runner/animometer.js: Make the same
+        call to handleKeyPress.
+
+2016-03-03  Jon Lee  <jonlee@apple.com>
+
+        Make sure multiply test particles have at least some opacity
+        https://bugs.webkit.org/show_bug.cgi?id=155027
+
+        Reviewed by Simon Fraser.
+
+        * Animometer/tests/master/resources/multiply.js:
+        (initialize): Have the elements spin a little faster to make it
+        more obvious when the system is being stressed.
+        (_addTile):
+        (animate): Make sure each element being animated has at least 1%
+        opacity.
+
+2016-03-03  Jon Lee  <jonlee@apple.com>
+
+        Update image test
+        https://bugs.webkit.org/show_bug.cgi?id=154962
+
+        Rubber-stamped by Darin Adler.
+
+        * Animometer/tests/master/image-data.html: Make each canvas have a compositing layer.
+        * Animometer/tests/master/resources/image-data.js:
+        (initialize): Update to load multiple images serially.
+        (_loadImage):
+        (tune): Use display instead of visibility. When showing an element anew, move it somewhere else.
+        (_createTestElement): Set up the element, refactor out placement of element to _refreshElement.
+        (_refreshElement): Place element in a tile grid.
+        (animate):
+        (_getRandomNeighboringPixelIndex): Use a more conservative distribution to make the effect last a little longer.
+        * Animometer/tests/master/resources/compass.svg: Added.
+        * Animometer/tests/master/resources/console.svg: Added.
+        * Animometer/tests/master/resources/contribute.svg: Added.
+        * Animometer/tests/master/resources/debugger.svg: Added.
+        * Animometer/tests/master/resources/inspector.svg: Added.
+        * Animometer/tests/master/resources/layout.svg: Added.
+        * Animometer/tests/master/resources/performance.svg: Added.
+        * Animometer/tests/master/resources/script.svg: Added.
+        * Animometer/tests/master/resources/shortcuts.svg: Added.
+        * Animometer/tests/master/resources/standards.svg: Added.
+        * Animometer/tests/master/resources/storage.svg: Added.
+        * Animometer/tests/master/resources/styles.svg: Added.
+        * Animometer/tests/master/resources/timeline.svg: Added.
+
+2016-03-02  Jon Lee  <jonlee@apple.com>
+
+        Add some new controllers, and refine tests
+        https://bugs.webkit.org/show_bug.cgi?id=154914
+
+        Reviewed by Simon Fraser.
+
+        Improve tests.
+
+        * Animometer/tests/master/focus.html: Move each particle into a layer. Put the particle
+        in a container element. Expand the container element by the max blur radius, and clip
+        overflow. This way, when the blur is applied, it avoids causing layer resizes.
+        * Animometer/tests/master/resources/focus.js:
+        (FocusElement.Utilities.createClass): Create a container element, and put the particle
+        inside.
+        (hide): Set display:none.
+        (show): Set display:block.
+        (animate): Apply filters to the container element.
+        (FocusStage.call.initialize): Instead of inserting and removing elements from the DOM,
+        keep them in the stage, but set the display style instead. Use this._offsetIndex to
+        keep track of which elements are displayed.
+        (FocusStage.call.animate): Move some calculations around to avoid doing unneeded math.
+        (FocusStage.call.getBlurValue): Make sure elements are always blurred.
+        (FocusStage.call.getOpacityValue): Make sure elements have some opacity.
+        * Animometer/tests/master/resources/multiply.js: Have the particles on the edge of the
+        stage appear less black when the complexity gets large enough.
+        (tune): Have this._distanceFactor calculate the factor. Avoid calculating square root each
+        frame.
+
+2016-03-02  Jon Lee  <jonlee@apple.com>
+
+        Add some new controllers, and refine tests
+        https://bugs.webkit.org/show_bug.cgi?id=154914
+
+        Reviewed by Simon Fraser.
+
+        Add a controller that centers around 30 fps instead of 60 fps.
+
+        * Animometer/developer.html: Add a new option.
+        * Animometer/resources/debug-runner/animometer.js:
+        * Animometer/resources/runner/animometer.js:
+        (this._processData.findRegression): When calculating the complexity-frameLength regression,
+        check the controller, and use a 30 fps baseline if needed.
+        * Animometer/resources/statistics.js:
+        (Regression.Utilities.createClass): Update to allow clients to specify the baseline
+        frame length.
+        * Animometer/tests/resources/main.js:
+        (tune): Override some of the constants in RampController. Move those constants out for
+        easier reading.
+
+        Add a fixed controller, with no step.
+
+        * Animometer/developer.html: Add a controller that takes no step.
+        * Animometer/resources/debug-runner/animometer.js:
+        * Animometer/tests/resources/main.js:
+        (Rotater.Utilities.createClass):
+
+        Switch to ramp controller as default.
+
+        * Animometer/developer.html: Increase the test length to 20 seconds.
+        * Animometer/resources/debug-runner/animometer.js: Rename the "adjustment" field to "controller"
+        since that is a more accurate description.
+        * Animometer/resources/debug-runner/graph.js:
+        * Animometer/resources/runner/animometer.js: Update preferences for release suite.
+
+2016-02-26  Jon Lee  <jonlee@apple.com>
+
+        Address Dean's comments in 154673.
+
+        * Animometer/developer.html:
+        * Animometer/resources/debug-runner/animometer.js:
+        * Animometer/resources/debug-runner/graph.js:
+
+2016-02-25  Jon Lee  <jonlee@apple.com>
+
+        Update animation benchmark and tests
+        https://bugs.webkit.org/show_bug.cgi?id=154673
+
+        Reviewed by Dean Jackson.
+
+        Update test visuals.
+
+        * Animometer/tests/master/resources/canvas-tests.js:
+        (CanvasLineSegment.Utilities.createClass): Line segments near the edge of the stage get clipped.
+        Update circle position and radius to minimize impact.
+        * Animometer/tests/master/resources/particles.js: Get rid of rotating gradient background, and
+        have 3 locations for emitting particles.
+        * Animometer/tests/master/resources/multiply.js: Update distance metric so that fringe tiles get
+        more color.
+        (initialize): Fix some of the math for laying out the tiles.
+        (animate): When a tile isn't used, set visibility: hidden.
+
+2016-02-24  Jon Lee  <jonlee@apple.com>
+
+        Update animation benchmark and tests
+        https://bugs.webkit.org/show_bug.cgi?id=154673
+
+        Reviewed by Dean Jackson.
+
+        Update the ramp controller.
+
+        The controller refines the complexity interval to test across.
+
+        * Animometer/resources/statistics.js: Add functions that estimate cumulative distribution function.
+        (Regression): For the flat regression, force the first segment to be at 60 fps.
+        (valueAt): Add convenience function to return interpolated value based on the regression used.
+        (_calculateRegression): Include the number of points included for both segments, and the piecewise
+        errors.
+        * Animometer/tests/resources/math.js: Make the Kalman estimator subclass Experiment, and allow it
+        to be reset.
+
+        * Animometer/tests/resources/main.js: Initialize the tier such that it starts at 10^0 = 1.
+        Increase the number of ramps. Maintain three FPS thresholds-- the frame rate of interest, a limit
+        on the lowest FPS we care to go for later interpolation, and a minimum FPS threshold we want to
+        aim for each ramp. Also keep three estimators: a running average of the change point, a minimum
+        boundary for each ramp, and an estimator for all the frames within an interval. The first two
+        are used to determine the parameters of the next ramp, and the latter allows us to refine the
+        parameters.
+        (update): During the tier phase, it is possible that the highest complexity possible for a test
+        won't stress the system enough to trigger stopping the tier phase and transitioning to the ramps.
+        If the complexity doesn't change when going to the next tier, we've maxed the test out, and move
+        on. When the tier phase completed, turn off Controller.frameLengthEstimator, which estimates the
+        FPS at each tier.
+        (tune): At each interval, look at the confidence distribution of being on the 60 FPS side or the
+        slow side. If the slowest FPS we achieve at the ramp's maximum complexity is not at least
+        _fpsRampSlowThreshold, then increase the maximum complexity. If we ever achieve 60 FPS, increase
+        the ramp's minimum complexity to that level. If, at an even lower complexity, a glitch causes the
+        FPS to drop, we reset the minimum complexity.
+
+        Have the bootstrap calculation occur between tests. Clean up harness.
+
+        * Animometer/resources/debug-runner/animometer.js: Run bootstrap after a test has
+        completed to avoid doing all of it at the end before showing the results. Clean up
+        parameters being passed around.
+        * Animometer/resources/debug-runner/tests.js:
+        (text):
+        * Animometer/resources/runner/animometer.js:
+        (this._processData.calculateScore): Save the results to the same object holding the data.
+        (this._processData._processData): In the case where a file is dragged, calculate the score
+        serially. Grab the results object and move it to the results variable and remove it from
+        the data object. This avoids serializing the results into the JSON.
+        (this._processData.findRegression): Include the samples used for bootstrapping. Reduce the
+        resample size to shorten the wait.
+        * Animometer/resources/runner/benchmark-runner.js:
+        * Animometer/resources/statistics.js:
+        (bootstrap): Update how bootstrapData is sorted. In some regression results the mix of
+        floats and integers causes an alphabetical sort to occur.
+        * Animometer/resources/strings.js:
+
+        Add meta charset so that encodings between harness and test match.
+
+        * Animometer/tests/bouncing-particles/bouncing-canvas-images.html:
+        * Animometer/tests/bouncing-particles/bouncing-canvas-shapes.html:
+        * Animometer/tests/bouncing-particles/bouncing-css-images.html:
+        * Animometer/tests/bouncing-particles/bouncing-css-shapes.html:
+        * Animometer/tests/bouncing-particles/bouncing-svg-images.html:
+        * Animometer/tests/bouncing-particles/bouncing-svg-shapes.html:
+        * Animometer/tests/master/canvas-stage.html:
+        * Animometer/tests/master/focus.html:
+        * Animometer/tests/master/image-data.html:
+        * Animometer/tests/master/multiply.html:
+        * Animometer/tests/master/particles.html:
+        * Animometer/tests/misc/canvas-electrons.html:
+        * Animometer/tests/misc/canvas-stars.html:
+        * Animometer/tests/misc/compositing-transforms.html:
+        * Animometer/tests/simple/simple-canvas-paths.html:
+        * Animometer/tests/simple/tiled-canvas-image.html:
+        * Animometer/tests/template/template-canvas.html:
+        * Animometer/tests/template/template-css.html:
+        * Animometer/tests/template/template-svg.html:
+        * Animometer/tests/text/layering-text.html:
+        * Animometer/tests/text/text-boxes.html:
+
+        Update test harness reporting.
+
+        * Animometer/developer.html: Add missing meta charset.
+        * Animometer/index.html: Remove unnecessary utf-8 declaration.
+        * Animometer/resources/debug-runner/animometer.css: Add convenience classes for
+        formatting the results table.
+        * Animometer/resources/debug-runner/animometer.js: Adjust which stats are shown.
+        * Animometer/resources/debug-runner/tests.js: Display bootstrapping statistics.
+        * Animometer/resources/strings.js: Move strings not used by the release harness.
+
+        Switch to a pseudo-random number generator.
+
+        * Animometer/resources/statistics.js: Add a Pseudo class, with a simple
+        pseudo-random number generator.
+        (_calculateRegression): Reset the generator before running bootstrap.
+        (bootstrap): Deleted.
+
+        Replace Math.random with Pseudo.random.
+        * Animometer/tests/master/resources/canvas-tests.js:
+        * Animometer/tests/master/resources/focus.js:
+        * Animometer/tests/master/resources/particles.js:
+        * Animometer/tests/resources/main.js:
+
+        Use bootstrapping to get confidence interval in the breakpoint.
+
+        For the ramp controller, calculate the piecewise regression, and then use
+        bootstrapping in order to find the 95% confidence interval. Use the raw data.
+
+        * Animometer/developer.html: Default to the complexity graph. Add a legend
+        checkbox to toggle visibility of the bootstrap score and histogram.
+        * Animometer/resources/debug-runner/animometer.css: Make some more space to show
+        the old raw and average scores in the legend. Add new styles for the data.
+        * Animometer/resources/debug-runner/graph.js:
+        (_addRegressionLine): Allow passing an array for the variance bar tied to the
+        regression line. Now |stdev| is |range|.
+        (createComplexityGraph): Add bootstrap median, and overlay a histogram of
+        the bootstrap samples. Switch raw samples from circles to X's.
+        (onComplexityGraphOptionsChanged): Allow toggling of the bootstrap data.
+        (onGraphTypeChanged): Move the regressions for the raw and average samples to the
+        legend. In the subtitle use the bootstrap median, and include the 95% confidence
+        interval.
+        * Animometer/resources/runner/animometer.js:
+        (this._processData.findRegression): Factor out the code that determines which
+        samples to include when calculating the piecewise regression. For series that have
+        many samples, or a wider range of recorded complexities, throw away the 2.5%
+        lowest and highest samples before calculating the regression. Keep all samples
+        if the number of samples to regress is small or the range of complexities is
+        narrow.
+        (this._processData._calculateScore): Factor out regression calculation to
+        findRegression(). Bootstrap the change point of the regression. The score is the
+        median.
+        * Animometer/resources/statistics.js:
+        (_calculateRegression): Correct an issue in the calculation of the regression, where
+        the denominator can be 0.
+        (bootstrap): Template for bootstrapping. Create a bootstrap sample array, Create
+        re-samples by random selection with replacement. Return the 95% confidence samples,
+        the bootstrap median, mean, and the data itself.
+        * Animometer/resources/strings.js: Add bootstrap.
+        * Animometer/tests/resources/main.js:
+        (processSamples): Don't prematurely cut the sample data.
+
+        Fix graph drawing.
+
+        * Animometer/resources/debug-runner/animometer.js: Add spacing in the JSON output.
+        Multiple tests output a lot of JSON and can hang when selecting JSON with no whitespace.
+        * Animometer/resources/debug-runner/animometer.css:
+        (#complexity-graph .series.raw circle): Update the color.
+        * Animometer/resources/debug-runner/graph.js: Use the FPS axis instead of the
+        complexity axis, which can vary in domain. For determining the complexity domain,
+        only use samples after samplingTimeOffset.
+
+        Allow dropping results JSON.
+
+        * Animometer/developer.html: Add a button.
+        * Animometer/resources/debug-runner/animometer.css:
+        * Animometer/resources/debug-runner/animometer.js: Read the data and go straight
+        to the dashboard. With JSON output, write out only the options and the raw data.
+
+        Teach the harness to evaluate the samples and determine the test score.
+
+        This will allow us to update how the score is calculated separately from the samples recorded.
+        This also prepares the harness to be able to accept JSON of prior runs.
+
+        * Animometer/resources/strings.js: Clean up and remove unneeded strings and reduce some of the
+        hierarchy.
+        * Animometer/resources/debug-runner/tests.js: Update to use the new strings.
+
+        * Animometer/tests/resources/main.js: Allow all controllers to show a complexity-FPS graph.
+        (_processComplexitySamples): Factor out some of the sample processing done in the ramp
+        controller for the benefit of the other controllers. |complexitySamples| contains a list of
+        samples. Sort the samples by complexity. Optionally remove the top x% of samples.
+        Group them, and calculate distribution of samples within the same complexity, and add those as
+        new entries into |complexityAverageSamples|.
+        (Controller.processSamples): Move the code responsible for determining the complexity and FPS
+        scores out to ResultsDashboard. The structure of the data returned by the controller is:
+
+        {
+            controller: [time-regression, time-regression, ...], // optional, data specific to controller
+            marks: [...],
+            samples: {                    // all of the sample data
+                controller: [...],
+                complexity: [...],        // processed from controller samples
+                complexityAverage: [...], // processed from complexity samples
+            }
+        }
+
+        (AdaptiveController.processSamples): Adding the target frame length is no longer necessary; we
+        now pass the test options to the graph.
+        (Regression): Move to statistics.js.
+        * Animometer/resources/statistics.js: Move Regression to here. Add a check if the sampling range
+        only contains one sample, since we cannot calculate a regression from one sample point.
+
+        Teach the test harness to evaluate the data.
+        * Animometer/resources/runner/animometer.js:
+        (ResultsDashboard): Store the options used to run the test and the computed results/score separately
+        from the data. The results are stored as:
+
+        {
+            score: /* geomean of iteration score */,
+            iterationsResults: [
+                {
+                    score: /* geomean of tests */,
+                    testsResults: {
+                        suiteName: {
+                            testName: {
+                                controller: {
+                                    average:
+                                    concern:
+                                    stdev:
+                                    percent:
+                                },
+                                frameLength: { ... },
+                                complexity: {
+                                    complexity:
+                                    stdev:
+                                    segment1:
+                                    segment2:
+                                },
+                                complexityAverage: { ... }
+                            },
+                            testName: { ... },
+                        },
+                        ... next suite ...
+                    }
+                },
+                { ...next iteration... }
+            ]
+        }
+
+        * Animometer/resources/debug-runner/animometer.js: Pass options around instead of relying
+        on what was selected in the form. This will later allow for dropping previous results, and
+        using those runs' options when calculating scores.
+        (ResultsTable._addGraphButton): Simplify button action by using attached test data.
+        * Animometer/resources/debug-runner/graph.js: Refactor to use the data.
+
+        Consolidate JS files, and move statistics out to a separate JS.
+
+        Preparation for having the Controller only handle recording and storage of the samples,
+        and leave the evaluation of the test score out to the harness. Move Experiment to
+        a new statistics.js, where Regression will also eventually go. Get rid of algorithm.js
+        and move it to utilities.js since the Heap is used only for Experiments.
+
+        * Animometer/tests/resources/algorithm.js: Removed. Heap is in utilities.js.
+        * Animometer/tests/resources/sampler.js: Removed. Experiment is in statistics.js,
+        Sampler in main.js.
+        * Animometer/tests/resources/main.js: Move Sampler here.
+        * Animometer/resources/statistics.js: Added. Move Statistics and Experiment here.
+        * Animometer/resources/extensions.js: Move Heap here. Attach static method to create
+        a max or min heap to Heap, instead of a new Algorithm object.
+
+        Update JS files.
+        * Animometer/developer.html:
+        * Animometer/index.html:
+        * Animometer/tests/bouncing-particles/bouncing-canvas-images.html:
+        * Animometer/tests/bouncing-particles/bouncing-canvas-shapes.html:
+        * Animometer/tests/bouncing-particles/bouncing-css-images.html:
+        * Animometer/tests/bouncing-particles/bouncing-css-shapes.html:
+        * Animometer/tests/bouncing-particles/bouncing-svg-images.html:
+        * Animometer/tests/bouncing-particles/bouncing-svg-shapes.html:
+        * Animometer/tests/master/canvas-stage.html:
+        * Animometer/tests/master/focus.html:
+        * Animometer/tests/master/image-data.html:
+        * Animometer/tests/master/multiply.html:
+        * Animometer/tests/master/particles.html:
+        * Animometer/tests/misc/canvas-electrons.html:
+        * Animometer/tests/misc/canvas-stars.html:
+        * Animometer/tests/misc/compositing-transforms.html:
+        * Animometer/tests/simple/simple-canvas-paths.html:
+        * Animometer/tests/simple/tiled-canvas-image.html:
+        * Animometer/tests/template/template-canvas.html:
+        * Animometer/tests/template/template-css.html:
+        * Animometer/tests/template/template-svg.html:
+        * Animometer/tests/text/layering-text.html:
+        * Animometer/tests/text/text-boxes.html:
+
+        Fix the cursor in the graph analysis when the min
+        complexity is not 0.
+
+        * Animometer/resources/debug-runner/graph.js:
+        (_addRegression):
+        (createComplexityGraph):
+
+2016-02-23  Geoffrey Garen  <ggaren@apple.com>
+
+        Fix some issues in MallocBench
+        https://bugs.webkit.org/show_bug.cgi?id=154600
+
+        Reviewed by Oliver Hunt.
+
+        * MallocBench/MallocBench.xcodeproj/project.pbxproj: Make nimlang.ops
+        a part of the build so that it copies to the right place for execution.
+
+        * MallocBench/MallocBench/Interpreter.cpp:
+        (Interpreter::Interpreter): Don't try to open .ops files for writing
+        because we're only going to read and we might need extra permissions to
+        write.
+
+        (Interpreter::~Interpreter): Give more context when opening a file fails
+        to help with debugging.
+
+        * MallocBench/MallocBench/stress.cpp:
+        (benchmark_stress): Reduce iterations to complete in less than 10 seconds.
+
+2016-02-23  Michael Saboff  <msaboff@apple.com>
+
+        Unreviewed change to revert extraneous changes made part of change set 196955.
+
+        * MallocBench/MallocBench/Interpreter.cpp:
+        (Interpreter::doMallocOp):
+        (Interpreter::Thread::switchTo):
+        (writeData): Deleted.
+
+2016-02-19  Michael Saboff  <msaboff@apple.com>
+
+        MallocBench: Added recording for nimlang website, new recording details and added new options
+        https://bugs.webkit.org/show_bug.cgi?id=154485
+
+        Reviewed by Geoff Garen.
+
+        Added new capabilities to MallocBench.  These include:
+            Added a recording of http://nim-lang.org/docs/lib.html.
+            Added thread id to the recording and the ability to playback switching threads in MallocBench
+            Added aligned allocations to recordings and the ability to playback
+            Added --use-thread-id option to honor recorded thread ids
+            Added --detailed-report to output remaining allocations by size after playback
+            Added --no-warmup to not run the warm up iteration
+
+        Changed the way that options are passed down to the benchmarks.  Instead of passing individual
+        boolean or numeric option values, just pass a reference the CommandLine itself.  Each benchmark
+        can access the options that are appropriate.  The Benchmark class also uses the options for
+        is parallel, run counts and warm up.
+
+        Added thread id and aligned malloc to the Op by noticing that structure padding and Opcode allowed
+        for another 32 bits of data.  Breaking that unused 32 bits into a 16 bit thread id value and a
+        16 bit log base 2 of the alignment for aligned malloc allowed for existing recordings to playback
+        without any incompatibilities.
+
+        Threaded operation is simulated by creating threads as needed.  As long as the next Op's thread id
+        is the same as the last, operation continues as normal.  When the next Op has a different thread id,
+        we switch to that thread using the shared Op stream to continue playing back.  There is a mutex to
+        assure that only one thread is really running at a time and a condition variable used to wait
+        that the current thread id matches each block thread's thread id.  This doesn't simulate true
+        concurrent threading, but is instead plays back Ops recorded for multiple thread faithfully.
+
+        * MallocBench/MallocBench.xcodeproj/project.pbxproj:
+        * MallocBench/MallocBench/Benchmark.cpp:
+        (deallocateHeap):
+        (Benchmark::Benchmark):
+        (Benchmark::runOnce):
+        (Benchmark::run):
+        * MallocBench/MallocBench/Benchmark.h:
+        (Benchmark::isValid):
+        * MallocBench/MallocBench/CommandLine.cpp:
+        (CommandLine::printUsage):
+        * MallocBench/MallocBench/CommandLine.h:
+        (CommandLine::isValid):
+        (CommandLine::benchmarkName):
+        (CommandLine::isParallel):
+        (CommandLine::useThreadID):
+        (CommandLine::detailedReport):
+        (CommandLine::warmUp):
+        (CommandLine::heapSize):
+        (CommandLine::runs):
+        * MallocBench/MallocBench/Interpreter.cpp:
+        (Interpreter::Interpreter):
+        (Interpreter::run):
+        (Interpreter::readOps):
+        (Interpreter::doOnSameThread):
+        (Interpreter::switchToThread):
+        (Interpreter::detailedReport):
+        (compute2toPower):
+        (writeData):
+        (Interpreter::doMallocOp):
+        (Interpreter::Thread::Thread):
+        (Interpreter::Thread::stop):
+        (Interpreter::Thread::~Thread):
+        (Interpreter::Thread::runThread):
+        (Interpreter::Thread::waitToRun):
+        (Interpreter::Thread::switchTo):
+        * MallocBench/MallocBench/Interpreter.h:
+        (Interpreter::Thread::isMainThread):
+        * MallocBench/MallocBench/alloc_free.cpp: Added.
+        (benchmark_alloc_free):
+        * MallocBench/MallocBench/alloc_free.h: Added.
+        * MallocBench/MallocBench/balloon.cpp:
+        (benchmark_balloon):
+        * MallocBench/MallocBench/balloon.h:
+        * MallocBench/MallocBench/big.cpp:
+        (benchmark_big):
+        * MallocBench/MallocBench/big.h:
+        * MallocBench/MallocBench/churn.cpp:
+        (benchmark_churn):
+        * MallocBench/MallocBench/churn.h:
+        * MallocBench/MallocBench/facebook.cpp:
+        (benchmark_facebook):
+        * MallocBench/MallocBench/facebook.h:
+        * MallocBench/MallocBench/flickr.cpp:
+        (benchmark_flickr):
+        (benchmark_flickr_memory_warning):
+        * MallocBench/MallocBench/flickr.h:
+        * MallocBench/MallocBench/fragment.cpp:
+        (validate):
+        (benchmark_fragment):
+        (benchmark_fragment_iterate):
+        * MallocBench/MallocBench/fragment.h:
+        * MallocBench/MallocBench/list.cpp:
+        (benchmark_list_allocate):
+        (benchmark_list_traverse):
+        * MallocBench/MallocBench/list.h:
+        * MallocBench/MallocBench/main.cpp:
+        (main):
+        * MallocBench/MallocBench/medium.cpp:
+        (benchmark_medium):
+        * MallocBench/MallocBench/medium.h:
+        * MallocBench/MallocBench/memalign.cpp:
+        (test):
+        (benchmark_memalign):
+        * MallocBench/MallocBench/memalign.h:
+        * MallocBench/MallocBench/message.cpp:
+        (benchmark_message_one):
+        (benchmark_message_many):
+        * MallocBench/MallocBench/message.h:
+        * MallocBench/MallocBench/nimlang.cpp: Added.
+        (benchmark_nimlang):
+        * MallocBench/MallocBench/nimlang.h: Added.
+        * MallocBench/MallocBench/nimlang.ops: Added.
+        * MallocBench/MallocBench/realloc.cpp:
+        (benchmark_realloc):
+        * MallocBench/MallocBench/realloc.h:
+        * MallocBench/MallocBench/reddit.cpp:
+        (benchmark_reddit):
+        (benchmark_reddit_memory_warning):
+        * MallocBench/MallocBench/reddit.h:
+        * MallocBench/MallocBench/stress.cpp:
+        (deallocate):
+        (benchmark_stress):
+        * MallocBench/MallocBench/stress.h:
+        * MallocBench/MallocBench/stress_aligned.cpp:
+        (benchmark_stress_aligned):
+        * MallocBench/MallocBench/stress_aligned.h:
+        * MallocBench/MallocBench/theverge.cpp:
+        (benchmark_theverge):
+        (benchmark_theverge_memory_warning):
+        * MallocBench/MallocBench/theverge.h:
+        * MallocBench/MallocBench/tree.cpp:
+        (benchmark_tree_allocate):
+        (benchmark_tree_traverse):
+        (benchmark_tree_churn):
+        * MallocBench/MallocBench/tree.h:
+        * MallocBench/run-malloc-benchmarks:
+
+2016-02-11  Jon Lee  <jonlee@apple.com>
+
+        Fix a missing refactoring.
+
+        * Animometer/tests/master/resources/multiply.js:
+        (animate): Move to Utilities.lerp.
+        (_lerp): Deleted.
+
+2016-02-10  Jon Lee  <jonlee@apple.com>
+
+        Add new benchmark tests.
+        https://bugs.webkit.org/show_bug.cgi?id=154063
+
+        Provisionally reviewed by Said Abou-Hallawa.
+
+        Add tests for get/put image data, filters, opacity, and css transforms.
+
+        * Animometer/resources/runner/benchmark-runner.js:
+        (_runBenchmarkAndRecordResults): Update the body background color to match that of
+        the stage.
+        (this._runNextIteration): Clear the background color style for the results page.
+        * Animometer/resources/runner/tests.js:
+        * Animometer/tests/master/focus.html: Added.
+        * Animometer/tests/master/image-data.html: Added.
+        * Animometer/tests/master/multiply.html: Added.
+        * Animometer/tests/master/resources/focus.js: Added.
+        * Animometer/tests/master/resources/image-data.js: Added.
+        * Animometer/tests/master/resources/multiply.js: Added.
+        * Animometer/tests/master/resources/stage.css: Move common styles out.
+        * Animometer/tests/resources/main.js: Update Stage.randomBool to use Math.random.
+        Add Stage.randomSign for randomly setting a direction. Add the notion of the
+        current timestamp of the test to Benchmark, since some animations cycle through
+        colors and rely on an incremental counter like the time.
+
 2016-02-09  Said Abou-Hallawa  <sabouhallawa@apple.com>
 
         Add internal benchmark tests for CSS mix-blend-modes and filters
@@ -7,20 +1104,20 @@
 
         * Animometer/resources/debug-runner/tests.js: Include the new tests in the
         "HTML suite" of the debug runner.
-        
+
         * Animometer/resources/extensions.js:
         (Utilities.browserPrefix):
         (Utilities.setElementPrefixedProperty): Utility functions to allow setting
         prefixed style properties.
-        
+
         * Animometer/tests/bouncing-particles/resources/bouncing-css-shapes.js:
         Set the mix-blend-mode and the filter to some random values if the options
         of the test requested that.
-        
+
         * Animometer/tests/bouncing-particles/resources/bouncing-particles.js:
         (parseShapeParameters): Parse the url options "blend" and "filter" and set
         the corresponding flags.
-        
+
         * Animometer/tests/resources/main.js:
         (randomStyleMixBlendMode):
         (randomStyleFilter): Return random mix-blend-mode and filter.

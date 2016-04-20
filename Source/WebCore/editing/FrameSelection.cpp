@@ -34,6 +34,7 @@
 #include "EditorClient.h"
 #include "Element.h"
 #include "ElementIterator.h"
+#include "Event.h"
 #include "EventHandler.h"
 #include "ExceptionCode.h"
 #include "FloatQuad.h"
@@ -46,8 +47,8 @@
 #include "HTMLFormElement.h"
 #include "HTMLFrameElementBase.h"
 #include "HTMLInputElement.h"
-#include "HTMLSelectElement.h"
 #include "HTMLNames.h"
+#include "HTMLSelectElement.h"
 #include "HitTestRequest.h"
 #include "HitTestResult.h"
 #include "InlineTextBox.h"
@@ -620,14 +621,14 @@ void FrameSelection::willBeModified(EAlteration alter, SelectionDirection direct
 
 VisiblePosition FrameSelection::positionForPlatform(bool isGetStart) const
 {
-    if (m_frame && (m_frame->settings().editingBehaviorType() == EditingMacBehavior || m_frame->settings().editingBehaviorType() == EditingIOSBehavior))
-        return isGetStart ? m_selection.visibleStart() : m_selection.visibleEnd();
-    // Linux and Windows always extend selections from the extent endpoint.
     // FIXME: VisibleSelection should be fixed to ensure as an invariant that
     // base/extent always point to the same nodes as start/end, but which points
     // to which depends on the value of isBaseFirst. Then this can be changed
     // to just return m_sel.extent().
-    return m_selection.isBaseFirst() ? m_selection.visibleEnd() : m_selection.visibleStart();
+    if (m_frame && m_frame->editor().behavior().shouldAlwaysExtendSelectionFromExtentEndpoint())
+        return m_selection.isBaseFirst() ? m_selection.visibleEnd() : m_selection.visibleStart();
+
+    return isGetStart ? m_selection.visibleStart() : m_selection.visibleEnd();
 }
 
 VisiblePosition FrameSelection::startForPlatform() const
@@ -1252,14 +1253,14 @@ bool FrameSelection::modify(EAlteration alter, SelectionDirection direction, Tex
 
     willBeModified(alter, direction);
 
-    bool shouldNotify = false;
+    bool reachedBoundary = false;
     bool wasRange = m_selection.isRange();
     Position originalStartPosition = m_selection.start();
     VisiblePosition position;
     switch (direction) {
     case DirectionRight:
         if (alter == AlterationMove)
-            position = modifyMovingRight(granularity, &shouldNotify);
+            position = modifyMovingRight(granularity, &reachedBoundary);
         else
             position = modifyExtendingRight(granularity);
         break;
@@ -1267,11 +1268,11 @@ bool FrameSelection::modify(EAlteration alter, SelectionDirection direction, Tex
         if (alter == AlterationExtend)
             position = modifyExtendingForward(granularity);
         else
-            position = modifyMovingForward(granularity, &shouldNotify);
+            position = modifyMovingForward(granularity, &reachedBoundary);
         break;
     case DirectionLeft:
         if (alter == AlterationMove)
-            position = modifyMovingLeft(granularity, &shouldNotify);
+            position = modifyMovingLeft(granularity, &reachedBoundary);
         else
             position = modifyExtendingLeft(granularity);
         break;
@@ -1279,11 +1280,11 @@ bool FrameSelection::modify(EAlteration alter, SelectionDirection direction, Tex
         if (alter == AlterationExtend)
             position = modifyExtendingBackward(granularity);
         else
-            position = modifyMovingBackward(granularity, &shouldNotify);
+            position = modifyMovingBackward(granularity, &reachedBoundary);
         break;
     }
-    
-    if (shouldNotify && userTriggered == UserTriggered && m_frame && AXObjectCache::accessibilityEnabled()) {
+
+    if (reachedBoundary && !isRange() && userTriggered == UserTriggered && m_frame && AXObjectCache::accessibilityEnabled()) {
         notifyAccessibilityForSelectionChange({ AXTextStateChangeTypeSelectionBoundary, textSelectionWithDirectionAndGranularity(direction, granularity) });
         return true;
     }

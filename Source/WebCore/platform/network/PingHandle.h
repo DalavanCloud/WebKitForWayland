@@ -57,18 +57,21 @@ public:
     }
 
 private:
-    virtual void didReceiveResponse(ResourceHandle*, const ResourceResponse&) override { delete this; }
-    virtual void didReceiveData(ResourceHandle*, const char*, unsigned, int) override { delete this; }
-    virtual void didFinishLoading(ResourceHandle*, double) override { delete this; }
-    virtual void didFail(ResourceHandle*, const ResourceError&) override { delete this; }
-    virtual bool shouldUseCredentialStorage(ResourceHandle*)  override { return m_shouldUseCredentialStorage; }
-    virtual bool usesAsyncCallbacks() override { return m_usesAsyncCallbacks == UsesAsyncCallbacks::Yes; }
+    void didReceiveResponse(ResourceHandle*, const ResourceResponse&) override { delete this; }
+    void didReceiveData(ResourceHandle*, const char*, unsigned, int) override { delete this; }
+    void didFinishLoading(ResourceHandle*, double) override { delete this; }
+    void didFail(ResourceHandle*, const ResourceError&) override { delete this; }
+    bool shouldUseCredentialStorage(ResourceHandle*)  override { return m_shouldUseCredentialStorage; }
+    bool usesAsyncCallbacks() override { return m_usesAsyncCallbacks == UsesAsyncCallbacks::Yes; }
     void timeoutTimerFired() { delete this; }
 
     virtual ~PingHandle()
     {
-        if (m_handle)
+        if (m_handle) {
+            ASSERT(m_handle->client() == this);
+            m_handle->clearClient();
             m_handle->cancel();
+        }
     }
 
     RefPtr<ResourceHandle> m_handle;

@@ -28,6 +28,7 @@
 
 [
     Conditional=FETCH_API,
+    EnabledAtRuntime=FetchAPI,
     GlobalContext=DOMWindow&WorkerGlobalScope,
     InterfaceName=Body,
     NoInterfaceObject
@@ -37,6 +38,6 @@ interface FetchBody {
     [NewObject] Promise arrayBuffer();
     [NewObject] Promise blob();
     [NewObject] Promise formData();
-    [CallWith=ScriptState, NewObject] Promise json();
+    [NewObject] Promise json();
     [NewObject] Promise text();
 };

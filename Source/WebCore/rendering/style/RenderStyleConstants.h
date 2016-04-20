@@ -191,7 +191,7 @@ enum EBoxSizing { CONTENT_BOX, BORDER_BOX };
 // Random visual rendering model attributes. Not inherited.
 
 enum EOverflow {
-    OVISIBLE, OHIDDEN, OSCROLL, OAUTO, OOVERLAY, OMARQUEE, OPAGEDX, OPAGEDY
+    OVISIBLE, OHIDDEN, OSCROLL, OAUTO, OOVERLAY, OPAGEDX, OPAGEDY
 };
 
 enum EVerticalAlign {
@@ -230,8 +230,8 @@ enum EFillLayerType {
 // CSS3 Background Values
 enum EFillSizeType { Contain, Cover, SizeLength, SizeNone };
 
-// CSS3 Background Position
-enum BackgroundEdgeOrigin { TopEdge, RightEdge, BottomEdge, LeftEdge };
+// CSS3 <position>
+enum class Edge { Top, Right, Bottom, Left };
 
 // CSS3 Mask Source Types
 enum EMaskSourceType { MaskAlpha, MaskLuminance };
@@ -257,7 +257,7 @@ enum EFlexWrap { FlexNoWrap, FlexWrap, FlexWrapReverse };
 enum ItemPosition {ItemPositionAuto, ItemPositionStretch, ItemPositionBaseline, ItemPositionLastBaseline, ItemPositionCenter, ItemPositionStart, ItemPositionEnd, ItemPositionSelfStart, ItemPositionSelfEnd, ItemPositionFlexStart, ItemPositionFlexEnd, ItemPositionLeft, ItemPositionRight};
 enum OverflowAlignment {OverflowAlignmentDefault, OverflowAlignmentUnsafe, OverflowAlignmentSafe};
 enum ItemPositionType {NonLegacyPosition, LegacyPosition};
-enum ContentPosition {ContentPositionAuto, ContentPositionBaseline, ContentPositionLastBaseline, ContentPositionCenter, ContentPositionStart, ContentPositionEnd, ContentPositionFlexStart, ContentPositionFlexEnd, ContentPositionLeft, ContentPositionRight};
+enum ContentPosition {ContentPositionNormal, ContentPositionBaseline, ContentPositionLastBaseline, ContentPositionCenter, ContentPositionStart, ContentPositionEnd, ContentPositionFlexStart, ContentPositionFlexEnd, ContentPositionLeft, ContentPositionRight};
 enum ContentDistributionType {ContentDistributionDefault, ContentDistributionSpaceBetween, ContentDistributionSpaceAround, ContentDistributionSpaceEvenly, ContentDistributionStretch};
 
 enum ETextSecurity {
@@ -563,6 +563,7 @@ enum EDisplay {
     TABLE_COLUMN_GROUP, TABLE_COLUMN, TABLE_CELL,
     TABLE_CAPTION, BOX, INLINE_BOX,
     FLEX, WEBKIT_FLEX, INLINE_FLEX, WEBKIT_INLINE_FLEX,
+    CONTENTS,
 #if ENABLE(CSS_GRID_LAYOUT)
     GRID, INLINE_GRID,
 #endif
@@ -694,7 +695,7 @@ TextStream& operator<<(TextStream&, EFillAttachment);
 TextStream& operator<<(TextStream&, EFillBox);
 TextStream& operator<<(TextStream&, EFillRepeat);
 TextStream& operator<<(TextStream&, EMaskSourceType);
-TextStream& operator<<(TextStream&, BackgroundEdgeOrigin);
+TextStream& operator<<(TextStream&, Edge);
 
 } // namespace WebCore
 

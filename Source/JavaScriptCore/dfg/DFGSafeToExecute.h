@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -57,9 +57,11 @@ public:
         case ObjectUse:
         case FunctionUse:
         case FinalObjectUse:
+        case RegExpObjectUse:
         case ObjectOrOtherUse:
         case StringIdentUse:
         case StringUse:
+        case StringOrOtherUse:
         case SymbolUse:
         case StringObjectUse:
         case StringOrStringObjectUse:
@@ -135,6 +137,7 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case JSConstant:
     case DoubleConstant:
     case Int52Constant:
+    case LazyJSConstant:
     case Identity:
     case ToThis:
     case CreateThis:
@@ -181,10 +184,14 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case ArithSqrt:
     case ArithFRound:
     case ArithRound:
+    case ArithFloor:
+    case ArithCeil:
+    case ArithTrunc:
     case ArithSin:
     case ArithCos:
     case ArithLog:
     case ValueAdd:
+    case TryGetById:
     case GetById:
     case GetByIdFlush:
     case PutById:
@@ -198,12 +205,12 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case CheckStructure:
     case GetExecutable:
     case GetButterfly:
-    case GetButterflyReadOnly:
     case CheckArray:
     case Arrayify:
     case ArrayifyToStructure:
     case GetScope:
     case SkipScope:
+    case GetGlobalObject:
     case GetClosureVar:
     case PutClosureVar:
     case GetGlobalVar:
@@ -237,7 +244,6 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case NewArrayWithSize:
     case NewArrayBuffer:
     case NewRegexp:
-    case Breakpoint:
     case ProfileWillCall:
     case ProfileDidCall:
     case ProfileType:
@@ -246,6 +252,9 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case OverridesHasInstance:
     case InstanceOf:
     case InstanceOfCustom:
+    case IsArrayObject:
+    case IsJSArray:
+    case IsArrayConstructor:
     case IsUndefined:
     case IsBoolean:
     case IsNumber:
@@ -255,8 +264,10 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case IsFunction:
     case TypeOf:
     case LogicalNot:
+    case CallObjectConstructor:
     case ToPrimitive:
     case ToString:
+    case SetFunctionName:
     case StrCat:
     case CallStringConstructor:
     case NewStringObject:
@@ -268,7 +279,6 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case CreateClonedArguments:
     case GetFromArguments:
     case PutToArguments:
-    case NewArrowFunction:
     case NewFunction:
     case NewGeneratorFunction:
     case Jump:
@@ -283,6 +293,8 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case CountExecution:
     case ForceOSRExit:
     case CheckWatchdogTimer:
+    case LogShadowChickenPrologue:
+    case LogShadowChickenTail:
     case StringFromCharCode:
     case NewTypedArray:
     case Unreachable:
@@ -290,7 +302,6 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case CheckTierUpInLoop:
     case CheckTierUpAtReturn:
     case CheckTierUpAndOSREnter:
-    case CheckTierUpWithNestedTriggerAndOSREnter:
     case LoopHint:
     case StoreBarrier:
     case InvalidationPoint:
@@ -328,6 +339,10 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case GetMyArgumentByVal:
     case ForwardVarargs:
     case CopyRest:
+    case StringReplace:
+    case GetRegExpObjectLastIndex:
+    case SetRegExpObjectLastIndex:
+    case RecordRegExpCachedResult:
         return true;
 
     case BottomValue:

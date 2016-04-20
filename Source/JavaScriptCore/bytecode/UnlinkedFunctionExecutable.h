@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2015 Apple Inc. All Rights Reserved.
+ * Copyright (C) 2012-2016 Apple Inc. All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,6 +34,7 @@
 #include "ExpressionRangeInfo.h"
 #include "HandlerInfo.h"
 #include "Identifier.h"
+#include "Intrinsic.h"
 #include "JSCell.h"
 #include "JSString.h"
 #include "ParserModes.h"
@@ -75,11 +76,15 @@ public:
     }
 
     const Identifier& name() const { return m_name; }
+    const Identifier& ecmaName() const { return m_ecmaName; }
+    void setEcmaName(const Identifier& name) { m_ecmaName = name; }
     const Identifier& inferredName() const { return m_inferredName; }
-    JSString* nameValue() const { return m_nameValue.get(); }
-    void setNameValue(VM& vm, JSString* nameValue) { m_nameValue.set(vm, this, nameValue); }
     unsigned parameterCount() const { return m_parameterCount; };
     SourceParseMode parseMode() const { return static_cast<SourceParseMode>(m_sourceParseMode); };
+
+    const SourceCode& classSource() const { return m_classSource; };
+    void setClassSource(const SourceCode& source) { m_classSource = source; };
+
     bool isInStrictContext() const { return m_isInStrictContext; }
     FunctionMode functionMode() const { return static_cast<FunctionMode>(m_functionMode); }
     ConstructorKind constructorKind() const { return static_cast<ConstructorKind>(m_constructorKind); }
@@ -103,7 +108,7 @@ public:
         const Identifier&, ExecState&, const SourceCode&, JSObject*& exception, 
         int overrideLineNumber);
 
-    JS_EXPORT_PRIVATE FunctionExecutable* link(VM&, const SourceCode&, int overrideLineNumber = -1);
+    JS_EXPORT_PRIVATE FunctionExecutable* link(VM&, const SourceCode&, Optional<int> overrideLineNumber = Nullopt, Intrinsic = NoIntrinsic);
 
     void clearCode()
     {
@@ -152,7 +157,7 @@ private:
     unsigned m_isBuiltinFunction : 1;
     unsigned m_constructAbility: 1;
     unsigned m_constructorKind : 2;
-    unsigned m_functionMode : 1; // FunctionMode
+    unsigned m_functionMode : 2; // FunctionMode
     unsigned m_superBinding : 1;
     unsigned m_derivedContextType: 2;
     unsigned m_sourceParseMode : 4; // SourceParseMode
@@ -161,19 +166,14 @@ private:
     WriteBarrier<UnlinkedFunctionCodeBlock> m_unlinkedCodeBlockForConstruct;
 
     Identifier m_name;
+    Identifier m_ecmaName;
     Identifier m_inferredName;
-    WriteBarrier<JSString> m_nameValue;
     RefPtr<SourceProvider> m_sourceOverride;
+    SourceCode m_classSource;
 
     VariableEnvironment m_parentScopeTDZVariables;
 
 protected:
-    void finishCreation(VM& vm)
-    {
-        Base::finishCreation(vm);
-        m_nameValue.set(vm, this, jsString(&vm, name().string()));
-    }
-
     static void visitChildren(JSCell*, SlotVisitor&);
 
 public:

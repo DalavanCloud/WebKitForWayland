@@ -41,7 +41,7 @@ class SourceBuffer;
 class MediaElementSession final : public PlatformMediaSession {
     WTF_MAKE_FAST_ALLOCATED;
 public:
-    explicit MediaElementSession(PlatformMediaSessionClient&);
+    explicit MediaElementSession(HTMLMediaElement&);
     virtual ~MediaElementSession() { }
 
     void registerWithDocument(Document&);
@@ -53,6 +53,8 @@ public:
     bool pageAllowsDataLoading(const HTMLMediaElement&) const;
     bool pageAllowsPlaybackAfterResuming(const HTMLMediaElement&) const;
 
+    bool canControlControlsManager(const HTMLMediaElement&) const;
+
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
     void showPlaybackTargetPicker(const HTMLMediaElement&);
     bool hasWirelessPlaybackTargets(const HTMLMediaElement&) const;
@@ -62,8 +64,8 @@ public:
 
     void setHasPlaybackTargetAvailabilityListeners(const HTMLMediaElement&, bool);
 
-    virtual bool canPlayToWirelessPlaybackTarget() const override;
-    virtual bool isPlayingToWirelessPlaybackTarget() const override;
+    bool canPlayToWirelessPlaybackTarget() const override;
+    bool isPlayingToWirelessPlaybackTarget() const override;
 
     void mediaStateDidChange(const HTMLMediaElement&, MediaProducer::MediaStateFlags);
 #endif
@@ -79,7 +81,7 @@ public:
     enum BehaviorRestrictionFlags {
         NoRestrictions = 0,
         RequireUserGestureForLoad = 1 << 0,
-        RequireUserGestureForRateChange = 1 << 1,
+        RequireUserGestureForVideoRateChange = 1 << 1,
         RequireUserGestureForFullscreen = 1 << 2,
         RequirePageConsentToLoadMedia = 1 << 3,
         RequirePageConsentToResumeMedia = 1 << 4,
@@ -92,6 +94,7 @@ public:
         MetadataPreloadingNotPermitted = 1 << 9,
         AutoPreloadingNotPermitted = 1 << 10,
         InvisibleAutoplayNotPermitted = 1 << 11,
+        OverrideUserGestureRequirementForMainContent = 1 << 12
     };
     typedef unsigned BehaviorRestrictions;
 
@@ -110,14 +113,17 @@ private:
     void targetAvailabilityChangedTimerFired();
 
     // MediaPlaybackTargetClient
-    virtual void setPlaybackTarget(Ref<MediaPlaybackTarget>&&) override;
-    virtual void externalOutputDeviceAvailableDidChange(bool) override;
-    virtual void setShouldPlayToPlaybackTarget(bool) override;
+    void setPlaybackTarget(Ref<MediaPlaybackTarget>&&) override;
+    void externalOutputDeviceAvailableDidChange(bool) override;
+    void setShouldPlayToPlaybackTarget(bool) override;
 #endif
 #if PLATFORM(IOS)
     bool requiresPlaybackTargetRouteMonitoring() const override;
 #endif
+    bool updateIsMainContent() const;
+    void mainContentCheckTimerFired();
 
+    HTMLMediaElement& m_element;
     BehaviorRestrictions m_restrictions;
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
@@ -129,6 +135,9 @@ private:
 #if PLATFORM(IOS)
     bool m_hasPlaybackTargetAvailabilityListeners { false };
 #endif
+
+    mutable bool m_isMainContent { false };
+    Timer m_mainContentCheckTimer;
 };
 
 }

@@ -1,3 +1,4 @@
+//@ skip if $hostOS == "windows"
 description("This test checks the behavior of Intl.DateTimeFormat as described in the ECMAScript Internationalization API Specification (ECMA-402 2.0).");
 
 // 12.1 The Intl.DateTimeFormat Constructor
@@ -163,6 +164,9 @@ shouldThrow("Intl.DateTimeFormat.prototype.resolvedOptions.call(5)", "'TypeError
 
 shouldThrow("Intl.DateTimeFormat('$')", "'RangeError: invalid language tag: $'");
 shouldThrow("Intl.DateTimeFormat('en', null)", '"TypeError: null is not an object (evaluating \'Intl.DateTimeFormat(\'en\', null)\')"');
+
+// Defaults to en-US locale in test runner
+shouldBe("Intl.DateTimeFormat().resolvedOptions().locale", "'en-US'");
 
 // Defaults to month, day, year.
 shouldBe("Intl.DateTimeFormat('en').resolvedOptions().weekday", "undefined");
@@ -494,3 +498,9 @@ for (let locale of localesSample) {
     Object.keys(options).every(option => resolved[option] != null)`);
   shouldBeTrue(`typeof Intl.DateTimeFormat("${locale}", { hour: "numeric", minute: "numeric" }).format() === "string"`);
 }
+
+// Legacy compatibility with ECMA-402 1.0
+let legacyInit = "var legacy = Object.create(Intl.DateTimeFormat.prototype);";
+shouldBe(legacyInit + "Intl.DateTimeFormat.apply(legacy)", "legacy");
+shouldBe(legacyInit + "Intl.DateTimeFormat.call(legacy, 'en-u-nu-arab', { timeZone: 'America/Los_Angeles' }).format(1451099872641)", "'١٢/٢٥/٢٠١٥'");
+shouldNotBe("var incompat = {};Intl.DateTimeFormat.apply(incompat)", "incompat");

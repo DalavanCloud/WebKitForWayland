@@ -119,9 +119,9 @@ void Recorder::drawTiledImage(Image& image, const FloatRect& destination, const 
 }
 
 #if USE(CG) || USE(CAIRO)
-void Recorder::drawNativeImage(PassNativeImagePtr imagePtr, const FloatSize& imageSize, const FloatRect& destRect, const FloatRect& srcRect, CompositeOperator op, BlendMode blendMode, ImageOrientation orientation)
+void Recorder::drawNativeImage(const NativeImagePtr& image, const FloatSize& imageSize, const FloatRect& destRect, const FloatRect& srcRect, CompositeOperator op, BlendMode blendMode, ImageOrientation orientation)
 {
-    DrawingItem& newItem = downcast<DrawingItem>(appendItem(DrawNativeImage::create(imagePtr, imageSize, destRect, srcRect, op, blendMode, orientation)));
+    DrawingItem& newItem = downcast<DrawingItem>(appendItem(DrawNativeImage::create(image, imageSize, destRect, srcRect, op, blendMode, orientation)));
     updateItemExtent(newItem);
 }
 #endif
@@ -247,7 +247,7 @@ void Recorder::drawFocusRing(const Path& path, int width, int offset, const Colo
     updateItemExtent(newItem);
 }
 
-void Recorder::drawFocusRing(const Vector<IntRect>& rects, int width, int offset, const Color& color)
+void Recorder::drawFocusRing(const Vector<FloatRect>& rects, int width, int offset, const Color& color)
 {
     DrawingItem& newItem = downcast<DrawingItem>(appendItem(DrawFocusRingRects::create(rects, width, offset, color)));
     updateItemExtent(newItem);

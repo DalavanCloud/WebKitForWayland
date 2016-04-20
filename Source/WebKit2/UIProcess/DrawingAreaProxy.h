@@ -76,11 +76,9 @@ public:
     virtual void commitTransientZoom(double, WebCore::FloatPoint) { }
 
 #if PLATFORM(MAC)
-    virtual void setExposedRect(const WebCore::FloatRect&);
-    WebCore::FloatRect exposedRect() const { return m_exposedRect; }
-#endif
-#if PLATFORM(COCOA)
-    void exposedRectChangedTimerFired();
+    virtual void setViewExposedRect(Optional<WebCore::FloatRect>);
+    Optional<WebCore::FloatRect> viewExposedRect() const { return m_viewExposedRect; }
+    void viewExposedRectChangedTimerFired();
 #endif
 
     virtual void updateDebugIndicator() { }
@@ -110,7 +108,7 @@ protected:
     WebCore::IntSize m_scrollOffset;
 
     // IPC::MessageReceiver
-    virtual void didReceiveMessage(IPC::Connection&, IPC::MessageDecoder&) override;
+    void didReceiveMessage(IPC::Connection&, IPC::MessageDecoder&) override;
 
 private:
     virtual void sizeDidChange() = 0;
@@ -128,9 +126,9 @@ private:
     virtual void intrinsicContentSizeDidChange(const WebCore::IntSize&) { }
 
 #if PLATFORM(MAC)
-    RunLoop::Timer<DrawingAreaProxy> m_exposedRectChangedTimer;
-    WebCore::FloatRect m_exposedRect;
-    WebCore::FloatRect m_lastSentExposedRect;
+    RunLoop::Timer<DrawingAreaProxy> m_viewExposedRectChangedTimer;
+    Optional<WebCore::FloatRect> m_viewExposedRect;
+    Optional<WebCore::FloatRect> m_lastSentViewExposedRect;
 #endif // PLATFORM(MAC)
 #endif
 };

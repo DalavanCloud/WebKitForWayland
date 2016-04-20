@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2011-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -42,6 +42,7 @@
 #include "DFGNodeOrigin.h"
 #include "DFGNodeType.h"
 #include "DFGObjectMaterializationData.h"
+#include "DFGOpInfo.h"
 #include "DFGTransition.h"
 #include "DFGUseKind.h"
 #include "DFGVariableAccessData.h"
@@ -217,20 +218,6 @@ struct StackAccessData {
     FlushFormat format;
     
     FlushedAt flushedAt() { return FlushedAt(format, machineLocal); }
-};
-
-// This type used in passing an immediate argument to Node constructor;
-// distinguishes an immediate value (typically an index into a CodeBlock data structure - 
-// a constant index, argument, or identifier) from a Node*.
-struct OpInfo {
-    OpInfo() : m_value(0) { }
-    explicit OpInfo(int32_t value) : m_value(static_cast<uintptr_t>(value)) { }
-    explicit OpInfo(uint32_t value) : m_value(static_cast<uintptr_t>(value)) { }
-#if OS(DARWIN) || USE(JSVALUE64)
-    explicit OpInfo(size_t value) : m_value(static_cast<uintptr_t>(value)) { }
-#endif
-    explicit OpInfo(void* value) : m_value(reinterpret_cast<uintptr_t>(value)) { }
-    uintptr_t m_value;
 };
 
 // === Node ===
@@ -494,6 +481,8 @@ struct Node {
         m_opInfo = bitwise_cast<uintptr_t>(value);
         children.reset();
     }
+
+    void convertToLazyJSConstant(Graph&, LazyJSValue);
     
     void convertToConstantStoragePointer(void* pointer)
     {
@@ -585,7 +574,7 @@ struct Node {
 
     void convertToPhantomNewFunction()
     {
-        ASSERT(m_op == NewFunction || m_op == NewArrowFunction || m_op == NewGeneratorFunction);
+        ASSERT(m_op == NewFunction || m_op == NewGeneratorFunction);
         m_op = PhantomNewFunction;
         m_flags |= NodeMustGenerate;
         m_opInfo = 0;
@@ -649,6 +638,12 @@ struct Node {
         ASSERT(m_op == ArithPow);
         child2() = Edge();
         m_op = ArithSqrt;
+    }
+
+    void convertToArithNegate()
+    {
+        ASSERT(m_op == ArithAbs && child1().useKind() == Int32Use);
+        m_op = ArithNegate;
     }
     
     JSValue asJSValue()
@@ -736,6 +731,19 @@ struct Node {
         RELEASE_ASSERT(result);
         return result;
     }
+
+    bool hasLazyJSValue()
+    {
+        return op() == LazyJSConstant;
+    }
+
+    LazyJSValue lazyJSValue()
+    {
+        ASSERT(hasLazyJSValue());
+        return *bitwise_cast<LazyJSValue*>(m_opInfo);
+    }
+
+    String tryGetString(Graph&);
 
     JSValue initializationValueForActivation() const
     {
@@ -858,6 +866,7 @@ struct Node {
     bool hasIdentifier()
     {
         switch (op()) {
+        case TryGetById:
         case GetById:
         case GetByIdFlush:
         case PutById:
@@ -922,7 +931,7 @@ struct Node {
     NodeFlags arithNodeFlags()
     {
         NodeFlags result = m_flags & NodeArithFlagsMask;
-        if (op() == ArithMul || op() == ArithDiv || op() == ArithMod || op() == ArithNegate || op() == ArithPow || op() == ArithRound || op() == DoubleAsInt32)
+        if (op() == ArithMul || op() == ArithDiv || op() == ArithMod || op() == ArithNegate || op() == ArithPow || op() == ArithRound || op() == ArithFloor || op() == ArithCeil || op() == ArithTrunc || op() == DoubleAsInt32)
             return result;
         return result & ~NodeBytecodeNeedsNegZero;
     }
@@ -1016,6 +1025,9 @@ struct Node {
         m_opInfo = indexingType;
     }
     
+    // FIXME: We really should be able to inline code that uses NewRegexp. That means
+    // using something other than the index into the CodeBlock here.
+    // https://bugs.webkit.org/show_bug.cgi?id=154808
     bool hasRegexpIndex()
     {
         return op() == NewRegexp;
@@ -1325,6 +1337,9 @@ struct Node {
     {
         switch (op()) {
         case ArithRound:
+        case ArithFloor:
+        case ArithCeil:
+        case ArithTrunc:
         case GetDirectPname:
         case GetById:
         case GetByIdFlush:
@@ -1347,6 +1362,7 @@ struct Node {
         case RegExpTest:
         case GetGlobalVar:
         case GetGlobalLexicalVariable:
+        case StringReplace:
             return true;
         default:
             return false;
@@ -1371,7 +1387,6 @@ struct Node {
         case CheckCell:
         case OverridesHasInstance:
         case NewFunction:
-        case NewArrowFunction:
         case NewGeneratorFunction:
         case CreateActivation:
         case MaterializeCreateActivation:
@@ -1600,7 +1615,6 @@ struct Node {
     bool isFunctionAllocation()
     {
         switch (op()) {
-        case NewArrowFunction:
         case NewFunction:
         case NewGeneratorFunction:
             return true;
@@ -1678,6 +1692,7 @@ struct Node {
     bool hasArithMode()
     {
         switch (op()) {
+        case ArithAbs:
         case ArithAdd:
         case ArithSub:
         case ArithNegate:
@@ -1705,7 +1720,7 @@ struct Node {
 
     bool hasArithRoundingMode()
     {
-        return op() == ArithRound;
+        return op() == ArithRound || op() == ArithFloor || op() == ArithCeil || op() == ArithTrunc;
     }
 
     Arith::RoundingMode arithRoundingMode()
@@ -1944,6 +1959,11 @@ struct Node {
         return isStringSpeculation(prediction());
     }
  
+    bool shouldSpeculateStringOrOther()
+    {
+        return isStringOrOtherSpeculation(prediction());
+    }
+ 
     bool shouldSpeculateStringObject()
     {
         return isStringObjectSpeculation(prediction());
@@ -1954,6 +1974,11 @@ struct Node {
         return isStringOrStringObjectSpeculation(prediction());
     }
 
+    bool shouldSpeculateRegExpObject()
+    {
+        return isRegExpObjectSpeculation(prediction());
+    }
+    
     bool shouldSpeculateSymbol()
     {
         return isSymbolSpeculation(prediction());
@@ -2047,6 +2072,11 @@ struct Node {
     bool shouldSpeculateCell()
     {
         return isCellSpeculation(prediction());
+    }
+    
+    bool shouldSpeculateCellOrOther()
+    {
+        return isCellOrOtherSpeculation(prediction());
     }
     
     bool shouldSpeculateNotCell()
@@ -2295,6 +2325,28 @@ CString nodeMapDump(const T& nodeMap, DumpContext* context = 0)
     CommaPrinter comma;
     for(unsigned i = 0; i < keys.size(); ++i)
         out.print(comma, keys[i], "=>", inContext(nodeMap.get(keys[i]), context));
+    return out.toCString();
+}
+
+template<typename IteratorType>
+inline bool nodeValuePairComparator(IteratorType a, IteratorType b)
+{
+    return nodeComparator(a.node, b.node);
+}
+
+template<typename T>
+CString nodeValuePairListDump(const T& nodeValuePairList, DumpContext* context = 0)
+{
+    T sortedList = nodeValuePairList;
+    // gcc 4.8 gets lost on this sort, so we don't sort in that case.
+#if !COMPILER(GCC) || GCC_VERSION_AT_LEAST(4, 9, 0)
+    std::sort(sortedList.begin(), sortedList.end(), nodeValuePairComparator<decltype(*sortedList.begin())>);
+#endif
+
+    StringPrintStream out;
+    CommaPrinter comma;
+    for (const auto& pair : sortedList)
+        out.print(comma, pair.node, "=>", inContext(pair.value, context));
     return out.toCString();
 }
 

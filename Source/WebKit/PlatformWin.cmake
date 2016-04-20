@@ -36,6 +36,8 @@ else ()
     )
 endif ()
 
+list(APPEND WebKit_LIBRARIES PRIVATE WTF${DEBUG_SUFFIX})
+
 add_custom_command(
     OUTPUT ${DERIVED_SOURCES_WEBKIT_DIR}/WebKitVersion.h
     MAIN_DEPENDENCY ${WEBKIT_DIR}/scripts/generate-webkitversion.pl
@@ -48,7 +50,6 @@ list(APPEND WebKit_INCLUDE_DIRECTORIES
     "${CMAKE_BINARY_DIR}/../include/private"
     "${CMAKE_BINARY_DIR}/../include/private/JavaScriptCore"
     "${CMAKE_BINARY_DIR}/../include/private/WebCore"
-    Storage
     win
     win/plugins
     win/WebCoreSupport
@@ -135,15 +136,6 @@ list(APPEND WebKit_INCLUDES
 )
 
 list(APPEND WebKit_SOURCES_Classes
-    Storage/StorageAreaImpl.cpp
-    Storage/StorageAreaSync.cpp
-    Storage/StorageNamespaceImpl.cpp
-    Storage/StorageSyncManager.cpp
-    Storage/StorageThread.cpp
-    Storage/StorageTracker.cpp
-    Storage/WebDatabaseProvider.cpp
-    Storage/WebStorageNamespaceProvider.cpp
-
     cf/WebCoreSupport/WebInspectorClientCF.cpp
 
     win/AccessibleBase.cpp
@@ -376,11 +368,11 @@ set(WEBKIT_IDL_DEPENDENCIES
     win/Interfaces/Accessible2/AccessibleText.idl
     win/Interfaces/Accessible2/AccessibleText2.idl
     win/Interfaces/Accessible2/IA2CommonTypes.idl
-    "${DERIVED_SOURCES_WEBKIT_DIR}/autoversion.h"
+    "${DERIVED_SOURCES_WEBKIT_DIR}/include/autoversion.h"
 )
 
 add_custom_command(
-    OUTPUT ${DERIVED_SOURCES_WEBKIT_DIR}/autoversion.h
+    OUTPUT ${DERIVED_SOURCES_WEBKIT_DIR}/include/autoversion.h
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMAND ${PERL_EXECUTABLE} ${WEBKIT_LIBRARIES_DIR}/tools/scripts/auto-version.pl ${DERIVED_SOURCES_WEBKIT_DIR}
     VERBATIM)
@@ -417,7 +409,6 @@ add_library(WebKitGUID STATIC
     "${DERIVED_SOURCES_WEBKIT_DIR}/Interfaces/AccessibleText2_i.c"
 )
 set_target_properties(WebKitGUID PROPERTIES OUTPUT_NAME WebKitGUID${DEBUG_SUFFIX})
-set_target_properties(WebKitGUID PROPERTIES FOLDER "WebKit")
 
 list(APPEND WebKit_LIBRARIES
     PRIVATE Comctl32
@@ -431,6 +422,7 @@ list(APPEND WebKit_LIBRARIES
     PRIVATE Version
     PRIVATE Winmm
     PRIVATE WebKitGUID${DEBUG_SUFFIX}
+    PRIVATE WebCoreDerivedSources${DEBUG_SUFFIX}
 )
 
 if (ENABLE_GRAPHICS_CONTEXT_3D)
@@ -442,6 +434,22 @@ if (ENABLE_GRAPHICS_CONTEXT_3D)
 endif ()
 
 set(WebKit_LIBRARY_TYPE SHARED)
+
+# Make sure incremental linking is turned off, as it creates unacceptably long link times.
+string(REPLACE "INCREMENTAL:YES" "INCREMENTAL:NO" replace_CMAKE_SHARED_LINKER_FLAGS ${CMAKE_SHARED_LINKER_FLAGS})
+set(CMAKE_SHARED_LINKER_FLAGS "${replace_CMAKE_SHARED_LINKER_FLAGS} /INCREMENTAL:NO")
+string(REPLACE "INCREMENTAL:YES" "INCREMENTAL:NO" replace_CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS})
+set(CMAKE_EXE_LINKER_FLAGS "${replace_CMAKE_EXE_LINKER_FLAGS} /INCREMENTAL:NO")
+
+string(REPLACE "INCREMENTAL:YES" "INCREMENTAL:NO" replace_CMAKE_SHARED_LINKER_FLAGS_DEBUG ${CMAKE_SHARED_LINKER_FLAGS_DEBUG})
+set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "${replace_CMAKE_SHARED_LINKER_FLAGS_DEBUG} /INCREMENTAL:NO")
+string(REPLACE "INCREMENTAL:YES" "INCREMENTAL:NO" replace_CMAKE_EXE_LINKER_FLAGS_DEBUG ${CMAKE_EXE_LINKER_FLAGS_DEBUG})
+set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${replace_CMAKE_EXE_LINKER_FLAGS_DEBUG} /INCREMENTAL:NO")
+
+string(REPLACE "INCREMENTAL:YES" "INCREMENTAL:NO" replace_CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO ${CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO})
+set(CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO "${replace_CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO} /INCREMENTAL:NO")
+string(REPLACE "INCREMENTAL:YES" "INCREMENTAL:NO" replace_CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO ${CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO})
+set(CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "${replace_CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO} /INCREMENTAL:NO")
 
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /SUBSYSTEM:WINDOWS")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS")
@@ -469,5 +477,9 @@ file(MAKE_DIRECTORY ${DERIVED_SOURCES_DIR}/ForwardingHeaders/WebKit)
 add_custom_command(TARGET WebKitGUID PRE_BUILD COMMAND ${WebKitGUID_PRE_BUILD_COMMAND} VERBATIM)
 
 set(WebKitGUID_POST_BUILD_COMMAND "${CMAKE_BINARY_DIR}/DerivedSources/WebKit/postBuild.cmd")
-file(WRITE "${WebKitGUID_POST_BUILD_COMMAND}" "@xcopy /y /d /f \"${DERIVED_SOURCES_WEBKIT_DIR}/Interfaces/WebKit.h\" \"${DERIVED_SOURCES_DIR}/ForwardingHeaders/WebKit\" >nul 2>nul")
+file(WRITE "${WebKitGUID_POST_BUILD_COMMAND}" "@xcopy /y /d /f \"${DERIVED_SOURCES_WEBKIT_DIR}/Interfaces/*.h\" \"${DERIVED_SOURCES_DIR}/ForwardingHeaders/WebKit\" >nul 2>nul")
 add_custom_command(TARGET WebKitGUID POST_BUILD COMMAND ${WebKitGUID_POST_BUILD_COMMAND} VERBATIM)
+
+set(WebKit_OUTPUT_NAME
+    WebKit${DEBUG_SUFFIX}
+)

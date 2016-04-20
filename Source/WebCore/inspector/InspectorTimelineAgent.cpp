@@ -47,12 +47,12 @@
 #include <wtf/Stopwatch.h>
 
 #if PLATFORM(IOS)
-#include "RuntimeApplicationChecksIOS.h"
-#include <WebCore/WebCoreThread.h>
+#include "RuntimeApplicationChecks.h"
+#include "WebCoreThread.h"
 #endif
 
 #if PLATFORM(COCOA)
-#include <WebCore/RunLoopObserver.h>
+#include "RunLoopObserver.h"
 #endif
 
 using namespace Inspector;
@@ -70,7 +70,7 @@ static CFRunLoopRef currentRunLoop()
     // we still allow this, see <rdar://problem/7403328>. Since the race condition and subsequent
     // crash are especially troublesome for iBooks, we never allow the observer to be added to the
     // main run loop in iBooks.
-    if (applicationIsIBooksOnIOS())
+    if (IOSApplication::isIBooks())
         return WebThreadRunLoop();
 #endif
     return CFRunLoopGetCurrent();
@@ -339,7 +339,7 @@ void InspectorTimelineAgent::didPaint(RenderObject* renderer, const LayoutRect& 
     didCompleteCurrentRecord(TimelineRecordType::Paint);
 }
 
-void InspectorTimelineAgent::didInstallTimer(int timerId, int timeout, bool singleShot, Frame* frame)
+void InspectorTimelineAgent::didInstallTimer(int timerId, std::chrono::milliseconds timeout, bool singleShot, Frame* frame)
 {
     appendRecord(TimelineRecordFactory::createTimerInstallData(timerId, timeout, singleShot), TimelineRecordType::TimerInstall, true, frame);
 }
@@ -477,7 +477,7 @@ static Inspector::Protocol::Timeline::EventType toProtocol(TimelineRecordType ty
 void InspectorTimelineAgent::addRecordToTimeline(RefPtr<InspectorObject>&& record, TimelineRecordType type)
 {
     ASSERT_ARG(record, record);
-    record->setString("type", Inspector::Protocol::getEnumConstantValue(toProtocol(type)));
+    record->setString("type", Inspector::Protocol::InspectorHelpers::getEnumConstantValue(toProtocol(type)));
 
     if (m_recordStack.isEmpty()) {
         auto recordObject = BindingTraits<Inspector::Protocol::Timeline::TimelineEvent>::runtimeCast(WTFMove(record));

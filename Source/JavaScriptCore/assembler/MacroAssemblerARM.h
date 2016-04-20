@@ -274,7 +274,10 @@ public:
 
     void rshift32(RegisterID src, TrustedImm32 imm, RegisterID dest)
     {
-        m_assembler.movs(dest, m_assembler.asr(src, imm.m_value & 0x1f));
+        if (!imm.m_value)
+            move(src, dest);
+        else
+            m_assembler.movs(dest, m_assembler.asr(src, imm.m_value & 0x1f));
     }
 
     void urshift32(RegisterID shiftAmount, RegisterID dest)
@@ -297,7 +300,10 @@ public:
     
     void urshift32(RegisterID src, TrustedImm32 imm, RegisterID dest)
     {
-        m_assembler.movs(dest, m_assembler.lsr(src, imm.m_value & 0x1f));
+        if (!imm.m_value)
+            move(src, dest);
+        else
+            m_assembler.movs(dest, m_assembler.lsr(src, imm.m_value & 0x1f));
     }
 
     void sub32(RegisterID src, RegisterID dest)
@@ -1133,7 +1139,7 @@ public:
         return s_isVFPPresent;
     }
     static bool supportsFloatingPointAbs() { return false; }
-    static bool supportsFloatingPointCeil() { return false; }
+    static bool supportsFloatingPointRounding() { return false; }
 
     void loadFloat(BaseIndex address, FPRegisterID dest)
     {
@@ -1158,7 +1164,19 @@ public:
 
     NO_RETURN_DUE_TO_CRASH void ceilDouble(FPRegisterID, FPRegisterID)
     {
-        ASSERT(!supportsFloatingPointCeil());
+        ASSERT(!supportsFloatingPointRounding());
+        CRASH();
+    }
+
+    NO_RETURN_DUE_TO_CRASH void floorDouble(FPRegisterID, FPRegisterID)
+    {
+        ASSERT(!supportsFloatingPointRounding());
+        CRASH();
+    }
+
+    NO_RETURN_DUE_TO_CRASH void roundTowardZeroDouble(FPRegisterID, FPRegisterID)
+    {
+        ASSERT(!supportsFloatingPointRounding());
         CRASH();
     }
 
@@ -1187,6 +1205,12 @@ public:
     {
         if (src != dest)
             m_assembler.vmov_f64(dest, src);
+    }
+
+    void moveZeroToDouble(FPRegisterID reg)
+    {
+        static double zeroConstant = 0.;
+        loadDouble(TrustedImmPtr(&zeroConstant), reg);
     }
 
     void addDouble(FPRegisterID src, FPRegisterID dest)

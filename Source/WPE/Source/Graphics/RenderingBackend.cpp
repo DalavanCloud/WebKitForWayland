@@ -43,6 +43,10 @@
 #include "RenderingBackendBCMNexusBM.h"
 #endif
 
+#if WPE_BACKEND(WESTEROS)
+#include "RenderingBackendWesteros.h"
+#endif
+
 namespace WPE {
 
 namespace Graphics {
@@ -74,6 +78,10 @@ std::unique_ptr<RenderingBackend> RenderingBackend::create(const uint8_t* data, 
 
 #if WPE_BACKEND(INTEL_CE)
     return std::unique_ptr<RenderingBackendIntelCE>(new RenderingBackendIntelCE);
+#endif
+
+#if WPE_BACKEND(WESTEROS)
+    return std::unique_ptr<RenderingBackendWesteros>(new RenderingBackendWesteros);
 #endif
 
     fprintf(stderr, "RenderingBackend: no usable backend found, will crash.\n");

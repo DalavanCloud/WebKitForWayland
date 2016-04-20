@@ -1,7 +1,49 @@
+Utilities.extendObject(Strings.text, {
+    samples: "Samples",
+    complexity: "Time Complexity",
+    frameRate: "FPS",
+    confidenceInterval: "95% Confidence Interval",
+    mergedRawComplexity: "Raw Complexity",
+    graph: "Graph"
+});
+
+
 Utilities.extendObject(Headers, {
     details: [
         {
             title: Strings.text.graph
+        },
+        {
+            title: Strings.text.confidenceInterval,
+            children:
+            [
+                {
+                    text: function(data) {
+                        return data[Strings.json.complexity][Strings.json.bootstrap].confidenceLow.toFixed(2);
+                    },
+                    className: "right pad-left pad-right"
+                },
+                {
+                    text: function(data) {
+                        return " - " + data[Strings.json.complexity][Strings.json.bootstrap].confidenceHigh.toFixed(2);
+                    },
+                    className: "left"
+                },
+                {
+                    text: function(data) {
+                        var bootstrap = data[Strings.json.complexity][Strings.json.bootstrap];
+                        return (100 * (bootstrap.confidenceLow / bootstrap.median - 1)).toFixed(2) + "%";
+                    },
+                    className: "left pad-left small"
+                },
+                {
+                    text: function(data) {
+                        var bootstrap = data[Strings.json.complexity][Strings.json.bootstrap];
+                        return "+" + (100 * (bootstrap.confidenceHigh / bootstrap.median - 1)).toFixed(2) + "%";
+                    },
+                    className: "left pad-left small"
+                }
+            ]
         },
         {
             title: Strings.text.complexity,
@@ -9,7 +51,7 @@ Utilities.extendObject(Headers, {
             [
                 {
                     text: function(data) {
-                        return data[Strings.json.experiments.complexity][Strings.json.measurements.average].toFixed(2);
+                        return data[Strings.json.controller][Strings.json.measurements.average].toFixed(2);
                     },
                     className: "average"
                 },
@@ -17,14 +59,14 @@ Utilities.extendObject(Headers, {
                     text: function(data) {
                         return [
                             "± ",
-                            data[Strings.json.experiments.complexity][Strings.json.measurements.percent].toFixed(2),
+                            data[Strings.json.controller][Strings.json.measurements.percent].toFixed(2),
                             "%"
                         ].join("");
                     },
                     className: function(data) {
                         var className = "stdev";
 
-                        if (data[Strings.json.experiments.complexity][Strings.json.measurements.percent] >= 10)
+                        if (data[Strings.json.controller][Strings.json.measurements.percent] >= 10)
                             className += " noisy-results";
                         return className;
                     }
@@ -37,18 +79,18 @@ Utilities.extendObject(Headers, {
             [
                 {
                     text: function(data) {
-                        return data[Strings.json.experiments.frameRate][Strings.json.measurements.average].toFixed(2);
+                        return data[Strings.json.frameLength][Strings.json.measurements.average].toFixed(2);
                     },
                     className: function(data, options) {
                         var className = "average";
-                        if (Math.abs(data[Strings.json.experiments.frameRate][Strings.json.measurements.average] - options["frame-rate"]) >= 2)
+                        if (Math.abs(data[Strings.json.frameLength][Strings.json.measurements.average] - options["frame-rate"]) >= 2)
                             className += " noisy-results";
                         return className;
                     }
                 },
                 {
                     text: function(data) {
-                        var frameRateData = data[Strings.json.experiments.frameRate];
+                        var frameRateData = data[Strings.json.frameLength];
                         return [
                             "± ",
                             frameRateData[Strings.json.measurements.percent].toFixed(2),
@@ -58,7 +100,7 @@ Utilities.extendObject(Headers, {
                     className: function(data) {
                         var className = "stdev";
 
-                        if (data[Strings.json.experiments.frameRate][Strings.json.measurements.percent] >= 10)
+                        if (data[Strings.json.frameLength][Strings.json.measurements.percent] >= 10)
                             className += " noisy-results";
                         return className;
                     }
@@ -71,7 +113,7 @@ Utilities.extendObject(Headers, {
             [
                 {
                     text: function(data) {
-                        return data[Strings.json.regressions.complexityRegression][Strings.json.regressions.complexity].toFixed(2);
+                        return data[Strings.json.complexity][Strings.json.complexity].toFixed(2);
                     },
                     className: "average"
                 },
@@ -79,36 +121,14 @@ Utilities.extendObject(Headers, {
                     text: function(data) {
                         return [
                             "± ",
-                            data[Strings.json.regressions.complexityRegression][Strings.json.measurements.stdev].toFixed(2),
+                            data[Strings.json.complexity][Strings.json.measurements.stdev].toFixed(2),
                             "ms"
                         ].join("");
                     },
                     className: "stdev"
                 }
             ]
-        },
-        {
-            title: Strings.text.mergedAverageComplexity,
-            children:
-            [
-                {
-                    text: function(data) {
-                        return data[Strings.json.regressions.complexityAverageRegression][Strings.json.regressions.complexity].toFixed(2);
-                    },
-                    className: "average"
-                },
-                {
-                    text: function(data) {
-                        return [
-                            "± ",
-                            data[Strings.json.regressions.complexityAverageRegression][Strings.json.measurements.stdev].toFixed(2),
-                            "ms"
-                        ].join("");
-                    },
-                    className: "stdev"
-                }
-            ]
-        },
+        }
     ]
 })
 
@@ -142,26 +162,26 @@ Suites.push(new Suite("HTML suite",
             name: "CSS bouncing SVG images"
         },
         {
-            url: "bouncing-particles/bouncing-css-images.html?particleWidth=80&particleHeight=80&imageSrc=../resources/yin-yang.png",
-            name: "CSS bouncing PNG images"
+            url: "bouncing-particles/bouncing-tagged-images.html?particleWidth=100&particleHeight=100",
+            name: "CSS bouncing tagged images"
         },
         {
-            url: "text/layering-text.html",
-            name: "CSS layering text"
+            url: "dom/leaves.html",
+            name: "Leaves 2.0"
         },
         {
-            url: "text/text-boxes.html?particleWidth=280&particleHeight=180",
-            name: "CSS text boxes"
+            url: "dom/particles.html",
+            name: "DOM particles, SVG masks"
         },
+        {
+            url: "dom/compositing-transforms.html?particleWidth=50&particleHeight=50&filters=yes&imageSrc=../resources/yin-yang.svg",
+            name: "Composited Transforms"
+        }
     ]
 ));
 
 Suites.push(new Suite("Canvas suite",
     [
-        {
-            url: "bouncing-particles/bouncing-canvas-shapes.html?particleWidth=12&particleHeight=12&shape=circle",
-            name: "canvas bouncing circles"
-        },
         {
             url: "bouncing-particles/bouncing-canvas-shapes.html?particleWidth=40&particleHeight=40&shape=rect&clip=star",
             name: "canvas bouncing clipped rects"
@@ -177,6 +197,18 @@ Suites.push(new Suite("Canvas suite",
         {
             url: "bouncing-particles/bouncing-canvas-images.html?particleWidth=80&particleHeight=80&imageSrc=../resources/yin-yang.png",
             name: "canvas bouncing PNG images"
+        },
+        {
+            url: "simple/simple-canvas-paths.html?pathType=strokes",
+            name: "Stroke shapes"
+        },
+        {
+            url: "simple/simple-canvas-paths.html?pathType=fills",
+            name: "Fill shapes"
+        },
+        {
+            url: "simple/tiled-canvas-image.html",
+            name: "Canvas put/get image data"
         },
     ]
 ));
@@ -202,6 +234,15 @@ Suites.push(new Suite("SVG suite",
         {
             url: "bouncing-particles/bouncing-svg-images.html?particleWidth=80&particleHeight=80&imageSrc=../resources/yin-yang.png",
             name: "SVG bouncing PNG images"
+        },
+    ]
+));
+
+Suites.push(new Suite("3D Graphics",
+    [
+        {
+            url: "3d/webgl.html",
+            name: "WebGL"
         },
     ]
 ));
@@ -265,6 +306,10 @@ Suites.push(new Suite("Basic canvas path suite",
             name: "Canvas rects"
         },
         {
+            url: "simple/simple-canvas-paths.html?pathType=ellipse",
+            name: "Canvas ellipses"
+        },
+        {
             url: "simple/simple-canvas-paths.html?pathType=lineFill",
             name: "Canvas line path, fill"
         },
@@ -289,25 +334,8 @@ Suites.push(new Suite("Basic canvas path suite",
             name: "Canvas rects, fill"
         },
         {
-            url: "simple/tiled-canvas-image.html",
-            name: "Canvas put/get image data"
-        },
-    ]
-));
-
-Suites.push(new Suite("Miscellaneous Tests",
-    [
-        {
-            url: "misc/compositing-transforms.html?particleWidth=50&particleHeight=50&filters=yes&imageSrc=../resources/yin-yang.svg",
-            name: "Composited Transforms"
-        },
-        {
-            url: "misc/canvas-electrons.html",
-            name: "Canvas electrons"
-        },
-        {
-            url: "misc/canvas-stars.html",
-            name: "Canvas stars"
-        },
+            url: "simple/simple-canvas-paths.html?pathType=ellipseFill",
+            name: "Canvas ellipses, fill"
+        }
     ]
 ));

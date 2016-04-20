@@ -33,7 +33,6 @@
 
 #include "ResourceLoaderOptions.h"
 #include <wtf/Noncopyable.h>
-#include <wtf/PassRefPtr.h>
 #include <wtf/RefPtr.h>
 #include <wtf/Vector.h>
 #include <wtf/text/AtomicString.h>
@@ -61,6 +60,7 @@ namespace WebCore {
 
     enum class ContentSecurityPolicyEnforcement {
         DoNotEnforce,
+        EnforceChildSrcDirective,
         EnforceConnectSrcDirective,
         EnforceScriptSrcDirective,
     };
@@ -85,7 +85,7 @@ namespace WebCore {
         WTF_MAKE_NONCOPYABLE(ThreadableLoader);
     public:
         static void loadResourceSynchronously(ScriptExecutionContext*, const ResourceRequest&, ThreadableLoaderClient&, const ThreadableLoaderOptions&);
-        static PassRefPtr<ThreadableLoader> create(ScriptExecutionContext*, ThreadableLoaderClient*, const ResourceRequest&, const ThreadableLoaderOptions&);
+        static RefPtr<ThreadableLoader> create(ScriptExecutionContext*, ThreadableLoaderClient*, const ResourceRequest&, const ThreadableLoaderOptions&);
 
         virtual void cancel() = 0;
         void ref() { refThreadableLoader(); }

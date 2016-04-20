@@ -67,6 +67,9 @@ typedef NS_OPTIONS(NSUInteger, WKDataDetectorTypes) {
     WKDataDetectorTypeLink = 1 << 1,
     WKDataDetectorTypeAddress = 1 << 2,
     WKDataDetectorTypeCalendarEvent = 1 << 3,
+    WKDataDetectorTypeTrackingNumber = 1 << 4,
+    WKDataDetectorTypeFlightNumber = 1 << 5,
+    WKDataDetectorTypeSpotlightSuggestion = 1 << 6,
     WKDataDetectorTypeAll = NSUIntegerMax
 } WK_ENUM_AVAILABLE(WK_MAC_TBA, WK_IOS_TBA);
 
@@ -75,7 +78,7 @@ typedef NS_OPTIONS(NSUInteger, WKDataDetectorTypes) {
  @helps Contains properties used to configure a @link WKWebView @/link.
  */
 WK_CLASS_AVAILABLE(10_10, 8_0)
-@interface WKWebViewConfiguration : NSObject <NSCopying>
+@interface WKWebViewConfiguration : NSObject <NSCoding, NSCopying>
 
 /*! @abstract The process pool from which to obtain the view's web content
  process.

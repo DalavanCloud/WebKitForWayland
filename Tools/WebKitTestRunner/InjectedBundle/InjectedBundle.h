@@ -85,6 +85,7 @@ public:
     void postFocusWebView();
     void postSetBackingScaleFactor(double);
     void postSetWindowIsKey(bool);
+    void postSetViewSize(double width, double height);
     void postSimulateWebNotificationClick(uint64_t notificationID);
     void postSetAddsVisitedLinks(bool);
 
@@ -96,7 +97,7 @@ public:
 
     // MediaStream.
     void setUserMediaPermission(bool);
-    void setUserMediaPermissionForOrigin(bool permission, WKStringRef url);
+    void setUserMediaPermissionForOrigin(bool permission, WKStringRef origin, WKStringRef parentOrigin);
 
     // Policy delegate.
     void setCustomPolicyDelegate(bool enabled, bool permissive);

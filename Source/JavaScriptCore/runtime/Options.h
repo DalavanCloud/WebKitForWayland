@@ -118,12 +118,14 @@ typedef const char* optionString;
     \
     v(bool, crashIfCantAllocateJITMemory, false, nullptr) \
     v(unsigned, jitMemoryReservationSize, 0, "Set this number to change the executable allocation size in ExecutableAllocatorFixedVMPool. (In bytes.)") \
+    v(bool, useSeparatedWXHeap, false, nullptr) \
     \
     v(bool, forceCodeBlockLiveness, false, nullptr) \
     v(bool, forceICFailure, false, nullptr) \
     \
     v(unsigned, repatchCountForCoolDown, 10, nullptr) \
     v(unsigned, initialCoolDownCount, 20, nullptr) \
+    v(unsigned, repatchBufferingCountdown, 7, nullptr) \
     \
     v(bool, dumpGeneratedBytecodes, false, nullptr) \
     v(bool, dumpBytecodeLivenessResults, false, nullptr) \
@@ -133,6 +135,9 @@ typedef const char* optionString;
     \
     v(bool, useFunctionDotArguments, true, nullptr) \
     v(bool, useTailCalls, true, nullptr) \
+    v(bool, alwaysUseShadowChicken, false, nullptr) \
+    v(unsigned, shadowChickenLogSize, 1000, nullptr) \
+    v(unsigned, shadowChickenStackSizeLimit, 100000, nullptr) \
     \
     /* dumpDisassembly implies dumpDFGDisassembly. */ \
     v(bool, dumpDisassembly, false, "dumps disassembly of all JIT compiled code upon compilation") \
@@ -180,27 +185,18 @@ typedef const char* optionString;
     \
     v(bool, useFTLJIT, true, "allows the FTL JIT to be used if true") \
     v(bool, useFTLTBAA, true, nullptr) \
-    v(bool, useLLVMFastISel, false, nullptr) \
-    v(bool, useLLVMSmallCodeModel, false, nullptr) \
-    v(bool, dumpLLVMIR, false, nullptr) \
     v(bool, validateFTLOSRExitLiveness, false, nullptr) \
-    v(bool, llvmAlwaysFailsBeforeCompile, false, nullptr) \
-    v(bool, llvmAlwaysFailsBeforeLink, false, nullptr) \
-    v(bool, llvmSimpleOpt, true, nullptr) \
-    v(unsigned, llvmBackendOptimizationLevel, 2, nullptr) \
-    v(unsigned, llvmOptimizationLevel, 2, nullptr) \
-    v(unsigned, llvmSizeLevel, 0, nullptr) \
-    v(unsigned, llvmMaxStackSize, 128 * KB, nullptr) \
-    v(bool, llvmDisallowAVX, true, nullptr) \
+    v(bool, b3AlwaysFailsBeforeCompile, false, nullptr) \
+    v(bool, b3AlwaysFailsBeforeLink, false, nullptr) \
     v(bool, ftlCrashes, false, nullptr) /* fool-proof way of checking that you ended up in the FTL. ;-) */\
-    v(bool, ftlCrashesIfCantInitializeLLVM, false, nullptr) \
     v(bool, clobberAllRegsInFTLICSlowPath, !ASSERT_DISABLED, nullptr) \
-    v(bool, assumeAllRegsInFTLICAreLive, false, nullptr) \
     v(bool, useAccessInlining, true, nullptr) \
-    v(unsigned, maxAccessVariantListSize, 8, nullptr) \
+    v(unsigned, maxAccessVariantListSize, 13, nullptr) \
+    v(unsigned, megamorphicLoadCost, 10, nullptr) \
     v(bool, usePolyvariantDevirtualization, true, nullptr) \
     v(bool, usePolymorphicAccessInlining, true, nullptr) \
     v(bool, usePolymorphicCallInlining, true, nullptr) \
+    v(bool, usePolymorphicCallInliningForNonStubStatus, false, nullptr) \
     v(unsigned, maxPolymorphicCallVariantListSize, 15, nullptr) \
     v(unsigned, maxPolymorphicCallVariantListSizeForTopTier, 5, nullptr) \
     v(unsigned, maxPolymorphicCallVariantsForInlining, 5, nullptr) \
@@ -210,7 +206,6 @@ typedef const char* optionString;
     v(bool, useMovHintRemoval, true, nullptr) \
     v(bool, usePutStackSinking, true, nullptr) \
     v(bool, useObjectAllocationSinking, true, nullptr) \
-    v(bool, useCopyBarrierOptimization, true, nullptr) \
     \
     v(bool, useConcurrentJIT, true, "allows the DFG / FTL compilation in threads other than the executing JS thread") \
     v(unsigned, numberOfDFGCompilerThreads, computeNumberOfWorkerThreads(2, 2) - 1, nullptr) \
@@ -219,9 +214,7 @@ typedef const char* optionString;
     v(int32, priorityDeltaOfFTLCompilerThreads, computePriorityDeltaOfWorkerThreads(-2, 0), nullptr) \
     \
     v(bool, useProfiler, false, nullptr) \
-    \
-    v(bool, forceUDis86Disassembler, false, nullptr) \
-    v(bool, forceLLVMDisassembler, false, nullptr) \
+    v(bool, disassembleBaselineForProfiler, true, nullptr) \
     \
     v(bool, useArchitectureSpecificOptimizations, true, nullptr) \
     \
@@ -285,9 +278,6 @@ typedef const char* optionString;
     v(unsigned, osrExitCountForReoptimizationFromLoop, 5, nullptr) \
     \
     v(unsigned, reoptimizationRetryCounterMax, 0, nullptr)  \
-    \
-    v(bool, assertICSizing, false, "crash if estimated IC sizes are inadequate")  \
-    v(bool, dumpFailedICSizing, false, "dumps a log entry if estimated IC sizes are inadequate")  \
     \
     v(unsigned, minimumOptimizationDelay, 1, nullptr) \
     v(unsigned, maximumOptimizationDelay, 5, nullptr) \
@@ -360,9 +350,13 @@ typedef const char* optionString;
     \
     v(unsigned, watchdog, 0, "watchdog timeout (0 = Disabled, N = a timeout period of N milliseconds)") \
     \
+    v(bool, useICStats, false, nullptr) \
+    \
     v(bool, dumpModuleRecord, false, nullptr) \
     v(bool, dumpModuleLoadingState, false, nullptr) \
     v(bool, exposeInternalModuleLoader, false, "expose the internal module loader object to the global space for debugging") \
+    \
+    v(bool, useSuperSampler, false, nullptr)
 
 enum OptionEquivalence {
     SameOption,
@@ -379,14 +373,12 @@ enum OptionEquivalence {
     v(alwaysDoFullCollection, useGenerationalGC, InvertedOption) \
     v(enableOSREntryToDFG, useOSREntryToDFG, SameOption) \
     v(enableOSREntryToFTL, useOSREntryToFTL, SameOption) \
-    v(enableLLVMFastISel, useLLVMFastISel, SameOption) \
     v(enableAccessInlining, useAccessInlining, SameOption) \
     v(enablePolyvariantDevirtualization, usePolyvariantDevirtualization, SameOption) \
     v(enablePolymorphicAccessInlining, usePolymorphicAccessInlining, SameOption) \
     v(enablePolymorphicCallInlining, usePolymorphicCallInlining, SameOption) \
     v(enableMovHintRemoval, useMovHintRemoval, SameOption) \
     v(enableObjectAllocationSinking, useObjectAllocationSinking, SameOption) \
-    v(enableCopyBarrierOptimization, useCopyBarrierOptimization, SameOption) \
     v(enableConcurrentJIT, useConcurrentJIT, SameOption) \
     v(enableProfiler, useProfiler, SameOption) \
     v(enableArchitectureSpecificOptimizations, useArchitectureSpecificOptimizations, SameOption) \

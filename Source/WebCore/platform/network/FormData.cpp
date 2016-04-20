@@ -277,6 +277,26 @@ String FormData::flattenToString() const
     return Latin1Encoding().decode(reinterpret_cast<const char*>(bytes.data()), bytes.size());
 }
 
+unsigned long long FormData::sizeInBytes() const
+{
+    unsigned size = 0;
+    size_t n = m_elements.size();
+    for (size_t i = 0; i < n; ++i) {
+        const FormDataElement& e = m_elements[i];
+        switch (e.m_type) {
+        case FormDataElement::Type::Data:
+            size += e.m_data.size();
+            break;
+        case FormDataElement::Type::EncodedFile:
+            size += e.m_fileLength - e.m_fileStart;
+            break;
+        case FormDataElement::Type::EncodedBlob:
+            break;
+        }
+    }
+    return size;
+}
+
 static void appendBlobResolved(FormData* formData, const URL& url)
 {
     if (!blobRegistry().isBlobRegistryImpl()) {
@@ -293,10 +313,11 @@ static void appendBlobResolved(FormData* formData, const URL& url)
     const BlobDataItemList::const_iterator itend = blobData->items().end();
     for (; it != itend; ++it) {
         const BlobDataItem& blobItem = *it;
-        if (blobItem.type == BlobDataItem::Data)
-            formData->appendData(blobItem.data->data() + static_cast<int>(blobItem.offset()), static_cast<int>(blobItem.length()));
-        else if (blobItem.type == BlobDataItem::File)
-            formData->appendFileRange(blobItem.file->path(), blobItem.offset(), blobItem.length(), blobItem.file->expectedModificationTime());
+        if (blobItem.type() == BlobDataItem::Type::Data) {
+            ASSERT(blobItem.data().data());
+            formData->appendData(blobItem.data().data()->data() + static_cast<int>(blobItem.offset()), static_cast<int>(blobItem.length()));
+        } else if (blobItem.type() == BlobDataItem::Type::File)
+            formData->appendFileRange(blobItem.file()->path(), blobItem.offset(), blobItem.length(), blobItem.file()->expectedModificationTime());
         else
             ASSERT_NOT_REACHED();
     }

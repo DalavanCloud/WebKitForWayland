@@ -79,14 +79,19 @@ void HistoryController::saveScrollPositionAndViewStateToItem(HistoryItem* item)
         item->setScrollPosition(frameView->cachedScrollPosition());
     else
         item->setScrollPosition(frameView->scrollPosition());
+
 #if PLATFORM(IOS)
     item->setExposedContentRect(frameView->exposedContentRect());
     item->setUnobscuredContentRect(frameView->unobscuredContentRect());
 #endif
 
     Page* page = m_frame.page();
-    if (page && m_frame.isMainFrame())
+    if (page && m_frame.isMainFrame()) {
         item->setPageScaleFactor(page->pageScaleFactor() / page->viewScaleFactor());
+#if PLATFORM(IOS)
+        item->setObscuredInset(page->obscuredInset());
+#endif
+    }
 
     // FIXME: It would be great to work out a way to put this code in WebCore instead of calling through to the client.
     m_frame.loader().client().saveViewStateToItem(item);
@@ -754,9 +759,8 @@ void HistoryController::recursiveGoToItem(HistoryItem& item, HistoryItem* fromIt
 
         HistoryItem* fromChildItem = fromItem->childItemWithTarget(childFrameName);
         ASSERT(fromChildItem);
-        Frame* childFrame = m_frame.tree().child(childFrameName);
-        ASSERT(childFrame);
-        childFrame->loader().history().recursiveGoToItem(const_cast<HistoryItem&>(childItem.get()), fromChildItem, type);
+        if (Frame* childFrame = m_frame.tree().child(childFrameName))
+            childFrame->loader().history().recursiveGoToItem(const_cast<HistoryItem&>(childItem.get()), fromChildItem, type);
     }
 }
 

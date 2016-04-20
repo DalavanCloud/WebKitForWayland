@@ -46,11 +46,14 @@ h1 {
     flex: 0 1 1em;
 }
 
+.hidden {
+    display: none;
+}
+
 button {
     flex: 0 0 auto;
     display: block;
     font-size: 1.5em;
-    margin-bottom: 10vh;
     border: 2px solid rgb(96, 96, 96);
     color: rgb(96, 96, 96);
     background: transparent;
@@ -68,8 +71,13 @@ button:active {
     background-color: rgba(0, 0, 0, .2);
 }
 
+button:disabled {
+    border-color: rgba(96, 96, 96, .5);
+    color: rgba(96, 96, 96, .5);
+}
 
-@media screen and (min-device-width: 768px) {
+@media screen and (min-device-height: 1024px),
+    screen and (min-device-width: 1024px) and (orientation: landscape) {
     section {
         padding: 0 20px;
     }
@@ -82,7 +90,8 @@ button:active {
     }
 }
 
-@media screen and (max-device-width: 414px) {
+@media screen and (max-device-width: 414px),
+    screen and (max-device-height: 414px) and (orientation: landscape) {
     h1 {
         font-size: 2.5em;
     }
@@ -105,20 +114,39 @@ button:active {
     flex: 1 0 auto;
 }
 
-#intro p {
-    flex: 1 1 auto;
-    padding: 0 0 10vh 0;
+#intro > p {
+    flex: 0 1 auto;
+    padding: .5em 0;
+    margin: 0;
     font-size: 2em;
 }
 
-@media screen and (min-device-width: 768px) {
+#intro .orientation-check {
+    padding: 10vh 0;
+    text-align: center;
+}
+
+#intro .orientation-check p {
+    font-size: 1em;
+    color: hsl(11, 72%, 50%);
+    margin-bottom: 1em;
+    -apple-trailing-word: -apple-partially-balanced;
+}
+
+#intro .orientation-check button {
+    margin: 0 auto;
+}
+
+@media screen and (min-device-height: 1024px),
+    screen and (min-device-width: 1024px) and (orientation: landscape) {
     #intro p {
         max-width: 800px;
         margin: 0;
     }
 }
 
-@media screen and (max-device-width: 414px) {
+@media screen and (max-device-width: 414px),
+    screen and (max-device-height: 414px) and (orientation: landscape) {
     #intro.selected {
         display: flex;
         align-items: center;
@@ -148,22 +176,15 @@ button:active {
     margin: 0 auto;
 }
 
-@media screen and (min-device-width: 1800px) {
-    .frame-container > iframe {
-        width: 1600px;
-        height: 800px;
-    }
-}
-
-@media screen and (max-device-width: 414px) {
+@media screen and (max-device-width: 414px),
+    screen and (max-device-height: 414px) and (orientation: landscape) {
     #test-container {
         padding: 0;
     }
 
     .frame-container {
         width: 100%;
-        height: 100%;
-        overflow: hidden;
+        height: calc(100% + 1px);
     }
 
     .frame-container > iframe {
@@ -172,9 +193,24 @@ button:active {
     }
 }
 
-@media screen and (max-device-width: 1024px) {
+@media (min-device-height: 768px) and (max-device-height: 1024px) {
     .frame-container > iframe {
         width: 900px;
+        height: 600px;
+    }
+}
+
+@media screen and (max-device-width: 1024px) and (min-device-height: 1366px) {
+    .frame-container > iframe {
+        width: 1200px;
+        height: 800px;
+    }
+}
+
+@media screen and (min-width: 1800px) {
+    .frame-container > iframe {
+        width: 1600px;
+        height: 800px;
     }
 }
 
@@ -226,8 +262,12 @@ button:active {
 #results-score td, #results-score th {
     text-align: right;
 }
+#results footer {
+    padding-bottom: 10vh;
+}
 
-@media screen and (max-device-width: 414px) {
+@media screen and (max-device-width: 414px),
+    screen and (max-device-height: 414px) and (orientation: landscape) {
     #results.selected {
         padding: 0 20px;
         display: flex;
@@ -239,4 +279,56 @@ button:active {
     .score {
         font-size: 3em;
     }
+}
+
+#overlay {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    color: rgb(255, 255, 255);
+    background: rgba(0, 0, 10, .8);
+}
+
+@supports (-webkit-backdrop-filter: blur(10px)) {
+    #overlay {
+        background: rgba(0, 0, 10, .4);
+        -webkit-backdrop-filter: blur(10px);
+    }
+}
+
+#overlay > div {
+    width: 500px;
+    height: 500px;
+    position: absolute;
+    margin-top: -250px;
+    margin-left: -250px;
+    top: 50%;
+    left: 50%;
+    display: flex;
+    justify-content: flex-start;
+    flex-flow: column;
+}
+
+#overlay > div div {
+    flex: 1 1 auto;
+    overflow: scroll;
+    border: 1px solid rgb(241, 241, 241);
+    padding: 2px;
+    box-sizing: border-box;
+}
+
+#overlay button {
+    margin: 1em 5em;
+    border-color: rgb(241, 241, 241);
+    color: rgb(241, 241, 241);
+}
+
+#overlay button:hover {
+    background-color: rgba(255, 255, 255, .1);
+}
+
+#overlay button:active {
+    background-color: rgba(255, 255, 255, .2);
 }

@@ -192,7 +192,7 @@ private:
 
     uint32_t calculateChecksum(size_t startingOffset, size_t endingOffset) const;
 
-    void processGlyphElement(const SVGElement& glyphOrMissingGlyphElement, const SVGGlyphElement*, float defaultHorizontalAdvance, float defaultVerticalAdvance, const String& codepoints, Optional<FloatRect> boundingBox);
+    void processGlyphElement(const SVGElement& glyphOrMissingGlyphElement, const SVGGlyphElement*, float defaultHorizontalAdvance, float defaultVerticalAdvance, const String& codepoints, Optional<FloatRect>& boundingBox);
 
     typedef void (SVGToOTFFontConverter::*FontAppendingFunction)();
     void appendTable(const char identifier[4], FontAppendingFunction);
@@ -429,7 +429,7 @@ void SVGToOTFFontConverter::appendHHEATable()
 {
     append32(0x00010000); // Version
     append16(clampTo<int16_t>(m_ascent));
-    append16(clampTo<int16_t>(m_descent));
+    append16(clampTo<int16_t>(-m_descent));
     // WebKit SVG font rendering has hard coded the line gap to be 1/10th of the font size since 2008 (see r29719).
     append16(clampTo<int16_t>(m_lineGap));
     append16(clampTo<uint16_t>(m_advanceWidthMax));
@@ -545,7 +545,7 @@ void SVGToOTFFontConverter::appendOS2Table()
     append16(0); // First unicode index
     append16(0xFFFF); // Last unicode index
     append16(clampTo<int16_t>(m_ascent)); // Typographical ascender
-    append16(clampTo<int16_t>(m_descent)); // Typographical descender
+    append16(clampTo<int16_t>(-m_descent)); // Typographical descender
     append16(clampTo<int16_t>(m_lineGap)); // Typographical line gap
     append16(clampTo<uint16_t>(m_ascent)); // Windows-specific ascent
     append16(clampTo<uint16_t>(m_descent)); // Windows-specific descent
@@ -751,7 +751,7 @@ void SVGToOTFFontConverter::appendLigatureSubtable(size_t subtableRecordLocation
     }
     if (ligaturePairs.size() > std::numeric_limits<uint16_t>::max())
         ligaturePairs.clear();
-    std::sort(ligaturePairs.begin(), ligaturePairs.end(), [](LigaturePair& lhs, LigaturePair& rhs) {
+    std::sort(ligaturePairs.begin(), ligaturePairs.end(), [](const LigaturePair& lhs, const LigaturePair& rhs) {
         return lhs.first[0] < rhs.first[0];
     });
     Vector<size_t> overlappingFirstGlyphSegmentLengths;
@@ -1097,10 +1097,10 @@ size_t SVGToOTFFontConverter::finishAppendingKERNSubtable(Vector<KerningData> ke
     append16((kerningData.size() - roundedNumKerningPairs) * 6); // rangeShift: "The value of nPairs minus the largest power of two less than or equal to nPairs,
                                                                         // and then multiplied by the size in bytes of an entry in the table."
 
-    for (auto& kerningData : kerningData) {
-        append16(kerningData.glyph1);
-        append16(kerningData.glyph2);
-        append16(kerningData.adjustment);
+    for (auto& kerningDataElement : kerningData) {
+        append16(kerningDataElement.glyph1);
+        append16(kerningDataElement.glyph2);
+        append16(kerningDataElement.adjustment);
     }
 
     return sizeOfKerningDataTable;
@@ -1178,7 +1178,7 @@ private:
         m_current = destination;
     }
 
-    virtual void moveTo(const FloatPoint& targetPoint, bool closed, PathCoordinateMode mode) override
+    void moveTo(const FloatPoint& targetPoint, bool closed, PathCoordinateMode mode) override
     {
         if (closed && !m_cffData.isEmpty())
             closePath();
@@ -1198,7 +1198,7 @@ private:
         m_cffData.append(rLineTo);
     }
 
-    virtual void lineTo(const FloatPoint& targetPoint, PathCoordinateMode mode) override
+    void lineTo(const FloatPoint& targetPoint, PathCoordinateMode mode) override
     {
         FloatPoint scaledTargetPoint = FloatPoint(targetPoint.x() * m_unitsPerEmScalar, targetPoint.y() * m_unitsPerEmScalar);
         FloatPoint destination = mode == AbsoluteCoordinates ? scaledTargetPoint : m_current + scaledTargetPoint;
@@ -1206,7 +1206,7 @@ private:
         unscaledLineTo(destination);
     }
 
-    virtual void curveToCubic(const FloatPoint& point1, const FloatPoint& point2, const FloatPoint& point3, PathCoordinateMode mode) override
+    void curveToCubic(const FloatPoint& point1, const FloatPoint& point2, const FloatPoint& point3, PathCoordinateMode mode) override
     {
         FloatPoint scaledPoint1 = FloatPoint(point1.x() * m_unitsPerEmScalar, point1.y() * m_unitsPerEmScalar);
         FloatPoint scaledPoint2 = FloatPoint(point2.x() * m_unitsPerEmScalar, point2.y() * m_unitsPerEmScalar);
@@ -1224,21 +1224,21 @@ private:
         m_cffData.append(rrCurveTo);
     }
 
-    virtual void closePath() override
+    void closePath() override
     {
         if (m_current != m_startingPoint)
             unscaledLineTo(m_startingPoint);
     }
 
-    virtual void incrementPathSegmentCount() override { }
-    virtual bool continueConsuming() override { return true; }
+    void incrementPathSegmentCount() override { }
+    bool continueConsuming() override { return true; }
 
-    virtual void lineToHorizontal(float, PathCoordinateMode) override { ASSERT_NOT_REACHED(); }
-    virtual void lineToVertical(float, PathCoordinateMode) override { ASSERT_NOT_REACHED(); }
-    virtual void curveToCubicSmooth(const FloatPoint&, const FloatPoint&, PathCoordinateMode) override { ASSERT_NOT_REACHED(); }
-    virtual void curveToQuadratic(const FloatPoint&, const FloatPoint&, PathCoordinateMode) override { ASSERT_NOT_REACHED(); }
-    virtual void curveToQuadraticSmooth(const FloatPoint&, PathCoordinateMode) override { ASSERT_NOT_REACHED(); }
-    virtual void arcTo(float, float, float, bool, bool, const FloatPoint&, PathCoordinateMode) override { ASSERT_NOT_REACHED(); }
+    void lineToHorizontal(float, PathCoordinateMode) override { ASSERT_NOT_REACHED(); }
+    void lineToVertical(float, PathCoordinateMode) override { ASSERT_NOT_REACHED(); }
+    void curveToCubicSmooth(const FloatPoint&, const FloatPoint&, PathCoordinateMode) override { ASSERT_NOT_REACHED(); }
+    void curveToQuadratic(const FloatPoint&, const FloatPoint&, PathCoordinateMode) override { ASSERT_NOT_REACHED(); }
+    void curveToQuadraticSmooth(const FloatPoint&, PathCoordinateMode) override { ASSERT_NOT_REACHED(); }
+    void arcTo(float, float, float, bool, bool, const FloatPoint&, PathCoordinateMode) override { ASSERT_NOT_REACHED(); }
 
     Vector<char>& m_cffData;
     FloatPoint m_startingPoint;
@@ -1283,7 +1283,7 @@ Vector<char> SVGToOTFFontConverter::transcodeGlyphPaths(float width, const SVGEl
     return result;
 }
 
-void SVGToOTFFontConverter::processGlyphElement(const SVGElement& glyphOrMissingGlyphElement, const SVGGlyphElement* glyphElement, float defaultHorizontalAdvance, float defaultVerticalAdvance, const String& codepoints, Optional<FloatRect> boundingBox)
+void SVGToOTFFontConverter::processGlyphElement(const SVGElement& glyphOrMissingGlyphElement, const SVGGlyphElement* glyphElement, float defaultHorizontalAdvance, float defaultVerticalAdvance, const String& codepoints, Optional<FloatRect>& boundingBox)
 {
     bool ok;
     float horizontalAdvance = scaleUnitsPerEm(glyphOrMissingGlyphElement.fastGetAttribute(SVGNames::horiz_adv_xAttr).toFloat(&ok));
@@ -1421,8 +1421,10 @@ SVGToOTFFontConverter::SVGToOTFFontConverter(const SVGFontElement& fontElement)
     Optional<FloatRect> boundingBox;
     if (m_missingGlyphElement)
         processGlyphElement(*m_missingGlyphElement, nullptr, defaultHorizontalAdvance, defaultVerticalAdvance, String(), boundingBox);
-    else
+    else {
         m_glyphs.append(GlyphData(Vector<char>(m_emptyGlyphCharString), nullptr, s_outputUnitsPerEm, s_outputUnitsPerEm, FloatRect(), String()));
+        boundingBox = FloatRect(0, 0, s_outputUnitsPerEm, s_outputUnitsPerEm);
+    }
 
     for (auto& glyphElement : childrenOfType<SVGGlyphElement>(m_fontElement)) {
         auto& unicodeAttribute = glyphElement.fastGetAttribute(SVGNames::unicodeAttr);

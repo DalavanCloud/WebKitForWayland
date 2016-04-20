@@ -30,7 +30,6 @@
 #include "ChildProcessProxy.h"
 #include "CustomProtocolManagerProxy.h"
 #include "MessageReceiverMap.h"
-#include "PlatformProcessIdentifier.h"
 #include "PluginInfoStore.h"
 #include "ProcessLauncher.h"
 #include "ProcessThrottlerClient.h"
@@ -38,7 +37,6 @@
 #include "WebConnectionToWebProcess.h"
 #include "WebPageProxy.h"
 #include "WebProcessProxyMessages.h"
-#include "WebsiteDataTypes.h"
 #include <WebCore/LinkHash.h>
 #include <memory>
 #include <wtf/Forward.h>
@@ -62,6 +60,7 @@ class NetworkProcessProxy;
 class WebBackForwardListItem;
 class WebPageGroup;
 class WebProcessPool;
+enum class WebsiteDataType;
 struct WebNavigationDataStore;
     
 class WebProcessProxy : public ChildProcessProxy, ResponsivenessTimer::Client, private ProcessThrottlerClient {
@@ -122,9 +121,9 @@ public:
     void didSaveToPageCache();
     void releasePageCache();
 
-    void fetchWebsiteData(WebCore::SessionID, WebsiteDataTypes, std::function<void (WebsiteData)> completionHandler);
-    void deleteWebsiteData(WebCore::SessionID, WebsiteDataTypes, std::chrono::system_clock::time_point modifiedSince, std::function<void ()> completionHandler);
-    void deleteWebsiteDataForOrigins(WebCore::SessionID, WebsiteDataTypes, const Vector<RefPtr<WebCore::SecurityOrigin>>& origins, std::function<void ()> completionHandler);
+    void fetchWebsiteData(WebCore::SessionID, OptionSet<WebsiteDataType>, std::function<void (WebsiteData)> completionHandler);
+    void deleteWebsiteData(WebCore::SessionID, OptionSet<WebsiteDataType>, std::chrono::system_clock::time_point modifiedSince, std::function<void ()> completionHandler);
+    void deleteWebsiteDataForOrigins(WebCore::SessionID, OptionSet<WebsiteDataType>, const Vector<RefPtr<WebCore::SecurityOrigin>>& origins, std::function<void ()> completionHandler);
 
     void enableSuddenTermination();
     void disableSuddenTermination();
@@ -158,10 +157,9 @@ private:
     explicit WebProcessProxy(WebProcessPool&);
 
     // From ChildProcessProxy
-    virtual void getLaunchOptions(ProcessLauncher::LaunchOptions&) override;
-    void platformGetLaunchOptions(ProcessLauncher::LaunchOptions&);
-    virtual void connectionWillOpen(IPC::Connection&) override;
-    virtual void processWillShutDown(IPC::Connection&) override;
+    void getLaunchOptions(ProcessLauncher::LaunchOptions&) override;
+    void connectionWillOpen(IPC::Connection&) override;
+    void processWillShutDown(IPC::Connection&) override;
 
     // Called when the web process has crashed or we know that it will terminate soon.
     // Will potentially cause the WebProcessProxy object to be freed.
@@ -195,18 +193,18 @@ private:
 
     // IPC::Connection::Client
     friend class WebConnectionToWebProcess;
-    virtual void didReceiveMessage(IPC::Connection&, IPC::MessageDecoder&) override;
-    virtual void didReceiveSyncMessage(IPC::Connection&, IPC::MessageDecoder&, std::unique_ptr<IPC::MessageEncoder>&) override;
-    virtual void didClose(IPC::Connection&) override;
-    virtual void didReceiveInvalidMessage(IPC::Connection&, IPC::StringReference messageReceiverName, IPC::StringReference messageName) override;
-    virtual IPC::ProcessType localProcessType() override { return IPC::ProcessType::UI; }
-    virtual IPC::ProcessType remoteProcessType() override { return IPC::ProcessType::Web; }
+    void didReceiveMessage(IPC::Connection&, IPC::MessageDecoder&) override;
+    void didReceiveSyncMessage(IPC::Connection&, IPC::MessageDecoder&, std::unique_ptr<IPC::MessageEncoder>&) override;
+    void didClose(IPC::Connection&) override;
+    void didReceiveInvalidMessage(IPC::Connection&, IPC::StringReference messageReceiverName, IPC::StringReference messageName) override;
+    IPC::ProcessType localProcessType() override { return IPC::ProcessType::UI; }
+    IPC::ProcessType remoteProcessType() override { return IPC::ProcessType::Web; }
 
     // ResponsivenessTimer::Client
     void didBecomeUnresponsive() override;
     void didBecomeResponsive() override;
-    virtual void willChangeIsResponsive() override;
-    virtual void didChangeIsResponsive() override;
+    void willChangeIsResponsive() override;
+    void didChangeIsResponsive() override;
 
     // ProcessThrottlerClient
     void sendProcessWillSuspendImminently() override;
@@ -216,7 +214,7 @@ private:
     void didSetAssertionState(AssertionState) override;
 
     // ProcessLauncher::Client
-    virtual void didFinishLaunching(ProcessLauncher*, IPC::Connection::Identifier) override;
+    void didFinishLaunching(ProcessLauncher*, IPC::Connection::Identifier) override;
 
     // Implemented in generated WebProcessProxyMessageReceiver.cpp
     void didReceiveWebProcessProxyMessage(IPC::Connection&, IPC::MessageDecoder&);

@@ -24,6 +24,7 @@
  */
 
 var emDash = "\u2014";
+var enDash = "\u2013";
 var ellipsis = "\u2026";
 
 Object.defineProperty(Object, "shallowCopy",
@@ -90,6 +91,17 @@ Object.defineProperty(Object.prototype, "valueForCaseInsensitiveKey",
         }
 
         return undefined;
+    }
+});
+
+Object.defineProperty(Map, "fromObject",
+{
+    value: function(object)
+    {
+        let map = new Map;
+        for (let key in object)
+            map.set(key, object[key]);
+        return map;
     }
 });
 
@@ -472,6 +484,22 @@ Object.defineProperty(Array.prototype, "partition",
     }
 });
 
+Object.defineProperty(String.prototype, "isLowerCase",
+{
+    value: function()
+    {
+        return String(this) === this.toLowerCase();
+    }
+});
+
+Object.defineProperty(String.prototype, "isUpperCase",
+{
+    value: function()
+    {
+        return String(this) === this.toUpperCase();
+    }
+});
+
 Object.defineProperty(String.prototype, "trimMiddle",
 {
     value: function(maxLength)
@@ -517,6 +545,14 @@ Object.defineProperty(String.prototype, "collapseWhitespace",
     value: function()
     {
         return this.replace(/[\s\xA0]+/g, " ");
+    }
+});
+
+Object.defineProperty(String.prototype, "removeWhitespace",
+{
+    value: function()
+    {
+        return this.replace(/[\s\xA0]+/g, "");
     }
 });
 
@@ -843,6 +879,14 @@ Object.defineProperty(String.prototype, "levenshteinDistance",
     }
 });
 
+Object.defineProperty(String.prototype, "toCamelCase",
+{
+    value: function()
+    {
+        return this.toLowerCase().replace(/[^\w]+(\w)/g, (match, group) => group.toUpperCase());
+    }
+});
+
 Object.defineProperty(Math, "roundTo",
 {
     value: function(num, step)
@@ -855,16 +899,35 @@ Object.defineProperty(Number, "constrain",
 {
     value: function(num, min, max)
     {
-        if (max < min) {
-            let temp = max;
-            max = min;
-            min = temp;
-        }
+        if (max < min)
+            return min;
+
         if (num < min)
             num = min;
         else if (num > max)
             num = max;
         return num;
+    }
+});
+
+Object.defineProperty(Number, "percentageString",
+{
+    value: function(percent, precision = 1)
+    {
+        console.assert(percent >= 0 && percent <= 100);
+        return percent.toFixed(precision) + "%";
+    }
+});
+
+Object.defineProperty(Number, "secondsToMillisecondsString",
+{
+    value: function(seconds, higherResolution)
+    {
+        let ms = seconds * 1000;
+
+        if (higherResolution)
+            return WebInspector.UIString("%.2fms").format(ms);
+        return WebInspector.UIString("%.1fms").format(ms);
     }
 });
 
@@ -1147,9 +1210,9 @@ function isWebInspectorInternalScript(url)
     return url === "__WebInspectorInternal__";
 }
 
-function isWebInspectorDebugScript(url)
+function isWebKitInternalScript(url)
 {
-    return url && url.startsWith("__WebInspector");
+    return url && url.startsWith("__Web") && url.endsWith("__");
 }
 
 function isFunctionStringNativeCode(str)
@@ -1159,7 +1222,7 @@ function isFunctionStringNativeCode(str)
 
 function doubleQuotedString(str)
 {
-    return "\"" + str.replace(/"/g, "\\\"") + "\"";
+    return "\"" + str.replace(/\\/g, "\\\\").replace(/"/g, "\\\"") + "\"";
 }
 
 function insertionIndexForObjectInListSortedByFunction(object, list, comparator, insertionIndexAfter)
@@ -1204,4 +1267,11 @@ function decodeBase64ToBlob(base64Data, mimeType)
 function timestamp()
 {
     return window.performance ? performance.now() : Date.now();
+}
+
+if (!window.handlePromiseException) {
+    window.handlePromiseException = function handlePromiseException(error)
+    {
+        console.error("Uncaught exception in Promise", error);
+    };
 }

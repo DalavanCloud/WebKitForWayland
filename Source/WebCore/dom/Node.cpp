@@ -51,6 +51,7 @@
 #include "KeyboardEvent.h"
 #include "Logging.h"
 #include "MutationEvent.h"
+#include "NoEventDispatchAssertion.h"
 #include "NodeOrString.h"
 #include "NodeRenderStyle.h"
 #include "ProcessingInstruction.h"
@@ -602,6 +603,15 @@ void Node::normalize()
     }
 }
 
+RefPtr<Node> Node::cloneNodeForBindings(bool deep, ExceptionCode& ec)
+{
+    if (UNLIKELY(isShadowRoot())) {
+        ec = NOT_SUPPORTED_ERR;
+        return nullptr;
+    }
+    return cloneNode(deep);
+}
+
 const AtomicString& Node::prefix() const
 {
     // For nodes other than elements and attributes, the prefix is always null
@@ -737,7 +747,7 @@ inline void Node::updateAncestorsForStyleRecalc()
     if (it != end) {
         it->setDirectChildNeedsStyleRecalc();
 
-        if (is<Element>(*it) && downcast<Element>(*it).childrenAffectedByPropertyBasedBackwardPositionalRules()) {
+        if (it->childrenAffectedByPropertyBasedBackwardPositionalRules()) {
             if (it->styleChangeType() < FullStyleChange)
                 it->setStyleChange(FullStyleChange);
         }
@@ -752,15 +762,23 @@ inline void Node::updateAncestorsForStyleRecalc()
         }
     }
 
-    Document& document = this->document();
-    if (document.childNeedsStyleRecalc())
-        document.scheduleStyleRecalc();
+    auto* documentElement = document().documentElement();
+    if (!documentElement)
+        return;
+    if (!documentElement->childNeedsStyleRecalc() && !documentElement->needsStyleRecalc())
+        return;
+    document().setChildNeedsStyleRecalc();
+    document().scheduleStyleRecalc();
 }
 
 void Node::setNeedsStyleRecalc(StyleChangeType changeType)
 {
     ASSERT(changeType != NoStyleChange);
     if (!inRenderedDocument())
+        return;
+
+    // FIXME: This should eventually be an ASSERT.
+    if (document().inRenderTreeUpdate())
         return;
 
     StyleChangeType existingChangeType = styleChangeType();
@@ -1099,6 +1117,18 @@ Element* Node::parentOrShadowHostElement() const
         return nullptr;
 
     return downcast<Element>(parent);
+}
+
+Node* Node::rootNode() const
+{
+    if (isInTreeScope())
+        return &treeScope().rootNode();
+
+    Node* node = const_cast<Node*>(this);
+    Node* highest = node;
+    for (; node; node = node->parentNode())
+        highest = node;
+    return highest;
 }
 
 Node::InsertionNotificationRequest Node::insertedInto(ContainerNode& insertionPoint)

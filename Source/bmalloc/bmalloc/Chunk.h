@@ -26,59 +26,181 @@
 #ifndef Chunk_h
 #define Chunk_h
 
+#include "BeginTag.h"
+#include "EndTag.h"
+#include "Object.h"
 #include "ObjectType.h"
 #include "Sizes.h"
+#include "SmallLine.h"
+#include "SmallPage.h"
 #include "VMAllocate.h"
+#include <array>
 
 namespace bmalloc {
 
-template<class Traits>
 class Chunk {
+    // Our metadata layout includes a left and right edge sentinel.
+    // Metadata takes up enough space to leave at least the first two
+    // boundary tag slots unused.
+    //
+    //      So, boundary tag space looks like this:
+    //
+    //          [OOXXXXX...]
+    //
+    //      And BoundaryTag::get subtracts one, producing:
+    //
+    //          [OXXXXX...O].
+    //
+    // We use the X's for boundary tags and the O's for edge sentinels.
+
+    static const size_t boundaryTagCount = chunkSize / largeMin;
+    static_assert(boundaryTagCount > 2, "Chunk must have space for two sentinel boundary tags");
+
 public:
-    typedef typename Traits::PageType Page;
-    typedef typename Traits::LineType Line;
-
-    static const size_t lineSize = Traits::lineSize;
-    static const size_t chunkSize = Traits::chunkSize;
-    static const size_t chunkOffset = Traits::chunkOffset;
-    static const uintptr_t chunkMask = Traits::chunkMask;
-
     static Chunk* get(void*);
 
-    Page* begin() { return Page::get(Line::get(m_memory)); }
-    Page* end() { return &m_pages[pageCount]; }
-    
-    Line* lines() { return m_lines; }
-    Page* pages() { return m_pages; }
+    static BeginTag* beginTag(void*);
+    static EndTag* endTag(void*, size_t);
+
+    Chunk(std::lock_guard<StaticMutex>&, ObjectType);
+
+    size_t offset(void*);
+
+    char* object(size_t offset);
+    SmallPage* page(size_t offset);
+    SmallLine* line(size_t offset);
+
+    char* bytes() { return reinterpret_cast<char*>(this); }
+    SmallLine* lines() { return m_lines.begin(); }
+    SmallPage* pages() { return m_pages.begin(); }
+    std::array<BoundaryTag, boundaryTagCount>& boundaryTags() { return m_boundaryTags; }
+
+    ObjectType objectType() { return m_objectType; }
 
 private:
-    static_assert(!(vmPageSize % lineSize), "vmPageSize must be an even multiple of line size");
-    static_assert(!(chunkSize % lineSize), "chunk size must be an even multiple of line size");
+    union {
+        // The first few bytes of metadata cover the metadata region, so they're
+        // not used. We can steal them to store m_objectType.
+        ObjectType m_objectType;
+        std::array<SmallLine, chunkSize / smallLineSize> m_lines;
+    };
 
-    static const size_t lineCount = chunkSize / lineSize;
-    static const size_t pageCount = chunkSize / vmPageSize;
-
-    Line m_lines[lineCount];
-    Page m_pages[pageCount];
-
-    // Align to vmPageSize to avoid sharing physical pages with metadata.
-    // Otherwise, we'll confuse the scavenger into trying to scavenge metadata.
-    // FIXME: Below #ifdef workaround fix should be removed after all linux based ports bump
-    // own gcc version. See https://bugs.webkit.org/show_bug.cgi?id=140162#c87
-#if BPLATFORM(IOS)
-    char m_memory[] __attribute__((aligned(16384)));
-    static_assert(vmPageSize == 16384, "vmPageSize and alignment must be same");
-#else
-    char m_memory[] __attribute__((aligned(4096)));
-    static_assert(vmPageSize == 4096, "vmPageSize and alignment must be same");
-#endif
+    union {
+        // A chunk is either small or large for its lifetime, so we can union
+        // small and large metadata, and then use one or the other at runtime.
+        std::array<SmallPage, chunkSize / smallPageSize> m_pages;
+        std::array<BoundaryTag, boundaryTagCount> m_boundaryTags;
+    };
 };
 
-template<class Traits>
-inline auto Chunk<Traits>::get(void* object) -> Chunk*
+static_assert(sizeof(Chunk) + largeMax <= chunkSize, "largeMax is too big");
+
+static_assert(sizeof(Chunk) / smallLineSize > sizeof(ObjectType),
+    "Chunk::m_objectType overlaps with metadata");
+
+inline Chunk::Chunk(std::lock_guard<StaticMutex>&, ObjectType objectType)
+    : m_objectType(objectType)
 {
-    BASSERT(isSmallOrMedium(object));
+}
+
+inline Chunk* Chunk::get(void* object)
+{
     return static_cast<Chunk*>(mask(object, chunkMask));
+}
+
+inline BeginTag* Chunk::beginTag(void* object)
+{
+    Chunk* chunk = get(object);
+    size_t boundaryTagNumber = (static_cast<char*>(object) - reinterpret_cast<char*>(chunk)) / largeMin - 1; // - 1 to offset from the right sentinel.
+    return static_cast<BeginTag*>(&chunk->m_boundaryTags[boundaryTagNumber]);
+}
+
+inline EndTag* Chunk::endTag(void* object, size_t size)
+{
+    Chunk* chunk = get(object);
+    char* end = static_cast<char*>(object) + size;
+
+    // We subtract largeMin before computing the end pointer's boundary tag. An
+    // object's size need not be an even multiple of largeMin. Subtracting
+    // largeMin rounds down to the last boundary tag prior to our neighbor.
+
+    size_t boundaryTagNumber = (end - largeMin - reinterpret_cast<char*>(chunk)) / largeMin - 1; // - 1 to offset from the right sentinel.
+    return static_cast<EndTag*>(&chunk->m_boundaryTags[boundaryTagNumber]);
+}
+
+inline size_t Chunk::offset(void* object)
+{
+    BASSERT(object >= this);
+    BASSERT(object < bytes() + chunkSize);
+    return static_cast<char*>(object) - bytes();
+}
+
+inline char* Chunk::object(size_t offset)
+{
+    return bytes() + offset;
+}
+
+inline SmallPage* Chunk::page(size_t offset)
+{
+    size_t pageNumber = offset / smallPageSize;
+    SmallPage* page = &m_pages[pageNumber];
+    return page - page->slide();
+}
+
+inline SmallLine* Chunk::line(size_t offset)
+{
+    size_t lineNumber = offset / smallLineSize;
+    return &m_lines[lineNumber];
+}
+
+inline char* SmallLine::begin()
+{
+    Chunk* chunk = Chunk::get(this);
+    size_t lineNumber = this - chunk->lines();
+    size_t offset = lineNumber * smallLineSize;
+    return &reinterpret_cast<char*>(chunk)[offset];
+}
+
+inline char* SmallLine::end()
+{
+    return begin() + smallLineSize;
+}
+
+inline SmallLine* SmallPage::begin()
+{
+    BASSERT(!m_slide);
+    Chunk* chunk = Chunk::get(this);
+    size_t pageNumber = this - chunk->pages();
+    size_t lineNumber = pageNumber * smallPageLineCount;
+    return &chunk->lines()[lineNumber];
+}
+
+inline Object::Object(void* object)
+    : m_chunk(Chunk::get(object))
+    , m_offset(m_chunk->offset(object))
+{
+}
+
+inline Object::Object(Chunk* chunk, void* object)
+    : m_chunk(chunk)
+    , m_offset(m_chunk->offset(object))
+{
+    BASSERT(chunk == Chunk::get(object));
+}
+
+inline char* Object::begin()
+{
+    return m_chunk->object(m_offset);
+}
+
+inline SmallLine* Object::line()
+{
+    return m_chunk->line(m_offset);
+}
+
+inline SmallPage* Object::page()
+{
+    return m_chunk->page(m_offset);
 }
 
 }; // namespace bmalloc

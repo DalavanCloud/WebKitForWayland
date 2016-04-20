@@ -34,6 +34,7 @@
 
 #include "ExceptionCode.h"
 #include "InspectorInstrumentation.h"
+#include "NoEventDispatchAssertion.h"
 #include "ScriptController.h"
 #include "WebKitAnimationEvent.h"
 #include "WebKitTransitionEvent.h"
@@ -134,12 +135,14 @@ bool EventTarget::clearAttributeEventListener(const AtomicString& eventType)
     return removeEventListener(eventType, listener, false);
 }
 
-bool EventTarget::dispatchEvent(Event* event, ExceptionCode& ec)
+bool EventTarget::dispatchEventForBindings(Event* event, ExceptionCode& ec)
 {
     if (!event) {
         ec = TypeError;
         return false;
     }
+
+    event->setUntrusted();
 
     if (!event->isInitialized() || event->isBeingDispatched()) {
         ec = INVALID_STATE_ERR;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2011, 2012 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2016 Apple Inc. All rights reserved.
  * Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies).
  *
  * Redistribution and use in source and binary forms, with or without
@@ -223,6 +223,7 @@ Page* WebChromeClient::createWindow(Frame* frame, const FrameLoadRequest& reques
     navigationActionData.isProcessingUserGesture = navigationAction.processingUserGesture();
     navigationActionData.canHandleRequest = m_page->canHandleRequest(request.resourceRequest());
     navigationActionData.shouldOpenExternalURLsPolicy = navigationAction.shouldOpenExternalURLsPolicy();
+    navigationActionData.downloadAttribute = navigationAction.downloadAttribute();
 
     uint64_t newPageID = 0;
     WebPageCreationParameters parameters;
@@ -701,7 +702,7 @@ String WebChromeClient::generateReplacementFile(const String& path)
 #if ENABLE(INPUT_TYPE_COLOR)
 std::unique_ptr<ColorChooser> WebChromeClient::createColorChooser(ColorChooserClient* client, const Color& initialColor)
 {
-    return std::unique_ptr<WebColorChooser>(new WebColorChooser(m_page, client, initialColor));
+    return std::make_unique<WebColorChooser>(m_page, client, initialColor);
 }
 #endif
 
@@ -850,9 +851,19 @@ PassRefPtr<ScrollingCoordinator> WebChromeClient::createScrollingCoordinator(Pag
 #endif
 
 #if PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
-bool WebChromeClient::supportsVideoFullscreen(WebCore::HTMLMediaElementEnums::VideoFullscreenMode)
+bool WebChromeClient::supportsVideoFullscreen(WebCore::HTMLMediaElementEnums::VideoFullscreenMode mode)
 {
-    return m_page->videoFullscreenManager()->supportsVideoFullscreen();
+    return m_page->videoFullscreenManager()->supportsVideoFullscreen(mode);
+}
+
+void WebChromeClient::setUpVideoControlsManager(WebCore::HTMLVideoElement& videoElement)
+{
+    m_page->videoFullscreenManager()->setUpVideoControlsManager(videoElement);
+}
+
+void WebChromeClient::clearVideoControlsManager()
+{
+    m_page->videoFullscreenManager()->clearVideoControlsManager();
 }
 
 void WebChromeClient::enterVideoFullscreenForVideoElement(WebCore::HTMLVideoElement& videoElement, WebCore::HTMLMediaElementEnums::VideoFullscreenMode mode)
@@ -865,6 +876,14 @@ void WebChromeClient::exitVideoFullscreenForVideoElement(WebCore::HTMLVideoEleme
 {
     m_page->videoFullscreenManager()->exitVideoFullscreenForVideoElement(videoElement);
 }
+
+#if PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE)
+void WebChromeClient::exitVideoFullscreenToModeWithoutAnimation(WebCore::HTMLVideoElement& videoElement, HTMLMediaElementEnums::VideoFullscreenMode targetMode)
+{
+    m_page->videoFullscreenManager()->exitVideoFullscreenToModeWithoutAnimation(videoElement, targetMode);
+}
+#endif
+
 #endif
     
 #if ENABLE(FULLSCREEN_API)

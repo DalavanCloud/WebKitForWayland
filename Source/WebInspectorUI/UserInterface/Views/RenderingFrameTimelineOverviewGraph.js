@@ -95,8 +95,16 @@ WebInspector.RenderingFrameTimelineOverviewGraph = class RenderingFrameTimelineO
 
     // Protected
 
+    get height()
+    {
+        return 108;
+    }
+
     layout()
     {
+        if (!this.visible)
+            return;
+
         if (!this._renderingFrameTimeline.records.length)
             return;
 

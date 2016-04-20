@@ -39,35 +39,61 @@ OBJC_CLASS WKNetworkSessionDelegate;
 #include <wtf/Ref.h>
 #include <wtf/RefCounted.h>
 
+namespace WebCore {
+class NetworkStorageSession;
+}
+
 namespace WebKit {
 
 class CustomProtocolManager;
 
-class NetworkSession {
+class NetworkSession : public RefCounted<NetworkSession> {
     friend class NetworkDataTask;
 public:
     enum class Type {
         Normal,
         Ephemeral
     };
-    NetworkSession(Type, WebCore::SessionID, CustomProtocolManager*);
+
+    static Ref<NetworkSession> create(Type, WebCore::SessionID, CustomProtocolManager*, std::unique_ptr<WebCore::NetworkStorageSession>);
+    static NetworkSession& defaultSession();
     ~NetworkSession();
 
-    static NetworkSession& defaultSession();
+    void invalidateAndCancel();
 
-    NetworkDataTask* dataTaskForIdentifier(NetworkDataTask::TaskIdentifier);
+    WebCore::SessionID sessionID() const { return m_sessionID; }
+    WebCore::NetworkStorageSession& networkStorageSession();
+
+    static void setCustomProtocolManager(CustomProtocolManager*);
+#if PLATFORM(COCOA)
+    static void setSourceApplicationAuditTokenData(RetainPtr<CFDataRef>&&);
+#endif
+
+#if !USE(CREDENTIAL_STORAGE_WITH_NETWORK_SESSION)
+    void clearCredentials();
+#endif
+
+    NetworkDataTask* dataTaskForIdentifier(NetworkDataTask::TaskIdentifier, WebCore::StoredCredentials);
 
     void addDownloadID(NetworkDataTask::TaskIdentifier, DownloadID);
     DownloadID downloadID(NetworkDataTask::TaskIdentifier);
     DownloadID takeDownloadID(NetworkDataTask::TaskIdentifier);
     
 private:
-    HashMap<NetworkDataTask::TaskIdentifier, NetworkDataTask*> m_dataTaskMap;
+    NetworkSession(Type, WebCore::SessionID, CustomProtocolManager*, std::unique_ptr<WebCore::NetworkStorageSession>);
+
+    WebCore::SessionID m_sessionID;
+    std::unique_ptr<WebCore::NetworkStorageSession> m_networkStorageSession;
+
+    HashMap<NetworkDataTask::TaskIdentifier, NetworkDataTask*> m_dataTaskMapWithCredentials;
+    HashMap<NetworkDataTask::TaskIdentifier, NetworkDataTask*> m_dataTaskMapWithoutCredentials;
     HashMap<NetworkDataTask::TaskIdentifier, DownloadID> m_downloadMap;
+
 #if PLATFORM(COCOA)
     RetainPtr<NSURLSession> m_sessionWithCredentialStorage;
+    RetainPtr<WKNetworkSessionDelegate> m_sessionWithCredentialStorageDelegate;
     RetainPtr<NSURLSession> m_sessionWithoutCredentialStorage;
-    RetainPtr<WKNetworkSessionDelegate> m_sessionDelegate;
+    RetainPtr<WKNetworkSessionDelegate> m_sessionWithoutCredentialStorageDelegate;
 #endif
 };
 

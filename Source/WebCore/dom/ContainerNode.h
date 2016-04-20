@@ -31,53 +31,8 @@
 namespace WebCore {
 
 class HTMLCollection;
-class NodeList;
-class NodeOrString;
-class QualifiedName;
+class RadioNodeList;
 class RenderElement;
-
-class NoEventDispatchAssertion {
-public:
-    NoEventDispatchAssertion()
-    {
-#if !ASSERT_DISABLED
-        if (!isMainThread())
-            return;
-        ++s_count;
-#endif
-    }
-
-    NoEventDispatchAssertion(const NoEventDispatchAssertion&)
-        : NoEventDispatchAssertion()
-    {
-    }
-
-    ~NoEventDispatchAssertion()
-    {
-#if !ASSERT_DISABLED
-        if (!isMainThread())
-            return;
-        ASSERT(s_count);
-        s_count--;
-#endif
-    }
-
-    static bool isEventDispatchForbidden()
-    {
-#if ASSERT_DISABLED
-        return false;
-#else
-        return isMainThread() && s_count;
-#endif
-    }
-
-#if !ASSERT_DISABLED
-
-private:
-    WEBCORE_EXPORT static unsigned s_count;
-
-#endif
-};
 
 class ContainerNode : public Node {
 public:
@@ -123,9 +78,6 @@ public:
     virtual void childrenChanged(const ChildChange&);
 
     void disconnectDescendantFrames();
-
-    using Node::setAttributeEventListener;
-    void setAttributeEventListener(const AtomicString& eventType, const QualifiedName& attributeName, const AtomicString& value);
 
     RenderElement* renderer() const;
 
@@ -215,15 +167,6 @@ inline Node* Node::lastChild() const
     if (!is<ContainerNode>(*this))
         return nullptr;
     return downcast<ContainerNode>(*this).lastChild();
-}
-
-inline Node* Node::highestAncestor() const
-{
-    Node* node = const_cast<Node*>(this);
-    Node* highest = node;
-    for (; node; node = node->parentNode())
-        highest = node;
-    return highest;
 }
 
 inline bool Node::isTreeScope() const

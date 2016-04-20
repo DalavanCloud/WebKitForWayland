@@ -24,6 +24,7 @@ install(FILES API/JavaScript.h
               API/JSContextRef.h
               API/JSObjectRef.h
               API/JSStringRef.h
+              API/JSTypedArray.h
               API/JSValueRef.h
               API/WebKitAvailability.h
         DESTINATION "${WEBKITGTK_HEADER_INSTALL_DIR}/JavaScriptCore"
@@ -36,11 +37,6 @@ if (ENABLE_INTROSPECTION)
     install(FILES ${CMAKE_BINARY_DIR}/JavaScriptCore-${WEBKITGTK_API_VERSION}.typelib
             DESTINATION ${INTROSPECTION_INSTALL_TYPELIBDIR}
     )
-endif ()
-
-if (USE_LLVM_DISASSEMBLER)
-    set(llvmForJSC_LIBRARIES ${LLVM_LIBRARIES})
-    set(llvmForJSC_INSTALL_DIR "${LIB_INSTALL_DIR}/javascriptcoregtk-${WEBKITGTK_API_VERSION}")
 endif ()
 
 add_definitions(-DSTATICALLY_LINKED_WITH_WTF)

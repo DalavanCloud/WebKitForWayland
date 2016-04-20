@@ -29,6 +29,8 @@ list(APPEND WebKit2_SOURCES
 
     Shared/API/c/efl/WKArrayEfl.cpp
 
+    Shared/Authentication/soup/AuthenticationManagerSoup.cpp
+
     Shared/CoordinatedGraphics/CoordinatedBackingStore.cpp
     Shared/CoordinatedGraphics/CoordinatedGraphicsArgumentCoders.cpp
     Shared/CoordinatedGraphics/CoordinatedGraphicsScene.cpp
@@ -64,6 +66,7 @@ list(APPEND WebKit2_SOURCES
     UIProcess/BackingStore.cpp
     UIProcess/DefaultUndoController.cpp
     UIProcess/LegacySessionStateCodingNone.cpp
+    UIProcess/WebResourceLoadStatisticsStore.cpp
 
     UIProcess/API/C/CoordinatedGraphics/WKView.cpp
 
@@ -71,9 +74,6 @@ list(APPEND WebKit2_SOURCES
 
     UIProcess/API/C/efl/WKColorPickerResultListener.cpp
     UIProcess/API/C/efl/WKEventEfl.cpp
-    UIProcess/API/C/efl/WKPageEfl.cpp
-    UIProcess/API/C/efl/WKPopupItem.cpp
-    UIProcess/API/C/efl/WKPopupMenuListener.cpp
     UIProcess/API/C/efl/WKViewEfl.cpp
 
     UIProcess/API/C/soup/WKCookieManagerSoup.cpp
@@ -125,10 +125,6 @@ list(APPEND WebKit2_SOURCES
     UIProcess/CoordinatedGraphics/CoordinatedLayerTreeHostProxy.cpp
     UIProcess/CoordinatedGraphics/PageViewportController.cpp
     UIProcess/CoordinatedGraphics/WebPageProxyCoordinatedGraphics.cpp
-    UIProcess/CoordinatedGraphics/WebView.cpp
-    UIProcess/CoordinatedGraphics/WebViewClient.cpp
-
-    UIProcess/Databases/efl/DatabaseProcessProxyEfl.cpp
 
     UIProcess/InspectorServer/efl/WebInspectorServerEfl.cpp
 
@@ -139,8 +135,6 @@ list(APPEND WebKit2_SOURCES
     UIProcess/Network/CustomProtocols/soup/CustomProtocolManagerProxySoup.cpp
     UIProcess/Network/CustomProtocols/soup/WebSoupCustomProtocolRequestManager.cpp
     UIProcess/Network/CustomProtocols/soup/WebSoupCustomProtocolRequestManagerClient.cpp
-
-    UIProcess/Network/soup/NetworkProcessProxySoup.cpp
 
     UIProcess/Plugins/unix/PluginInfoStoreUnix.cpp
     UIProcess/Plugins/unix/PluginProcessProxyUnix.cpp
@@ -177,12 +171,11 @@ list(APPEND WebKit2_SOURCES
     UIProcess/efl/WebInspectorProxyEfl.cpp
     UIProcess/efl/WebPageProxyEfl.cpp
     UIProcess/efl/WebPopupItemEfl.cpp
-    UIProcess/efl/WebPopupMenuListenerEfl.cpp
+    UIProcess/efl/WebPopupMenuProxyEfl.cpp
     UIProcess/efl/WebPreferencesEfl.cpp
     UIProcess/efl/WebProcessPoolEfl.cpp
-    UIProcess/efl/WebProcessProxyEfl.cpp
-    UIProcess/efl/WebUIPopupMenuClient.cpp
-    UIProcess/efl/WebViewEfl.cpp
+    UIProcess/efl/WebView.cpp
+    UIProcess/efl/WebViewClient.cpp
 
     UIProcess/gstreamer/InstallMissingMediaPluginsPermissionRequest.cpp
     UIProcess/gstreamer/WebPageProxyGStreamer.cpp

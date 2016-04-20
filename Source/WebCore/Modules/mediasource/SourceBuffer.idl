@@ -32,9 +32,8 @@
     Conditional=MEDIA_SOURCE,
     NoInterfaceObject,
     ActiveDOMObject,
-    EventTarget,
-    JSGenerateToJSObject,
-    JSGenerateToNativeObject,
+    UsePointersEvenForNonNullableObjectArguments,
+    ExportMacro=WEBCORE_EXPORT,
 ] interface SourceBuffer : EventTarget {
 
     readonly attribute boolean updating;

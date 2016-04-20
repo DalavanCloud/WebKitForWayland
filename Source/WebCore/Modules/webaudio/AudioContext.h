@@ -240,8 +240,8 @@ public:
     void removeMarkedSummingJunction(AudioSummingJunction*);
 
     // EventTarget
-    virtual EventTargetInterface eventTargetInterface() const override final { return AudioContextEventTargetInterfaceType; }
-    virtual ScriptExecutionContext* scriptExecutionContext() const override final;
+    EventTargetInterface eventTargetInterface() const final { return AudioContextEventTargetInterfaceType; }
+    ScriptExecutionContext* scriptExecutionContext() const final;
 
     // Reconcile ref/deref which are defined both in ThreadSafeRefCounted and EventTarget.
     using ThreadSafeRefCounted<AudioContext>::ref;
@@ -293,11 +293,11 @@ private:
 
     void scheduleNodeDeletion();
 
-    virtual void mediaCanStart() override;
+    void mediaCanStart() override;
 
     // MediaProducer
-    virtual MediaProducer::MediaStateFlags mediaState() const override;
-    virtual void pageMutedStateDidChange() override;
+    MediaProducer::MediaStateFlags mediaState() const override;
+    void pageMutedStateDidChange() override;
 
     // The context itself keeps a reference to all source nodes.  The source nodes, then reference all nodes they're connected to.
     // In turn, these nodes reference all nodes they're connected to.  All nodes are ultimately connected to the AudioDestinationNode.
@@ -318,6 +318,7 @@ private:
     // PlatformMediaSessionClient
     PlatformMediaSession::MediaType mediaType() const override { return PlatformMediaSession::WebAudio; }
     PlatformMediaSession::MediaType presentationType() const override { return PlatformMediaSession::WebAudio; }
+    PlatformMediaSession::CharacteristicsFlags characteristics() const override { return m_state == State::Running ? PlatformMediaSession::HasAudio : PlatformMediaSession::HasNothing; }
     void mayResumePlayback(bool shouldResume) override;
     void suspendPlayback() override;
     bool canReceiveRemoteControlCommands() const override { return false; }
@@ -325,8 +326,8 @@ private:
     bool shouldOverrideBackgroundPlaybackRestriction(PlatformMediaSession::InterruptionType) const override { return false; }
 
     // EventTarget
-    virtual void refEventTarget() override { ref(); }
-    virtual void derefEventTarget() override { deref(); }
+    void refEventTarget() override { ref(); }
+    void derefEventTarget() override { deref(); }
 
     void handleDirtyAudioSummingJunctions();
     void handleDirtyAudioNodeOutputs();
@@ -397,6 +398,14 @@ private:
 
     State m_state { State::Suspended };
 };
+
+inline bool operator==(const AudioContext& lhs, const AudioContext& rhs) {
+    return &lhs == &rhs;
+}
+
+inline bool operator!=(const AudioContext& lhs, const AudioContext& rhs) {
+    return &lhs != &rhs;
+}
 
 } // WebCore
 

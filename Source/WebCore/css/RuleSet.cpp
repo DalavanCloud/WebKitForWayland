@@ -70,10 +70,6 @@ static inline MatchBasedOnRuleHash computeMatchBasedOnRuleHash(const CSSSelector
     }
     if (SelectorChecker::isCommonPseudoClassSelector(&selector))
         return MatchBasedOnRuleHash::ClassB;
-#if ENABLE(SHADOW_DOM)
-    if (selector.match() == CSSSelector::PseudoClass && selector.pseudoClassType() == CSSSelector::PseudoClassHost)
-        return MatchBasedOnRuleHash::ClassB;
-#endif
     if (selector.match() == CSSSelector::Id)
         return MatchBasedOnRuleHash::ClassA;
     if (selector.match() == CSSSelector::Class)
@@ -266,6 +262,12 @@ void RuleSet::addRule(StyleRule* rule, unsigned selectorIndex, AddRuleFlags addR
             m_hostPseudoClassRules.append(ruleData);
             return;
         }
+        if (selector->match() == CSSSelector::PseudoElement && selector->pseudoElementType() == CSSSelector::PseudoElementSlotted) {
+            // ::slotted pseudo elements work accross shadow boundary making filtering difficult.
+            ruleData.disableSelectorFiltering();
+            m_slottedPseudoElementRules.append(ruleData);
+            return;
+        }
 #endif
         if (selector->relation() != CSSSelector::SubSelector)
             break;
@@ -421,6 +423,10 @@ void RuleSet::shrinkToFit()
     m_linkPseudoClassRules.shrinkToFit();
 #if ENABLE(VIDEO_TRACK)
     m_cuePseudoRules.shrinkToFit();
+#endif
+#if ENABLE(SHADOW_DOM)
+    m_hostPseudoClassRules.shrinkToFit();
+    m_slottedPseudoElementRules.shrinkToFit();
 #endif
     m_focusPseudoClassRules.shrinkToFit();
     m_universalRules.shrinkToFit();

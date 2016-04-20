@@ -29,10 +29,14 @@
 #include "APIObject.h"
 #include "PageClientImpl.h"
 #include "WebPageProxy.h"
+#include "WPEViewClient.h"
 #include <WPE/Input/Handling.h>
 #include <WPE/ViewBackend/ViewBackend.h>
+#include <WebCore/ViewState.h>
 #include <memory>
 #include <wtf/RefPtr.h>
+
+typedef struct WKViewClientBase WKViewClientBase;
 
 namespace WebKit {
 class CompositingManagerProxy;
@@ -49,12 +53,19 @@ public:
         return new View(configuration);
     }
 
+    // Client methods
+    void initializeClient(const WKViewClientBase*);
+    void frameDisplayed();
+
     WebKit::WebPageProxy& page() { return *m_pageProxy; }
 
     WPE::ViewBackend::ViewBackend& viewBackend() { return *m_viewBackend; }
 
     const WebCore::IntSize& size() const { return m_size; }
     void setSize(const WebCore::IntSize& size);
+
+    WebCore::ViewState::Flags viewState() const { return m_viewStateFlags; }
+    void setViewState(WebCore::ViewState::Flags);
 
     // WPE::Input::Client
     void handleKeyboardEvent(WPE::Input::KeyboardEvent&&) override;
@@ -66,11 +77,15 @@ private:
     View(const API::PageConfiguration&);
     virtual ~View();
 
+    ViewClient m_client;
+
     std::unique_ptr<WebKit::PageClientImpl> m_pageClient;
     RefPtr<WebKit::WebPageProxy> m_pageProxy;
     std::unique_ptr<WPE::ViewBackend::ViewBackend> m_viewBackend;
     std::unique_ptr<WebKit::CompositingManagerProxy> m_compositingManagerProxy;
+
     WebCore::IntSize m_size;
+    WebCore::ViewState::Flags m_viewStateFlags;
 };
 
 } // namespace WKWPE

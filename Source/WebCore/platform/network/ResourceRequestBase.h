@@ -74,7 +74,7 @@ namespace WebCore {
         void setTimeoutInterval(double timeoutInterval);
         
         WEBCORE_EXPORT const URL& firstPartyForCookies() const;
-        void setFirstPartyForCookies(const URL& firstPartyForCookies);
+        WEBCORE_EXPORT void setFirstPartyForCookies(const URL&);
         
         WEBCORE_EXPORT const String& httpMethod() const;
         WEBCORE_EXPORT void setHTTPMethod(const String& httpMethod);
@@ -93,22 +93,22 @@ namespace WebCore {
         template<size_t length> void setHTTPHeaderField(const char (&)[length], const String&) = delete;
         template<size_t length> void addHTTPHeaderField(const char (&)[length], const String&) = delete;
 
-        void clearHTTPAuthorization();
+        WEBCORE_EXPORT void clearHTTPAuthorization();
 
         WEBCORE_EXPORT String httpContentType() const;
         WEBCORE_EXPORT void setHTTPContentType(const String&);
         void clearHTTPContentType();
 
-        String httpReferrer() const;
+        WEBCORE_EXPORT String httpReferrer() const;
         WEBCORE_EXPORT void setHTTPReferrer(const String&);
-        void clearHTTPReferrer();
+        WEBCORE_EXPORT void clearHTTPReferrer();
         
         String httpOrigin() const;
         void setHTTPOrigin(const String&);
-        void clearHTTPOrigin();
+        WEBCORE_EXPORT void clearHTTPOrigin();
 
-        String httpUserAgent() const;
-        void setHTTPUserAgent(const String&);
+        WEBCORE_EXPORT String httpUserAgent() const;
+        WEBCORE_EXPORT void setHTTPUserAgent(const String&);
         void clearHTTPUserAgent();
 
         String httpAccept() const;
@@ -130,7 +130,7 @@ namespace WebCore {
         WEBCORE_EXPORT void setPriority(ResourceLoadPriority);
 
         WEBCORE_EXPORT bool isConditional() const;
-        void makeUnconditional();
+        WEBCORE_EXPORT void makeUnconditional();
 
         // Whether the associated ResourceHandleClient needs to be notified of
         // upload progress made for that resource.

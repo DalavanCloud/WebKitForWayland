@@ -118,7 +118,7 @@ Debugger::Debugger(VM& vm)
     , m_pauseOnExceptionsState(DontPauseOnExceptions)
     , m_pauseOnNextStatement(false)
     , m_isPaused(false)
-    , m_breakpointsActivated(true)
+    , m_breakpointsActivated(false)
     , m_hasHandlerForExceptionCallback(false)
     , m_suppressAllPauses(false)
     , m_steppingMode(SteppingModeDisabled)
@@ -162,7 +162,7 @@ void Debugger::detach(JSGlobalObject* globalObject, ReasonForDetach reason)
     // If we're detaching from the currently executing global object, manually tear down our
     // stack, since we won't get further debugger callbacks to do so. Also, resume execution,
     // since there's no point in staying paused once a window closes.
-    if (m_currentCallFrame && m_currentCallFrame->vmEntryGlobalObject() == globalObject) {
+    if (m_isPaused && m_currentCallFrame && m_currentCallFrame->vmEntryGlobalObject() == globalObject) {
         m_currentCallFrame = 0;
         m_pauseOnCallFrame = 0;
         continueProgram();
@@ -232,8 +232,6 @@ void Debugger::setProfilingClient(ProfilingClient* client)
 {
     ASSERT(!!m_profilingClient != !!client);
     m_profilingClient = client;
-
-    recompileAllJSFunctions();
 }
 
 double Debugger::willEvaluateScript()
@@ -528,7 +526,11 @@ void Debugger::clearDebuggerRequests(JSGlobalObject* globalObject)
 
 void Debugger::setBreakpointsActivated(bool activated)
 {
+    if (activated == m_breakpointsActivated)
+        return;
+
     m_breakpointsActivated = activated;
+    recompileAllJSFunctions();
 }
 
 void Debugger::setPauseOnExceptionsState(PauseOnExceptionsState pause)

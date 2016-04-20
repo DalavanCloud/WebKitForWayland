@@ -7,6 +7,7 @@ class BuildRequestsFetcher {
         $this->db = $db;
         $this->rows = null;
         $this->root_sets = array();
+        $this->roots_by_id = array();
         $this->roots = array();
         $this->root_sets_by_id = array();
     }
@@ -25,9 +26,13 @@ class BuildRequestsFetcher {
     }
 
     function fetch_incomplete_requests_for_triggerable($triggerable_id) {
-        $this->rows = $this->db->query_and_fetch_all('SELECT * FROM build_requests
-            WHERE request_triggerable = $1 AND request_status != \'completed\'
-            ORDER BY request_created_at, request_group, request_order', array($triggerable_id));
+        $this->rows = $this->db->query_and_fetch_all('SELECT * FROM build_requests,
+            (SELECT testgroup_id, (case when testgroup_author is not null then 0 else 1 end) as author_order, testgroup_created_at
+                FROM analysis_test_groups WHERE EXISTS
+                    (SELECT 1 FROM build_requests WHERE testgroup_id = request_group AND request_status
+                        IN (\'pending\', \'scheduled\', \'running\'))) AS test_groups
+            WHERE request_triggerable = $1 AND request_group = test_groups.testgroup_id
+            ORDER BY author_order, testgroup_created_at, request_order', array($triggerable_id));
     }
 
     function fetch_request($request_id) {
@@ -92,17 +97,22 @@ class BuildRequestsFetcher {
 
         $root_ids = array();
         foreach ($root_rows as $row) {
-            $repository = $row['repository_id'];
+            $repository_id = $resolve_ids ? $row['repository_name'] : $row['repository_id'];
             $revision = $row['commit_revision'];
             $commit_time = $row['commit_time'];
-            $root_id = $root_set_id . '-' . $repository;
-            array_push($root_ids, $root_id);
-            $repository_id = $resolve_ids ? $row['repository_name'] : $row['repository_id'];
+            array_push($root_ids, $row['commit_id']);
+
+            $root_id = $row['commit_id'];
+            if (array_key_exists($root_id, $this->roots_by_id))
+                continue;
+
             array_push($this->roots, array(
                 'id' => $root_id,
                 'repository' => $repository_id,
                 'revision' => $revision,
                 'time' => Database::to_js_time($commit_time)));
+
+            $this->roots_by_id[$root_id] = TRUE;
         }
 
         $this->root_sets_by_id[$root_set_id] = TRUE;

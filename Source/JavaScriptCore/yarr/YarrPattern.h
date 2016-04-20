@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009, 2013 Apple Inc. All rights reserved.
+ * Copyright (C) 2009, 2013-2014, 2016 Apple Inc. All rights reserved.
  * Copyright (C) 2010 Peter Varga (pvarga@inf.u-szeged.hu), University of Szeged
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,6 +27,7 @@
 #ifndef YarrPattern_h
 #define YarrPattern_h
 
+#include "RegExpKey.h"
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/RefCounted.h>
 #include <wtf/Vector.h>
@@ -37,10 +38,10 @@ namespace JSC { namespace Yarr {
 struct PatternDisjunction;
 
 struct CharacterRange {
-    UChar begin;
-    UChar end;
+    UChar32 begin;
+    UChar32 end;
 
-    CharacterRange(UChar begin, UChar end)
+    CharacterRange(UChar32 begin, UChar32 end)
         : begin(begin)
         , end(end)
     {
@@ -62,9 +63,9 @@ public:
         , m_tableInverted(inverted)
     {
     }
-    Vector<UChar> m_matches;
+    Vector<UChar32> m_matches;
     Vector<CharacterRange> m_ranges;
-    Vector<UChar> m_matchesUnicode;
+    Vector<UChar32> m_matchesUnicode;
     Vector<CharacterRange> m_rangesUnicode;
 
     const char* m_table;
@@ -93,7 +94,7 @@ struct PatternTerm {
     bool m_capture :1;
     bool m_invert :1;
     union {
-        UChar patternCharacter;
+        UChar32 patternCharacter;
         CharacterClass* characterClass;
         unsigned backReferenceSubpatternId;
         struct {
@@ -113,7 +114,7 @@ struct PatternTerm {
     int inputPosition;
     unsigned frameLocation;
 
-    PatternTerm(UChar ch)
+    PatternTerm(UChar32 ch)
         : type(PatternTerm::TypePatternCharacter)
         , m_capture(false)
         , m_invert(false)
@@ -299,8 +300,9 @@ struct TermChain {
     Vector<TermChain> hotTerms;
 };
 
+
 struct YarrPattern {
-    JS_EXPORT_PRIVATE YarrPattern(const String& pattern, bool ignoreCase, bool multiline, const char** error);
+    JS_EXPORT_PRIVATE YarrPattern(const String& pattern, RegExpFlags flags, const char** error);
 
     void reset()
     {
@@ -390,11 +392,15 @@ struct YarrPattern {
         return nonwordcharCached;
     }
 
-    bool m_ignoreCase : 1;
-    bool m_multiline : 1;
+    bool ignoreCase() const { return m_flags & FlagIgnoreCase; }
+    bool multiline() const { return m_flags & FlagMultiline; }
+    bool sticky() const { return m_flags & FlagSticky; }
+    bool unicode() const { return m_flags & FlagUnicode; }
+
     bool m_containsBackreferences : 1;
     bool m_containsBOL : 1;
     bool m_containsUnsignedLengthPattern : 1; 
+    RegExpFlags m_flags;
     unsigned m_numSubpatterns;
     unsigned m_maxBackReference;
     PatternDisjunction* m_body;

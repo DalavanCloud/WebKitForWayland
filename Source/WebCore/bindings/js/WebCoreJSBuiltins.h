@@ -30,6 +30,7 @@
 #include "ByteLengthQueuingStrategyBuiltins.h"
 #include "CountQueuingStrategyBuiltins.h"
 #include "FetchHeadersBuiltins.h"
+#include "FetchResponseBuiltins.h"
 #include "MediaDevicesBuiltins.h"
 #include "NavigatorUserMediaBuiltins.h"
 #include "RTCPeerConnectionBuiltins.h"
@@ -51,6 +52,7 @@ public:
         : vm(v)
 #if ENABLE(FETCH_API)
         , m_fetchHeadersBuiltins(&vm)
+        , m_fetchResponseBuiltins(&vm)
 #endif
 #if ENABLE(STREAMS_API)
         , m_byteLengthQueuingStrategyBuiltins(&vm)
@@ -66,6 +68,8 @@ public:
 #if ENABLE(MEDIA_STREAM)
         , m_mediaDevicesBuiltins(&vm)
         , m_navigatorUserMediaBuiltins(&vm)
+#endif
+#if ENABLE(WEB_RTC)
         , m_rtcPeerConnectionBuiltins(&vm)
         , m_rtcPeerConnectionInternalsBuiltins(&vm)
 #endif
@@ -75,12 +79,13 @@ public:
         m_streamInternalsBuiltins.exportNames();
         m_writableStreamInternalsBuiltins.exportNames();
 #endif
-#if ENABLE(MEDIA_STREAM)
+#if ENABLE(WEB_RTC)
         m_rtcPeerConnectionInternalsBuiltins.exportNames();
 #endif
     }
 #if ENABLE(FETCH_API)
     FetchHeadersBuiltinsWrapper& fetchHeadersBuiltins() { return m_fetchHeadersBuiltins; }
+    FetchResponseBuiltinsWrapper& fetchResponseBuiltins() { return m_fetchResponseBuiltins; }
 #endif
 #if ENABLE(STREAMS_API)
     ByteLengthQueuingStrategyBuiltinsWrapper& byteLengthQueuingStrategyBuiltins() { return m_byteLengthQueuingStrategyBuiltins; }
@@ -96,6 +101,8 @@ public:
 #if ENABLE(MEDIA_STREAM)
     MediaDevicesBuiltinsWrapper& mediaDevicesBuiltins() { return m_mediaDevicesBuiltins; }
     NavigatorUserMediaBuiltinsWrapper& navigatorUserMediaBuiltins() { return m_navigatorUserMediaBuiltins;}
+#endif
+#if ENABLE(WEB_RTC)
     RTCPeerConnectionBuiltinsWrapper& rtcPeerConnectionBuiltins() { return m_rtcPeerConnectionBuiltins; }
     RTCPeerConnectionInternalsBuiltinsWrapper& rtcPeerConnectionInternalsBuiltins() { return m_rtcPeerConnectionInternalsBuiltins; }
 #endif
@@ -104,6 +111,7 @@ private:
     JSC::VM& vm;
 #if ENABLE(FETCH_API)
     FetchHeadersBuiltinsWrapper m_fetchHeadersBuiltins;
+    FetchResponseBuiltinsWrapper m_fetchResponseBuiltins;
 #endif
 #if ENABLE(STREAMS_API)
     ByteLengthQueuingStrategyBuiltinsWrapper m_byteLengthQueuingStrategyBuiltins;
@@ -119,6 +127,8 @@ private:
 #if ENABLE(MEDIA_STREAM)
     MediaDevicesBuiltinsWrapper m_mediaDevicesBuiltins;
     NavigatorUserMediaBuiltinsWrapper m_navigatorUserMediaBuiltins;
+#endif
+#if ENABLE(WEB_RTC)
     RTCPeerConnectionBuiltinsWrapper m_rtcPeerConnectionBuiltins;
     RTCPeerConnectionInternalsBuiltinsWrapper m_rtcPeerConnectionInternalsBuiltins;
 #endif

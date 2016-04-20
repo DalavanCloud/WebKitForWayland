@@ -102,20 +102,27 @@ WEBCORE_EXPORT bool isEndOfEditableOrNonEditableContent(const VisiblePosition&);
 WEBCORE_EXPORT bool atBoundaryOfGranularity(const VisiblePosition&, TextGranularity, SelectionDirection);
 WEBCORE_EXPORT bool withinTextUnitOfGranularity(const VisiblePosition&, TextGranularity, SelectionDirection);
 WEBCORE_EXPORT VisiblePosition positionOfNextBoundaryOfGranularity(const VisiblePosition&, TextGranularity, SelectionDirection);
-WEBCORE_EXPORT PassRefPtr<Range> enclosingTextUnitOfGranularity(const VisiblePosition&, TextGranularity, SelectionDirection);
+WEBCORE_EXPORT RefPtr<Range> enclosingTextUnitOfGranularity(const VisiblePosition&, TextGranularity, SelectionDirection);
 WEBCORE_EXPORT int distanceBetweenPositions(const VisiblePosition&, const VisiblePosition&);
-WEBCORE_EXPORT PassRefPtr<Range> wordRangeFromPosition(const VisiblePosition& position);
+WEBCORE_EXPORT RefPtr<Range> wordRangeFromPosition(const VisiblePosition&);
 WEBCORE_EXPORT VisiblePosition closestWordBoundaryForPosition(const VisiblePosition& position);
 WEBCORE_EXPORT void charactersAroundPosition(const VisiblePosition&, UChar32& oneAfter, UChar32& oneBefore, UChar32& twoBefore);
-WEBCORE_EXPORT PassRefPtr<Range> rangeExpandedAroundPositionByCharacters(const VisiblePosition&, int numberOfCharactersToExpand);
+WEBCORE_EXPORT RefPtr<Range> rangeExpandedAroundPositionByCharacters(const VisiblePosition&, int numberOfCharactersToExpand);
+WEBCORE_EXPORT RefPtr<Range> rangeExpandedByCharactersInDirectionAtWordBoundary(const VisiblePosition&, int numberOfCharactersToExpand, SelectionDirection);
 
 // helper function
 enum BoundarySearchContextAvailability { DontHaveMoreContext, MayHaveMoreContext };
 typedef unsigned (*BoundarySearchFunction)(StringView, unsigned offset, BoundarySearchContextAvailability, bool& needMoreContext);
+unsigned startWordBoundary(StringView, unsigned, BoundarySearchContextAvailability, bool&);
+unsigned endWordBoundary(StringView, unsigned, BoundarySearchContextAvailability, bool&);
+unsigned startSentenceBoundary(StringView, unsigned, BoundarySearchContextAvailability, bool&);
+unsigned endSentenceBoundary(StringView, unsigned, BoundarySearchContextAvailability, bool&);
 unsigned suffixLengthForRange(RefPtr<Range>, Vector<UChar, 1024>&);
 unsigned prefixLengthForRange(RefPtr<Range>, Vector<UChar, 1024>&);
 unsigned backwardSearchForBoundaryWithTextIterator(SimplifiedBackwardsTextIterator&, Vector<UChar, 1024>&, unsigned, BoundarySearchFunction);
 unsigned forwardSearchForBoundaryWithTextIterator(TextIterator&, Vector<UChar, 1024>&, unsigned, BoundarySearchFunction);
+Node* findStartOfParagraph(Node*, Node*, Node*, int&, Position::AnchorType&, EditingBoundaryCrossingRule);
+Node* findEndOfParagraph(Node*, Node*, Node*, int&, Position::AnchorType&, EditingBoundaryCrossingRule);
 
 } // namespace WebCore
 

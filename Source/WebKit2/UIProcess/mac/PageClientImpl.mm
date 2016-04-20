@@ -115,22 +115,7 @@ std::unique_ptr<DrawingAreaProxy> PageClientImpl::createDrawingAreaProxy()
     return m_impl->createDrawingAreaProxy();
 }
 
-void PageClientImpl::setViewNeedsDisplay(const WebCore::IntRect& rect)
-{
-    ASSERT_NOT_REACHED();
-}
-
-void PageClientImpl::displayView()
-{
-    ASSERT_NOT_REACHED();
-}
-
-bool PageClientImpl::canScrollView()
-{
-    return false;
-}
-
-void PageClientImpl::scrollView(const IntRect& scrollRect, const IntSize& scrollOffset)
+void PageClientImpl::setViewNeedsDisplay(const WebCore::Region&)
 {
     ASSERT_NOT_REACHED();
 }
@@ -420,6 +405,15 @@ IntRect PageClientImpl::rootViewToScreen(const IntRect& rect)
 #pragma clang diagnostic pop
     return enclosingIntRect(tempRect);
 }
+
+#if PLATFORM(MAC)
+IntRect PageClientImpl::rootViewToWindow(const WebCore::IntRect& rect)
+{
+    NSRect tempRect = rect;
+    tempRect = [m_view convertRect:tempRect toView:nil];
+    return enclosingIntRect(tempRect);
+}
+#endif
 
 void PageClientImpl::doneWithKeyEvent(const NativeWebKeyboardEvent& event, bool eventWasHandled)
 {
@@ -778,6 +772,16 @@ void PageClientImpl::didPerformImmediateActionHitTest(const WebHitTestResultData
 void* PageClientImpl::immediateActionAnimationControllerForHitTestResult(RefPtr<API::HitTestResult> hitTestResult, uint64_t type, RefPtr<API::Object> userData)
 {
     return m_impl->immediateActionAnimationControllerForHitTestResult(hitTestResult.get(), type, userData.get());
+}
+
+void PageClientImpl::didHandleAcceptedCandidate()
+{
+    m_impl->didHandleAcceptedCandidate();
+}
+
+void PageClientImpl::videoControlsManagerDidChange()
+{
+    m_impl->videoControlsManagerDidChange();
 }
 
 void PageClientImpl::showPlatformContextMenu(NSMenu *menu, IntPoint location)

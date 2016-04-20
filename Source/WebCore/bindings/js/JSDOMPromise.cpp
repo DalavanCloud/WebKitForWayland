@@ -28,6 +28,7 @@
 
 #include "ExceptionCode.h"
 #include <runtime/Exception.h>
+#include <runtime/JSONObject.h>
 
 using namespace JSC;
 
@@ -43,13 +44,19 @@ JSDOMGlobalObject& DeferredWrapper::globalObject() const
 {
     ASSERT(m_globalObject);
     return *m_globalObject.get();
-} 
+}
+
+JSC::JSPromiseDeferred& DeferredWrapper::deferred() const
+{
+    ASSERT(m_deferred);
+    return *m_deferred.get();
+}
 
 void DeferredWrapper::callFunction(ExecState& exec, JSValue function, JSValue resolution)
 {
     CallData callData;
     CallType callType = getCallData(function, callData);
-    ASSERT(callType != CallTypeNone);
+    ASSERT(callType != CallType::None);
 
     MarkedArgumentBuffer arguments;
     arguments.append(resolution);
@@ -69,6 +76,35 @@ void rejectPromiseWithExceptionIfAny(JSC::ExecState& state, JSDOMGlobalObject& g
     state.clearException();
 
     DeferredWrapper(&state, &globalObject, &promiseDeferred).reject(error);
+}
+
+static inline JSC::JSValue parseAsJSON(JSC::ExecState* state, const String& data)
+{
+    JSC::JSLockHolder lock(state);
+    return JSC::JSONParse(state, data);
+}
+
+void fulfillPromiseWithJSON(DeferredWrapper& promise, const String& data)
+{
+    JSC::JSValue value = parseAsJSON(promise.globalObject().globalExec(), data);
+    if (!value)
+        promise.reject<ExceptionCode>(SYNTAX_ERR);
+    else
+        promise.resolve(value);
+}
+
+void fulfillPromiseWithArrayBuffer(DeferredWrapper& promise, ArrayBuffer* arrayBuffer)
+{
+    if (!arrayBuffer) {
+        promise.reject<JSValue>(createOutOfMemoryError(promise.globalObject().globalExec()));
+        return;
+    }
+    promise.resolve(arrayBuffer);
+}
+
+void fulfillPromiseWithArrayBuffer(DeferredWrapper& promise, const void* data, size_t length)
+{
+    fulfillPromiseWithArrayBuffer(promise, ArrayBuffer::tryCreate(data, length).get());
 }
 
 }

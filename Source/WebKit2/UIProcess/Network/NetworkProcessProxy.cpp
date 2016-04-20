@@ -28,9 +28,11 @@
 
 #include "AuthenticationChallengeProxy.h"
 #include "CustomProtocolManagerProxyMessages.h"
+#include "DatabaseProcessMessages.h"
 #include "DownloadProxyMessages.h"
 #include "NetworkProcessCreationParameters.h"
 #include "NetworkProcessMessages.h"
+#include "SandboxExtension.h"
 #include "WebProcessMessages.h"
 #include "WebProcessPool.h"
 #include "WebsiteData.h"
@@ -80,9 +82,8 @@ NetworkProcessProxy::~NetworkProcessProxy()
 
 void NetworkProcessProxy::getLaunchOptions(ProcessLauncher::LaunchOptions& launchOptions)
 {
-    launchOptions.processType = ProcessLauncher::NetworkProcess;
+    launchOptions.processType = ProcessLauncher::ProcessType::Network;
     ChildProcessProxy::getLaunchOptions(launchOptions);
-    platformGetLaunchOptions(launchOptions);
 }
 
 void NetworkProcessProxy::connectionWillOpen(IPC::Connection& connection)
@@ -119,7 +120,7 @@ DownloadProxy* NetworkProcessProxy::createDownloadProxy(const ResourceRequest& r
     return m_downloadProxyMap->createDownloadProxy(m_processPool, resourceRequest);
 }
 
-void NetworkProcessProxy::fetchWebsiteData(SessionID sessionID, WebsiteDataTypes dataTypes, std::function<void (WebsiteData)> completionHandler)
+void NetworkProcessProxy::fetchWebsiteData(SessionID sessionID, OptionSet<WebsiteDataType> dataTypes, OptionSet<WebsiteDataFetchOption> fetchOptions, std::function<void (WebsiteData)> completionHandler)
 {
     ASSERT(canSendMessage());
 
@@ -130,10 +131,10 @@ void NetworkProcessProxy::fetchWebsiteData(SessionID sessionID, WebsiteDataTypes
         completionHandler(WTFMove(websiteData));
     });
 
-    send(Messages::WebProcess::FetchWebsiteData(sessionID, dataTypes, callbackID), 0);
+    send(Messages::NetworkProcess::FetchWebsiteData(sessionID, dataTypes, fetchOptions, callbackID), 0);
 }
 
-void NetworkProcessProxy::deleteWebsiteData(WebCore::SessionID sessionID, WebsiteDataTypes dataTypes, std::chrono::system_clock::time_point modifiedSince,  std::function<void ()> completionHandler)
+void NetworkProcessProxy::deleteWebsiteData(WebCore::SessionID sessionID, OptionSet<WebsiteDataType> dataTypes, std::chrono::system_clock::time_point modifiedSince,  std::function<void ()> completionHandler)
 {
     auto callbackID = generateCallbackID();
     auto token = throttler().backgroundActivityToken();
@@ -144,7 +145,7 @@ void NetworkProcessProxy::deleteWebsiteData(WebCore::SessionID sessionID, Websit
     send(Messages::NetworkProcess::DeleteWebsiteData(sessionID, dataTypes, modifiedSince, callbackID), 0);
 }
 
-void NetworkProcessProxy::deleteWebsiteDataForOrigins(SessionID sessionID, WebsiteDataTypes dataTypes, const Vector<RefPtr<WebCore::SecurityOrigin>>& origins, const Vector<String>& cookieHostNames, std::function<void ()> completionHandler)
+void NetworkProcessProxy::deleteWebsiteDataForOrigins(SessionID sessionID, OptionSet<WebsiteDataType> dataTypes, const Vector<RefPtr<WebCore::SecurityOrigin>>& origins, const Vector<String>& cookieHostNames, std::function<void ()> completionHandler)
 {
     ASSERT(canSendMessage());
 
@@ -268,6 +269,21 @@ void NetworkProcessProxy::didDeleteWebsiteDataForOrigins(uint64_t callbackID)
 {
     auto callback = m_pendingDeleteWebsiteDataForOriginsCallbacks.take(callbackID);
     callback();
+}
+
+void NetworkProcessProxy::grantSandboxExtensionsToDatabaseProcessForBlobs(uint64_t requestID, const Vector<String>& paths)
+{
+#if ENABLE(DATABASE_PROCESS)
+    SandboxExtension::HandleArray extensions;
+    extensions.allocate(paths.size());
+    for (size_t i = 0; i < paths.size(); ++i) {
+        // ReadWrite is required for creating hard links as well as deleting the temporary file, which the DatabaseProcess will do.
+        SandboxExtension::createHandle(paths[i], SandboxExtension::ReadWrite, extensions[i]);
+    }
+
+    m_processPool.sendToDatabaseProcessRelaunchingIfNecessary(Messages::DatabaseProcess::GrantSandboxExtensionsForBlobs(paths, extensions));
+    connection()->send(Messages::NetworkProcess::DidGrantSandboxExtensionsToDatabaseProcessForBlobs(requestID), 0);
+#endif
 }
 
 void NetworkProcessProxy::didFinishLaunching(ProcessLauncher* launcher, IPC::Connection::Identifier connectionIdentifier)

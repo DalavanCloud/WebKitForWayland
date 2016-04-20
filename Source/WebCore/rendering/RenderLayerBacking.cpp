@@ -69,7 +69,7 @@
 #endif
 
 #if PLATFORM(IOS)
-#include "RuntimeApplicationChecksIOS.h"
+#include "RuntimeApplicationChecks.h"
 #endif
 
 namespace WebCore {
@@ -226,7 +226,7 @@ static TiledBacking::TileCoverage computeTileCoverage(RenderLayerBacking* backin
     TiledBacking::TileCoverage tileCoverage = TiledBacking::CoverageForVisibleArea;
     bool useMinimalTilesDuringLiveResize = frameView.inLiveResize();
     if (frameView.speculativeTilingEnabled() && !useMinimalTilesDuringLiveResize) {
-        bool clipsToExposedRect = !frameView.exposedRect().isInfinite();
+        bool clipsToExposedRect = static_cast<bool>(frameView.viewExposedRect());
         if (frameView.horizontalScrollbarMode() != ScrollbarAlwaysOff || clipsToExposedRect)
             tileCoverage |= TiledBacking::CoverageForHorizontalScrolling;
 
@@ -250,9 +250,7 @@ void RenderLayerBacking::setTiledBackingHasMargins(bool hasExtendedBackgroundOnL
     if (!m_usingTiledCacheLayer)
         return;
 
-    int marginLeftAndRightSize = hasExtendedBackgroundOnLeftAndRight ? tileSize().width() : 0;
-    int marginTopAndBottomSize = hasExtendedBackgroundOnTopAndBottom ? tileSize().height() : 0;
-    tiledBacking()->setTileMargins(marginTopAndBottomSize, marginTopAndBottomSize, marginLeftAndRightSize, marginLeftAndRightSize);
+    tiledBacking()->setHasMargins(hasExtendedBackgroundOnTopAndBottom, hasExtendedBackgroundOnTopAndBottom, hasExtendedBackgroundOnLeftAndRight, hasExtendedBackgroundOnLeftAndRight);
 }
 
 void RenderLayerBacking::updateDebugIndicators(bool showBorder, bool showRepaintCounter)
@@ -354,7 +352,7 @@ void RenderLayerBacking::layerWillBeDestroyed()
 
 bool RenderLayerBacking::needsIOSDumpRenderTreeMainFrameRenderViewLayerIsAlwaysOpaqueHack(const GraphicsLayer& layer) const
 {
-    if (m_isMainFrameRenderViewLayer && applicationIsDumpRenderTree()) {
+    if (m_isMainFrameRenderViewLayer && IOSApplication::isDumpRenderTree()) {
         // In iOS WebKit1 the main frame's RenderView layer is always transparent. We lie that it is opaque so that
         // internals.layerTreeAsText() tests succeed.
         ASSERT_UNUSED(layer, !layer.contentsOpaque());
@@ -787,8 +785,8 @@ void RenderLayerBacking::updateGeometry()
     relativeCompositingBounds.moveBy(offsetFromParent);
 
     LayoutRect enclosingRelativeCompositingBounds = LayoutRect(encloseRectToDevicePixels(relativeCompositingBounds, deviceScaleFactor));
-    LayoutSize subpixelOffsetAdjustment = enclosingRelativeCompositingBounds.location() - relativeCompositingBounds.location();
-    LayoutSize rendererOffsetFromGraphicsLayer =  toLayoutSize(localCompositingBounds.location()) + subpixelOffsetAdjustment;
+    m_compositedBoundsDeltaFromGraphicsLayer = enclosingRelativeCompositingBounds.location() - relativeCompositingBounds.location();
+    LayoutSize rendererOffsetFromGraphicsLayer =  toLayoutSize(localCompositingBounds.location()) + m_compositedBoundsDeltaFromGraphicsLayer;
 
     FloatSize devicePixelOffsetFromRenderer;
     LayoutSize devicePixelFractionFromRenderer;
@@ -1205,12 +1203,12 @@ void RenderLayerBacking::updateInternalHierarchy()
 
 void RenderLayerBacking::resetContentsRect()
 {
-    m_graphicsLayer->setContentsRect(snappedIntRect(contentsBox()));
+    m_graphicsLayer->setContentsRect(snapRectToDevicePixels(contentsBox(), deviceScaleFactor()));
     
     if (is<RenderBox>(renderer())) {
         LayoutRect boxRect(LayoutPoint(), downcast<RenderBox>(renderer()).size());
+        boxRect.move(contentOffsetInCompostingLayer());
         FloatRoundedRect contentsClippingRect = renderer().style().getRoundedInnerBorderFor(boxRect).pixelSnappedRoundedRectForPainting(deviceScaleFactor());
-        contentsClippingRect.move(contentOffsetInCompostingLayer());
         m_graphicsLayer->setContentsClippingRect(contentsClippingRect);
     }
 
@@ -1549,8 +1547,8 @@ void RenderLayerBacking::updateChildClippingStrategy(bool needsDescendantsClippi
         if (is<RenderBox>(renderer()) && (renderer().style().clipPath() || renderer().style().hasBorderRadius())) {
             // FIXME: we shouldn't get geometry here as layout may not have been udpated.
             LayoutRect boxRect(LayoutPoint(), downcast<RenderBox>(renderer()).size());
+            boxRect.move(contentOffsetInCompostingLayer());
             FloatRoundedRect contentsClippingRect = renderer().style().getRoundedInnerBorderFor(boxRect).pixelSnappedRoundedRectForPainting(deviceScaleFactor());
-            contentsClippingRect.move(contentOffsetInCompostingLayer());
             if (clippingLayer()->setMasksToBoundsRect(contentsClippingRect)) {
                 if (m_childClippingMaskLayer) 
                     m_childClippingMaskLayer = nullptr;
@@ -1995,7 +1993,7 @@ bool RenderLayerBacking::containsPaintedContent(bool isSimpleContainer) const
 // that require painting. Direct compositing saves backing store.
 bool RenderLayerBacking::isDirectlyCompositedImage() const
 {
-    if (!is<RenderImage>(renderer()) || m_owningLayer.hasBoxDecorationsOrBackground() || renderer().hasClip())
+    if (!is<RenderImage>(renderer()) || m_owningLayer.hasBoxDecorationsOrBackground() || m_owningLayer.paintsWithFilters() || renderer().hasClip())
         return false;
 
 #if ENABLE(VIDEO)
@@ -2062,11 +2060,11 @@ void RenderLayerBacking::updateImageContents()
         return;
 
     // This is a no-op if the layer doesn't have an inner layer for the image.
-    m_graphicsLayer->setContentsRect(snappedIntRect(contentsBox()));
+    m_graphicsLayer->setContentsRect(snapRectToDevicePixels(contentsBox(), deviceScaleFactor()));
 
     LayoutRect boxRect(LayoutPoint(), imageRenderer.size());
+    boxRect.move(contentOffsetInCompostingLayer());
     FloatRoundedRect contentsClippingRect = renderer().style().getRoundedInnerBorderFor(boxRect).pixelSnappedRoundedRectForPainting(deviceScaleFactor());
-    contentsClippingRect.move(contentOffsetInCompostingLayer());
     m_graphicsLayer->setContentsClippingRect(contentsClippingRect);
 
     m_graphicsLayer->setContentsToImage(image);
@@ -2095,7 +2093,7 @@ FloatPoint3D RenderLayerBacking::computeTransformOriginForPainting(const LayoutR
 // Return the offset from the top-left of this compositing layer at which the renderer's contents are painted.
 LayoutSize RenderLayerBacking::contentOffsetInCompostingLayer() const
 {
-    return LayoutSize(-m_compositedBounds.x(), -m_compositedBounds.y()) + m_devicePixelFractionFromRenderer;
+    return LayoutSize(-m_compositedBounds.x() - m_compositedBoundsDeltaFromGraphicsLayer.width(), -m_compositedBounds.y() - m_compositedBoundsDeltaFromGraphicsLayer.height());
 }
 
 LayoutRect RenderLayerBacking::contentsBox() const
@@ -2486,10 +2484,9 @@ bool RenderLayerBacking::shouldTemporarilyRetainTileCohorts(const GraphicsLayer*
     return true;
 }
 
-IntSize RenderLayerBacking::tileSize() const
+bool RenderLayerBacking::useGiantTiles() const
 {
-    TileSizeMode tileSizeMode = renderer().frame().page()->settings().useGiantTiles() ? GiantTileSizeMode : StandardTileSizeMode;
-    return defaultTileSize(tileSizeMode);
+    return renderer().frame().page()->settings().useGiantTiles();
 }
 
 #ifndef NDEBUG

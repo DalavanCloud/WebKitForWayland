@@ -42,6 +42,7 @@
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
 #include <wtf/Noncopyable.h>
+#include <wtf/Optional.h>
 #include <wtf/Ref.h>
 #include <wtf/RefCounted.h>
 #include <wtf/text/WTFString.h>
@@ -120,7 +121,7 @@ class ScrollingCoordinator;
 class Settings;
 class StorageNamespace;
 class StorageNamespaceProvider;
-class UserContentController;
+class UserContentProvider;
 class ValidationMessageClient;
 class ViewStateChangeObserver;
 class VisitedLinkStore;
@@ -138,7 +139,6 @@ class Page : public Supplementable<Page> {
 public:
     WEBCORE_EXPORT static void updateStyleForAllPagesAfterGlobalChangeInEnvironment();
     WEBCORE_EXPORT static void clearPreviousItemFromAllPages(HistoryItem*);
-    WEBCORE_EXPORT static void setTabSuspensionEnabled(bool);
 
     WEBCORE_EXPORT explicit Page(PageConfiguration&);
     WEBCORE_EXPORT ~Page();
@@ -175,6 +175,8 @@ public:
 
     PageGroup& group();
     PageGroup* groupPtr() { return m_group; } // can return 0
+
+    static void forEachPage(std::function<void(Page&)>);
 
     void incrementSubframeCount() { ++m_subframeCount; }
     void decrementSubframeCount() { ASSERT(m_subframeCount); --m_subframeCount; }
@@ -216,6 +218,8 @@ public:
     Settings& settings() const { return *m_settings; }
     ProgressTracker& progress() const { return *m_progress; }
     BackForwardController& backForward() const { return *m_backForwardController; }
+
+    std::chrono::milliseconds domTimerAlignmentInterval() const { return m_timerAlignmentInterval; }
 
 #if ENABLE(VIEW_MODE_CSS_MEDIA)
     enum ViewMode {
@@ -289,7 +293,15 @@ public:
 
     float topContentInset() const { return m_topContentInset; }
     WEBCORE_EXPORT void setTopContentInset(float);
+
+#if PLATFORM(IOS)
+    FloatSize obscuredInset() const { return m_obscuredInset; }
+    void setObscuredInset(FloatSize inset) { m_obscuredInset = inset; }
     
+    bool enclosedInScrollView() const { return m_enclosedInScrollView; }
+    void setEnclosedInScrollView(bool f) { m_enclosedInScrollView = f; }
+#endif
+
 #if ENABLE(IOS_TEXT_AUTOSIZING)
     float textAutosizingWidth() const { return m_textAutosizingWidth; }
     void setTextAutosizingWidth(float textAutosizingWidth) { m_textAutosizingWidth = textAutosizingWidth; }
@@ -353,6 +365,8 @@ public:
     WEBCORE_EXPORT void invalidateStylesForAllLinks();
     WEBCORE_EXPORT void invalidateStylesForLink(LinkHash);
 
+    void invalidateInjectedStyleSheetCacheInAllFrames();
+
     StorageNamespace* sessionStorage(bool optionalCreate = true);
     void setSessionStorage(RefPtr<StorageNamespace>&&);
 
@@ -367,8 +381,6 @@ public:
     // recursive frameset pages can quickly bring the program to its knees
     // with exponential growth in the number of frames.
     static const int maxNumberOfFrames = 1000;
-
-    static bool s_tabSuspensionIsEnabled;
 
     void setEditable(bool isEditable) { m_isEditable = isEditable; }
     bool isEditable() { return m_isEditable; }
@@ -446,8 +458,8 @@ public:
     StorageNamespaceProvider& storageNamespaceProvider() { return m_storageNamespaceProvider.get(); }
     void setStorageNamespaceProvider(Ref<StorageNamespaceProvider>&&);
 
-    UserContentController* userContentController() { return m_userContentController.get(); }
-    WEBCORE_EXPORT void setUserContentController(UserContentController*);
+    UserContentProvider& userContentProvider();
+    WEBCORE_EXPORT void setUserContentProvider(Ref<UserContentProvider>&&);
 
     VisitedLinkStore& visitedLinkStore();
     WEBCORE_EXPORT void setVisitedLinkStore(Ref<VisitedLinkStore>&&);
@@ -496,7 +508,19 @@ public:
 
     void setShowAllPlugins(bool showAll) { m_showAllPlugins = showAll; }
     bool showAllPlugins() const;
-    void setIsTabSuspended(bool);
+
+    WEBCORE_EXPORT void setTimerAlignmentIntervalIncreaseLimit(std::chrono::milliseconds);
+
+    bool isControlledByAutomation() const { return m_controlledByAutomation; }
+    void setControlledByAutomation(bool controlled) { m_controlledByAutomation = controlled; }
+
+    WEBCORE_EXPORT bool isAlwaysOnLoggingAllowed() const;
+
+    String captionUserPreferencesStyleSheet();
+    void setCaptionUserPreferencesStyleSheet(const String&);
+
+    bool isResourceCachingDisabled() const { return m_resourceCachingDisabled; }
+    void setResourceCachingDisabled(bool disabled) { m_resourceCachingDisabled = disabled; }
 
 private:
     WEBCORE_EXPORT void initGroup();
@@ -520,11 +544,12 @@ private:
 
     Vector<Ref<PluginViewBase>> pluginViews();
 
+    enum class TimerThrottlingState { Disabled, Enabled, EnabledIncreasing };
     void hiddenPageDOMTimerThrottlingStateChanged();
-    void setTimerThrottlingEnabled(bool);
-    bool canTabSuspend();
-    void updateTabSuspensionState();
-    void tabSuspensionTimerFired();
+    void setTimerThrottlingState(TimerThrottlingState);
+    void updateTimerThrottlingState();
+    void updateDOMTimerAlignmentInterval();
+    void timerAlignmentIntervalIncreaseTimerFired();
 
     const std::unique_ptr<Chrome> m_chrome;
     const std::unique_ptr<DragCaretController> m_dragCaretController;
@@ -579,7 +604,13 @@ private:
     float m_viewScaleFactor { 1 };
 
     float m_topContentInset;
-    
+
+#if PLATFORM(IOS)
+    // This is only used for history scroll position restoration.
+    FloatSize m_obscuredInset;
+    bool m_enclosedInScrollView { false };
+#endif
+
 #if ENABLE(IOS_TEXT_AUTOSIZING)
     float m_textAutosizingWidth;
 #endif
@@ -597,6 +628,8 @@ private:
     mutable bool m_didLoadUserStyleSheet;
     mutable time_t m_userStyleSheetModificationTime;
 
+    String m_captionUserPreferencesStyleSheet;
+
     std::unique_ptr<PageGroup> m_singlePageGroup;
     PageGroup* m_group;
 
@@ -610,7 +643,11 @@ private:
     ViewMode m_viewMode;
 #endif // ENABLE(VIEW_MODE_CSS_MEDIA)
 
-    bool m_timerThrottlingEnabled;
+    TimerThrottlingState m_timerThrottlingState { TimerThrottlingState::Disabled };
+    std::chrono::steady_clock::time_point m_timerThrottlingStateLastChangedTime { std::chrono::steady_clock::duration::zero() };
+    std::chrono::milliseconds m_timerAlignmentInterval;
+    Timer m_timerAlignmentIntervalIncreaseTimer;
+    std::chrono::milliseconds m_timerAlignmentIntervalIncreaseLimit { 0 };
 
     bool m_isEditable;
     bool m_isPrerender;
@@ -653,7 +690,7 @@ private:
     Ref<ApplicationCacheStorage> m_applicationCacheStorage;
     Ref<DatabaseProvider> m_databaseProvider;
     Ref<StorageNamespaceProvider> m_storageNamespaceProvider;
-    RefPtr<UserContentController> m_userContentController;
+    Ref<UserContentProvider> m_userContentProvider;
     Ref<VisitedLinkStore> m_visitedLinkStore;
     RefPtr<WheelEventTestTrigger> m_testTrigger;
 
@@ -666,13 +703,13 @@ private:
     SessionID m_sessionID;
 
     bool m_isClosing;
-    bool m_isTabSuspended { false };
-    Timer m_tabSuspensionTimer;
 
     MediaProducer::MediaStateFlags m_mediaState { MediaProducer::IsNotPlaying };
     
     bool m_allowsMediaDocumentInlinePlayback { false };
     bool m_showAllPlugins { false };
+    bool m_controlledByAutomation { false };
+    bool m_resourceCachingDisabled { false };
 };
 
 inline PageGroup& Page::group()

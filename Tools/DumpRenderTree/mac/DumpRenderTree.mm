@@ -319,6 +319,7 @@ static NSSet *allowedFontFamilySet()
         @"Arial Rounded MT Bold",
         @"Arial Unicode MS",
         @"Arial",
+        @"Avenir Next",
         @"Ayuthaya",
         @"Baghdad",
         @"Baskerville",
@@ -899,7 +900,6 @@ static void resetWebPreferencesToConsistentValues()
     [preferences setPictographFontFamily:@"Apple Color Emoji"];
     [preferences setDefaultFontSize:16];
     [preferences setDefaultFixedFontSize:13];
-    [preferences setAntialiasedFontDilationEnabled:NO];
     [preferences setMinimumFontSize:0];
     [preferences setDefaultTextEncodingName:@"ISO-8859-1"];
     [preferences setJavaEnabled:NO];
@@ -939,12 +939,13 @@ static void resetWebPreferencesToConsistentValues()
         [preferences setUserStyleSheetEnabled:YES];
     } else
         [preferences setUserStyleSheetEnabled:NO];
-#if PLATFORM(IOS)
     [preferences setMediaPlaybackAllowsInline:YES];
-    [preferences setMediaPlaybackRequiresUserGesture:NO];
+    [preferences setVideoPlaybackRequiresUserGesture:NO];
+    [preferences setAudioPlaybackRequiresUserGesture:NO];
     [preferences setMediaDataLoadsAutomatically:YES];
     [preferences setInvisibleAutoplayNotPermitted:NO];
 
+#if PLATFORM(IOS)
     // Enable the tracker before creating the first WebView will
     // cause initialization to use the correct database paths.
     [preferences setStorageTrackerEnabled:YES];
@@ -963,7 +964,6 @@ static void resetWebPreferencesToConsistentValues()
     [preferences setCanvasUsesAcceleratedDrawing:YES];
     [preferences setAcceleratedDrawingEnabled:useAcceleratedDrawing];
 #endif
-    [preferences setWebGLEnabled:NO];
     [preferences setCSSRegionsEnabled:YES];
     [preferences setUsePreHTML5ParserQuirks:NO];
     [preferences setAsynchronousSpellCheckingEnabled:NO];
@@ -983,6 +983,13 @@ static void resetWebPreferencesToConsistentValues()
 #if ENABLE(MEDIA_SOURCE)
     [preferences setMediaSourceEnabled:YES];
 #endif
+
+    [preferences setShadowDOMEnabled:YES];
+    [preferences setCustomElementsEnabled:YES];
+
+    [preferences setWebGL2Enabled:YES];
+
+    [preferences setFetchAPIEnabled:YES];
 
     [preferences setHiddenPageDOMTimerThrottlingEnabled:NO];
     [preferences setHiddenPageCSSAnimationSuspensionEnabled:NO];
@@ -1053,6 +1060,7 @@ static void setDefaultsToConsistentValuesForTesting()
         WebDatabaseDirectoryDefaultsKey: [libraryPath stringByAppendingPathComponent:@"Databases"],
         WebStorageDirectoryDefaultsKey: [libraryPath stringByAppendingPathComponent:@"LocalStorage"],
         WebKitLocalCacheDefaultsKey: [libraryPath stringByAppendingPathComponent:@"LocalCache"],
+        WebKitResourceLoadStatisticsDirectoryDefaultsKey: [libraryPath stringByAppendingPathComponent:@"LocalStorage"],
 #if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED > 101000
         // This needs to also be added to argument domain because of <rdar://problem/20210002>.
         @"AppleSystemFontOSSubversion": @(10),

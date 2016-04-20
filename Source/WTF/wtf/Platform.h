@@ -103,20 +103,6 @@
 #define USE_ARENA_ALLOC_ALIGNMENT_INTEGER 1
 #endif /* MIPS */
 
-/* CPU(PPC) - PowerPC 32-bit */
-#if (  defined(__ppc__)        \
-    || defined(__PPC__)        \
-    || defined(__powerpc__)    \
-    || defined(__powerpc)      \
-    || defined(__POWERPC__)    \
-    || defined(_M_PPC)         \
-    || defined(__PPC))         \
-    && defined(__BYTE_ORDER__) \
-    && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
-#define WTF_CPU_PPC 1
-#define WTF_CPU_BIG_ENDIAN 1
-#endif
-
 /* CPU(PPC64) - PowerPC 64-bit Big Endian */
 #if (  defined(__ppc64__)      \
     || defined(__PPC64__))     \
@@ -136,6 +122,21 @@
 #define WTF_CPU_PPC64LE 1
 #endif
 
+/* CPU(PPC) - PowerPC 32-bit */
+#if (  defined(__ppc__)        \
+    || defined(__PPC__)        \
+    || defined(__powerpc__)    \
+    || defined(__powerpc)      \
+    || defined(__POWERPC__)    \
+    || defined(_M_PPC)         \
+    || defined(__PPC))         \
+    && !CPU(PPC64)             \
+    && defined(__BYTE_ORDER__) \
+    && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#define WTF_CPU_PPC 1
+#define WTF_CPU_BIG_ENDIAN 1
+#endif
+
 /* CPU(SH4) - SuperH SH-4 */
 #if defined(__SH4__)
 #define WTF_CPU_SH4 1
@@ -148,7 +149,8 @@
 #endif
 
 /* CPU(S390) - S390 32-bit */
-#if defined(__s390__)
+#if (  defined(__s390__)        \
+    && !CPU(S390X))
 #define WTF_CPU_S390 1
 #define WTF_CPU_BIG_ENDIAN 1
 #endif
@@ -487,21 +489,16 @@
 #define USE_CA 1
 #endif
 
-#if PLATFORM(GTK) || PLATFORM(EFL)
+#if PLATFORM(GTK) || PLATFORM(EFL) || PLATFORM(WPE)
 #define USE_CAIRO 1
 #define USE_GLIB 1
 #define USE_FREETYPE 1
 #define USE_HARFBUZZ 1
 #define USE_SOUP 1
+
+#if PLATFORM(GTK) || PLATFORM(EFL)
 #define USE_WEBP 1
 #endif
-
-#if PLATFORM(WPE)
-#define USE_CAIRO 1
-#define USE_GLIB 1
-#define USE_FREETYPE 1
-#define USE_HARFBUZZ 1
-#define USE_SOUP 1
 #endif
 
 #if PLATFORM(EFL)
@@ -541,6 +538,12 @@
 
 #if PLATFORM(MAC)
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < 101200
+#define USE_QTKIT 1
+#else
+#define USE_QTKIT 0
+#endif
+
 #define USE_APPKIT 1
 #define HAVE_RUNLOOP_TIMER 1
 #define HAVE_SEC_IDENTITY 1
@@ -561,11 +564,12 @@
 
 #if PLATFORM(IOS)
 
-#define HAVE_NETWORK_EXTENSION 1
-#define HAVE_READLINE 1
-#if USE(APPLE_INTERNAL_SDK)
+#if USE(APPLE_INTERNAL_SDK) && __IPHONE_OS_VERSION_MIN_REQUIRED < 100000
 #define USE_CFNETWORK 1
 #endif
+
+#define HAVE_NETWORK_EXTENSION 1
+#define HAVE_READLINE 1
 #define USE_UIKIT_EDITING 1
 #define USE_WEB_THREAD 1
 
@@ -675,6 +679,10 @@
 #define HAVE_VIRTUALALLOC 1
 #endif
 
+#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200) || (PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 100000)
+#define HAVE_CFNETWORK_STORAGE_PARTITIONING 1
+#endif
+
 /* ENABLE macro defaults */
 
 /* FIXME: move out all ENABLE() defines from here to FeatureDefines.h */
@@ -684,19 +692,6 @@
 
 #if OS(WINDOWS)
 #define USE_SYSTEM_MALLOC 1
-#endif
-
-#define ENABLE_DEBUG_WITH_BREAKPOINT 0
-#define ENABLE_SAMPLING_COUNTERS 0
-#define ENABLE_SAMPLING_FLAGS 0
-#define ENABLE_SAMPLING_REGIONS 0
-#define ENABLE_OPCODE_SAMPLING 0
-#define ENABLE_CODEBLOCK_SAMPLING 0
-#if ENABLE(CODEBLOCK_SAMPLING) && !ENABLE(OPCODE_SAMPLING)
-#error "CODEBLOCK_SAMPLING requires OPCODE_SAMPLING"
-#endif
-#if ENABLE(OPCODE_SAMPLING) || ENABLE(SAMPLING_FLAGS) || ENABLE(SAMPLING_REGIONS)
-#define ENABLE_SAMPLING_THREAD 1
 #endif
 
 #if !defined(USE_JSVALUE64) && !defined(USE_JSVALUE32_64)
@@ -721,11 +716,6 @@
 #define ENABLE_JIT 1
 #endif
 
-/* Do we have LLVM? */
-#if !defined(HAVE_LLVM) && OS(DARWIN) && !PLATFORM(EFL) && !PLATFORM(GTK) && ENABLE(FTL_JIT) && (CPU(X86_64) || CPU(ARM64))
-#define HAVE_LLVM 1
-#endif
-
 /* The FTL *does not* work on 32-bit platforms. Disable it even if someone asked us to enable it. */
 #if USE(JSVALUE32_64)
 #undef ENABLE_FTL_JIT
@@ -738,12 +728,6 @@
 #define ENABLE_FTL_JIT 0
 #endif
 
-/* If possible, try to enable the LLVM disassembler. This is optional and we can
-   fall back on UDis86 if necessary. */
-#if !defined(USE_LLVM_DISASSEMBLER) && HAVE(LLVM) && (CPU(X86_64) || CPU(X86) || CPU(ARM64))
-#define USE_LLVM_DISASSEMBLER 1
-#endif
-
 /* If possible, try to enable a disassembler. This is optional. We proceed in two
    steps: first we try to find some disassembler that we can use, and then we
    decide if the high-level disassembler API can be enabled. */
@@ -752,11 +736,11 @@
 #define USE_UDIS86 1
 #endif
 
-#if !defined(ENABLE_DISASSEMBLER) && (USE(UDIS86) || USE(LLVM_DISASSEMBLER))
+#if !defined(ENABLE_DISASSEMBLER) && USE(UDIS86)
 #define ENABLE_DISASSEMBLER 1
 #endif
 
-#if !defined(USE_ARM64_DISASSEMBLER) && ENABLE(JIT) && CPU(ARM64) && !USE(LLVM_DISASSEMBLER)
+#if !defined(USE_ARM64_DISASSEMBLER) && ENABLE(JIT) && CPU(ARM64)
 #define USE_ARM64_DISASSEMBLER 1
 #endif
 
@@ -787,12 +771,12 @@
    values get stored to atomically. This is trivially true on 64-bit platforms,
    but not true at all on 32-bit platforms where values are composed of two
    separate sub-values. */
-#if (OS(DARWIN) || PLATFORM(EFL) || PLATFORM(GTK) || PLATFORM(WIN) || PLATFORM(WPE)) && ENABLE(DFG_JIT) && USE(JSVALUE64)
+#if ENABLE(DFG_JIT) && USE(JSVALUE64)
 #define ENABLE_CONCURRENT_JIT 1
 #endif
 
 /* This controls whether B3 is built. It will not be used unless FTL_USES_B3 is enabled. */
-#if (CPU(X86_64) || CPU(ARM64)) && ENABLE(FTL_JIT)
+#if ENABLE(FTL_JIT)
 #define ENABLE_B3_JIT 1
 #endif
 
@@ -1117,6 +1101,10 @@
 #define ENABLE_CSS3_TEXT_DECORATION_SKIP_INK 1
 #endif
 
+#if PLATFORM(GTK)
+#define USE_WOFF2 1
+#endif
+
 #if PLATFORM(COCOA)
 #define ENABLE_CSS3_TEXT_DECORATION_SKIP_INK 1
 #endif
@@ -1167,6 +1155,13 @@
 /* While 10.10 has support for fences, it is missing some API important for our integration of them. */
 #if PLATFORM(IOS) || (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101100)
 #define HAVE_COREANIMATION_FENCES 1
+#endif
+
+#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200) || (PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 100000)
+#define USE_OS_LOG 1
+#if USE(APPLE_INTERNAL_SDK)
+#define USE_OS_STATE 1
+#endif
 #endif
 
 #endif /* WTF_Platform_h */

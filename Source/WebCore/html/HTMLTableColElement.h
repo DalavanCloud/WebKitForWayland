@@ -34,20 +34,20 @@ class HTMLTableColElement final : public HTMLTablePartElement {
 public:
     static Ref<HTMLTableColElement> create(const QualifiedName& tagName, Document&);
 
-    int span() const { return m_span; }
-    void setSpan(int);
+    unsigned span() const { return m_span; }
+    void setSpan(unsigned);
 
     String width() const;
 
 private:
     HTMLTableColElement(const QualifiedName& tagName, Document&);
 
-    virtual void parseAttribute(const QualifiedName&, const AtomicString&) override;
-    virtual bool isPresentationAttribute(const QualifiedName&) const override;
-    virtual void collectStyleForPresentationAttribute(const QualifiedName&, const AtomicString&, MutableStyleProperties&) override;
-    virtual const StyleProperties* additionalPresentationAttributeStyle() override;
+    void parseAttribute(const QualifiedName&, const AtomicString&) override;
+    bool isPresentationAttribute(const QualifiedName&) const override;
+    void collectStyleForPresentationAttribute(const QualifiedName&, const AtomicString&, MutableStyleProperties&) override;
+    const StyleProperties* additionalPresentationAttributeStyle() const override;
 
-    int m_span;
+    unsigned m_span;
 };
 
 } //namespace

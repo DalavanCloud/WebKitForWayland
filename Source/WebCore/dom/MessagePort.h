@@ -32,7 +32,6 @@
 #include "MessagePortChannel.h"
 #include <memory>
 #include <wtf/Forward.h>
-#include <wtf/PassRefPtr.h>
 #include <wtf/RefPtr.h>
 #include <wtf/Vector.h>
 
@@ -51,9 +50,9 @@ namespace WebCore {
         static Ref<MessagePort> create(ScriptExecutionContext& scriptExecutionContext) { return adoptRef(*new MessagePort(scriptExecutionContext)); }
         virtual ~MessagePort();
 
-        void postMessage(PassRefPtr<SerializedScriptValue> message, const MessagePortArray*, ExceptionCode&);
+        void postMessage(RefPtr<SerializedScriptValue>&& message, const MessagePortArray*, ExceptionCode&);
         // Needed for Objective-C bindings (see bug 28774).
-        void postMessage(PassRefPtr<SerializedScriptValue> message, MessagePort*, ExceptionCode&);
+        void postMessage(RefPtr<SerializedScriptValue>&& message, MessagePort*, ExceptionCode&);
 
         void start();
         void close();
@@ -72,8 +71,8 @@ namespace WebCore {
 
         void contextDestroyed();
 
-        virtual EventTargetInterface eventTargetInterface() const override { return MessagePortEventTargetInterfaceType; }
-        virtual ScriptExecutionContext* scriptExecutionContext() const override { return m_scriptExecutionContext; }
+        EventTargetInterface eventTargetInterface() const override { return MessagePortEventTargetInterfaceType; }
+        ScriptExecutionContext* scriptExecutionContext() const override { return m_scriptExecutionContext; }
 
         void dispatchMessages();
 
@@ -98,9 +97,9 @@ namespace WebCore {
     private:
         explicit MessagePort(ScriptExecutionContext&);
 
-        virtual void refEventTarget() override { ref(); }
-        virtual void derefEventTarget() override { deref(); }
-        virtual bool isMessagePort() const override { return true; }
+        void refEventTarget() override { ref(); }
+        void derefEventTarget() override { deref(); }
+        bool isMessagePort() const override { return true; }
 
         std::unique_ptr<MessagePortChannel> m_entangledChannel;
 

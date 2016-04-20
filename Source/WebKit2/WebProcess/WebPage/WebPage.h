@@ -31,6 +31,7 @@
 #include "APIInjectedBundlePageUIClient.h"
 #include "APIObject.h"
 #include "Download.h"
+#include "EditingRange.h"
 #include "FindController.h"
 #include "GeolocationPermissionRequestManager.h"
 #include "ImageOptions.h"
@@ -286,7 +287,13 @@ public:
     void removeWebEditCommand(uint64_t);
     bool isInRedo() const { return m_isInRedo; }
 
+    bool isAlwaysOnLoggingAllowed() const;
     void setActivePopupMenu(WebPopupMenu*);
+
+    void setHiddenPageTimerThrottlingIncreaseLimit(std::chrono::milliseconds limit)
+    {
+        m_page->setTimerAlignmentIntervalIncreaseLimit(limit);
+    }
 
 #if ENABLE(INPUT_TYPE_COLOR)
     WebColorChooser* activeColorChooser() const { return m_activeColorChooser; }
@@ -550,8 +557,8 @@ public:
     void resetAssistedNodeForFrame(WebFrame*);
     WebCore::IntRect rectForElementAtInteractionLocation();
     void updateSelectionAppearance();
-    void getLookupContextAtPoint(const WebCore::IntPoint, uint64_t callbackID);
-
+    void getSelectionContext(uint64_t callbackID);
+    void handleTwoFingerTapAtPoint(const WebCore::IntPoint&, uint64_t callbackID);
 #if ENABLE(IOS_TOUCH_EVENTS)
     void dispatchAsynchronousTouchEvents(const Vector<WebTouchEvent, 1>& queue);
 #endif
@@ -569,10 +576,13 @@ public:
 
     void enableInspectorNodeSearch();
     void disableInspectorNodeSearch();
+    
+    void updateForceAlwaysUserScalable();
 #endif
 
     void setLayerTreeStateIsFrozen(bool);
-    bool markLayersVolatileImmediatelyIfPossible();
+    void markLayersVolatile(std::function<void()> completionHandler = {});
+    void cancelMarkLayersVolatile();
 
     NotificationPermissionRequestManager* notificationPermissionRequestManager();
 
@@ -647,7 +657,7 @@ public:
     
     void sendComplexTextInputToPlugin(uint64_t pluginComplexTextInputIdentifier, const String& textInput);
 
-    void insertTextAsync(const String& text, const EditingRange& replacementRange, bool registerUndoGroup = false);
+    void insertTextAsync(const String& text, const EditingRange& replacementRange, bool registerUndoGroup = false, uint32_t editingRangeIsRelativeTo = (uint32_t)EditingRangeIsRelativeTo::EditableRoot);
     void getMarkedRangeAsync(uint64_t callbackID);
     void getSelectedRangeAsync(uint64_t callbackID);
     void characterIndexForPointAsync(const WebCore::IntPoint&, uint64_t callbackID);
@@ -924,12 +934,21 @@ public:
 
     void didRestoreScrollPosition();
 
+    bool isControlledByAutomation() const;
+    void setControlledByAutomation(bool);
+
+    void insertNewlineInQuotedContent();
+
+#if USE(OS_STATE)
+    std::chrono::system_clock::time_point loadCommitTime() const { return m_loadCommitTime; }
+#endif
+
 private:
     WebPage(uint64_t pageID, const WebPageCreationParameters&);
 
     // IPC::MessageSender
-    virtual IPC::Connection* messageSenderConnection() override;
-    virtual uint64_t messageSenderDestinationID() override;
+    IPC::Connection* messageSenderConnection() override;
+    uint64_t messageSenderDestinationID() override;
 
     void platformInitialize();
     void platformDetach();
@@ -958,7 +977,6 @@ private:
     void resetTextAutosizingBeforeLayoutIfNeeded(const WebCore::FloatSize& oldSize, const WebCore::FloatSize& newSize);
     WebCore::VisiblePosition visiblePositionInFocusedNodeForPoint(const WebCore::Frame&, const WebCore::IntPoint&, bool isInteractingWithAssistedNode);
     PassRefPtr<WebCore::Range> rangeForGranularityAtPoint(const WebCore::Frame&, const WebCore::IntPoint&, uint32_t granularity, bool isInteractingWithAssistedNode);
-    void volatilityTimerFired();
 #endif
 #if !PLATFORM(COCOA) && !PLATFORM(WPE)
     static const char* interpretKeyEvent(const WebCore::KeyboardEvent*);
@@ -968,6 +986,9 @@ private:
 #if PLATFORM(MAC)
     bool executeKeypressCommandsInternal(const Vector<WebCore::KeypressCommand>&, WebCore::KeyboardEvent*);
 #endif
+
+    bool markLayersVolatileImmediatelyIfPossible();
+    void layerVolatilityTimerFired();
 
     String sourceForFrame(WebFrame*);
 
@@ -1015,6 +1036,8 @@ private:
 
     void loadURLInFrame(const String&, uint64_t frameID);
 
+    enum class WasRestoredByAPIRequest { No, Yes };
+    void restoreSessionInternal(const Vector<BackForwardListItemState>&, WasRestoredByAPIRequest);
     void restoreSession(const Vector<BackForwardListItemState>&);
     void didRemoveBackForwardItem(uint64_t);
 
@@ -1111,7 +1134,7 @@ private:
 
 #if ENABLE(MEDIA_STREAM)
     void didReceiveUserMediaPermissionDecision(uint64_t userMediaID, bool allowed, const String& audioDeviceUID, const String& videoDeviceUID);
-    void didCompleteUserMediaPermissionCheck(uint64_t userMediaID, bool allowed);
+    void didCompleteUserMediaPermissionCheck(uint64_t userMediaID, const String&, bool allowed);
 #endif
 
     void advanceToNextMisspelling(bool startBeforeSelection);
@@ -1129,14 +1152,12 @@ private:
     void changeSelectedIndex(int32_t index);
     void setCanStartMediaTimerFired();
 
-    bool canHandleUserEvents() const;
-
     static bool platformCanHandleRequest(const WebCore::ResourceRequest&);
 
     static PluginView* focusedPluginViewForFrame(WebCore::Frame&);
     static PluginView* pluginViewForFrame(WebCore::Frame*);
 
-    static PassRefPtr<WebCore::Range> rangeFromEditingRange(WebCore::Frame&, const EditingRange&);
+    static PassRefPtr<WebCore::Range> rangeFromEditingRange(WebCore::Frame&, const EditingRange&, EditingRangeIsRelativeTo = EditingRangeIsRelativeTo::EditableRoot);
 
     void reportUsedFeatures();
 
@@ -1172,6 +1193,8 @@ private:
 #if ENABLE(VIDEO) && USE(GSTREAMER)
     void didEndRequestInstallMissingMediaPlugins(uint32_t result);
 #endif
+
+    void setResourceCachingDisabled(bool);
 
     uint64_t m_pageID;
 
@@ -1304,7 +1327,7 @@ private:
     RefPtr<WebOpenPanelResultListener> m_activeOpenPanelResultListener;
     RefPtr<NotificationPermissionRequestManager> m_notificationPermissionRequestManager;
 
-    RefPtr<WebUserContentController> m_userContentController;
+    Ref<WebUserContentController> m_userContentController;
 
 #if ENABLE(GEOLOCATION)
     GeolocationPermissionRequestManager m_geolocationPermissionRequestManager;
@@ -1378,6 +1401,7 @@ private:
     bool m_hasPendingBlurNotification;
     bool m_useTestingViewportConfiguration;
     bool m_isInStableState;
+    bool m_forceAlwaysUserScalable { false };
     std::chrono::milliseconds m_oldestNonStableUpdateVisibleContentRectsTimestamp;
     std::chrono::milliseconds m_estimatedLatency;
     WebCore::FloatSize m_screenSize;
@@ -1392,8 +1416,10 @@ private:
     RefPtr<WebCore::Node> m_pendingSyntheticClickNode;
     WebCore::FloatPoint m_pendingSyntheticClickLocation;
     WebCore::FloatRect m_previousExposedContentRect;
-    WebCore::Timer m_volatilityTimer;
 #endif
+
+    WebCore::Timer m_layerVolatilityTimer;
+    Vector<std::function<void()>> m_markLayersAsVolatileCompletionHandlers;
 
     HashSet<String, ASCIICaseInsensitiveHash> m_mimeTypesWithCustomContentProviders;
     WebCore::Color m_backgroundColor;
@@ -1428,6 +1454,10 @@ private:
 
 #if ENABLE(VIDEO) && USE(GSTREAMER)
     RefPtr<WebCore::MediaPlayerRequestInstallMissingPluginsCallback> m_installMediaPluginsCallback;
+#endif
+
+#if USE(OS_STATE)
+    std::chrono::system_clock::time_point m_loadCommitTime;
 #endif
 };
 

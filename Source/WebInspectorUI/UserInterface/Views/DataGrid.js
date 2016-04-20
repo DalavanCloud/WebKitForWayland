@@ -182,7 +182,7 @@ WebInspector.DataGrid = class DataGrid extends WebInspector.View
 
     set sortOrder(order)
     {
-        if (order === this._sortOrder)
+        if (!order || order === this._sortOrder)
             return;
 
         this._sortOrder = order;
@@ -497,6 +497,9 @@ WebInspector.DataGrid = class DataGrid extends WebInspector.View
         if (column["group"])
             headerCellElement.classList.add("column-group-" + column["group"]);
 
+        if (column["tooltip"])
+            headerCellElement.title = column["tooltip"];
+
         if (column["collapsesGroup"]) {
             console.assert(column["group"] !== column["collapsesGroup"]);
 
@@ -590,8 +593,10 @@ WebInspector.DataGrid = class DataGrid extends WebInspector.View
     //
     // If this function is not called after the DataGrid is attached to its
     // parent element, then the DataGrid's columns will not be resizable.
-    layout()
+    layout(layoutReason)
     {
+        let firstUpdate = false;
+
         // Do not attempt to use offsets if we're not attached to the document tree yet.
         if (!this._columnWidthsInitialized && this.element.offsetWidth) {
             // Give all the columns initial widths now so that during a resize,
@@ -601,24 +606,35 @@ WebInspector.DataGrid = class DataGrid extends WebInspector.View
             var headerTableColumnElements = this._headerTableColumnGroupElement.children;
             var tableWidth = this._dataTableElement.offsetWidth;
             var numColumns = headerTableColumnElements.length;
-            for (var i = 0; i < numColumns; i++) {
-                var headerCellElement = this._headerTableBodyElement.rows[0].cells[i]
+            var cells = this._headerTableBodyElement.rows[0].cells;
+
+            // Calculate widths.
+            var columnWidths = [];
+            for (var i = 0; i < numColumns; ++i) {
+                var headerCellElement = cells[i];
                 if (this._isColumnVisible(headerCellElement.columnIdentifier)) {
                     var columnWidth = headerCellElement.offsetWidth;
                     var percentWidth = ((columnWidth / tableWidth) * 100) + "%";
-                    this._headerTableColumnGroupElement.children[i].style.width = percentWidth;
-                    this._dataTableColumnGroupElement.children[i].style.width = percentWidth;
-                } else {
-                    this._headerTableColumnGroupElement.children[i].style.width = 0;
-                    this._dataTableColumnGroupElement.children[i].style.width = 0;
-                }
+                    columnWidths.push(percentWidth);
+                } else
+                    columnWidths.push(0);
+            }
+
+            // Apply widths.
+            for (var i = 0; i < numColumns; i++) {
+                let percentWidth = columnWidths[i];
+                this._headerTableColumnGroupElement.children[i].style.width = percentWidth;
+                this._dataTableColumnGroupElement.children[i].style.width = percentWidth;
             }
 
             this._columnWidthsInitialized = true;
+            firstUpdate = true;
         }
 
-        this._positionResizerElements();
-        this._positionHeaderViews();
+        if (layoutReason == WebInspector.View.LayoutReason.Resize || firstUpdate) {
+            this._positionResizerElements();
+            this._positionHeaderViews();
+        }
     }
 
     columnWidthsMap()
@@ -685,21 +701,30 @@ WebInspector.DataGrid = class DataGrid extends WebInspector.View
         var previousResizer = null;
 
         // Make n - 1 resizers for n columns.
-        for (var i = 0; i < this.orderedColumns.length - 1; ++i) {
+        var numResizers = this.orderedColumns.length - 1;
+
+        // Calculate left offsets.
+        // Get the width of the cell in the first (and only) row of the
+        // header table in order to determine the width of the column, since
+        // it is not possible to query a column for its width.
+        var cells = this._headerTableBodyElement.rows[0].cells;
+        var columnWidths = [];
+        for (var i = 0; i < numResizers; ++i) {
+            left += cells[i].getBoundingClientRect().width;
+            columnWidths.push(left);
+        }
+
+        // Apply left offsets.
+        for (var i = 0; i < numResizers; ++i) {
             // Create a new resizer if one does not exist for this column.
-            if (i === this.resizers.length) {
-                resizer = new WebInspector.Resizer(WebInspector.Resizer.RuleOrientation.Vertical, this);
-                this.resizers[i] = resizer;
-                // This resizer is associated with the column to its right.
+            // This resizer is associated with the column to its right.
+            var resizer = this.resizers[i];
+            if (!resizer) {
+                resizer = this.resizers[i] = new WebInspector.Resizer(WebInspector.Resizer.RuleOrientation.Vertical, this);
                 this.element.appendChild(resizer.element);
             }
-
-            var resizer = this.resizers[i];
-
-            // Get the width of the cell in the first (and only) row of the
-            // header table in order to determine the width of the column, since
-            // it is not possible to query a column for its width.
-            left += this._headerTableBodyElement.rows[0].cells[i].offsetWidth;
+            
+            left = columnWidths[i];
 
             if (this._isColumnVisible(this.orderedColumns[i])) {
                 resizer.element.style.removeProperty("display");
@@ -732,6 +757,11 @@ WebInspector.DataGrid = class DataGrid extends WebInspector.View
             return;
 
         let left = 0;
+        let headerViews = [];
+        let lefts = [];
+        let columnWidths = [];
+
+        // Calculate left offsets and widths.
         for (let columnIdentifier of this.orderedColumns) {
             let column = this.columns.get(columnIdentifier);
             console.assert(column, "Missing column data for header cell with columnIdentifier " + columnIdentifier);
@@ -741,12 +771,20 @@ WebInspector.DataGrid = class DataGrid extends WebInspector.View
             let columnWidth = this._headerTableCellElements.get(columnIdentifier).offsetWidth;
             let headerView = column["headerView"];
             if (headerView) {
-                headerView.element.style.left = left + "px";
-                headerView.element.style.width = columnWidth + "px";
-                headerView.updateLayout(WebInspector.View.LayoutReason.Resize);
+                headerViews.push(headerView);
+                lefts.push(left);
+                columnWidths.push(columnWidth);
             }
 
             left += columnWidth;
+        }
+
+        // Apply left offsets and widths.
+        for (let i = 0; i < headerViews.length; ++i) {
+            let headerView = headerViews[i];
+            headerView.element.style.left = lefts[i] + "px";
+            headerView.element.style.width = columnWidths[i] + "px";
+            headerView.updateLayout(WebInspector.View.LayoutReason.Resize);
         }
     }
 
@@ -790,6 +828,7 @@ WebInspector.DataGrid = class DataGrid extends WebInspector.View
         delete child._depth;
         delete child._revealed;
         delete child._attached;
+        delete child._leftPadding;
         child._shouldRefreshChildren = true;
 
         var current = child.children[0];
@@ -798,6 +837,7 @@ WebInspector.DataGrid = class DataGrid extends WebInspector.View
             delete current._depth;
             delete current._revealed;
             delete current._attached;
+            delete current._leftPadding;
             current._shouldRefreshChildren = true;
             current = current.traverseNextNode(false, child, true);
         }
@@ -941,6 +981,17 @@ WebInspector.DataGrid = class DataGrid extends WebInspector.View
         tbody.appendChild(fillerRowElement); // We expect to find a filler row when attaching nodes.
     }
 
+    _toggledSortOrder()
+    {
+        return this._sortOrder !== WebInspector.DataGrid.SortOrder.Descending ? WebInspector.DataGrid.SortOrder.Descending : WebInspector.DataGrid.SortOrder.Ascending;
+    }
+
+    _selectSortColumnAndSetOrder(columnIdentifier, sortOrder)
+    {
+        this.sortColumnIdentifier = columnIdentifier;
+        this.sortOrder = sortOrder;
+    }
+
     _keyDown(event)
     {
         if (!this.selectedNode || event.shiftKey || event.metaKey || event.ctrlKey || this._editing)
@@ -1047,18 +1098,12 @@ WebInspector.DataGrid = class DataGrid extends WebInspector.View
 
     _headerCellClicked(event)
     {
-        var cell = event.target.enclosingNodeOrSelfWithNodeName("th");
+        let cell = event.target.enclosingNodeOrSelfWithNodeName("th");
         if (!cell || !cell.columnIdentifier || !cell.classList.contains(WebInspector.DataGrid.SortableColumnStyleClassName))
             return;
 
-        var clickedColumnIdentifier = cell.columnIdentifier;
-        if (this.sortColumnIdentifier === clickedColumnIdentifier) {
-            if (this.sortOrder !== WebInspector.DataGrid.SortOrder.Descending)
-                this.sortOrder = WebInspector.DataGrid.SortOrder.Descending;
-            else
-                this.sortOrder = WebInspector.DataGrid.SortOrder.Ascending;
-        } else
-            this.sortColumnIdentifier = clickedColumnIdentifier;
+        let sortOrder = this._sortColumnIdentifier === cell.columnIdentifier ? this._toggledSortOrder() : this.sortOrder;
+        this._selectSortColumnAndSetOrder(cell.columnIdentifier, sortOrder);
     }
 
     _mouseoverColumnCollapser(event)
@@ -1178,7 +1223,22 @@ WebInspector.DataGrid = class DataGrid extends WebInspector.View
         if (this._hasCopyableData())
             contextMenu.appendItem(WebInspector.UIString("Copy Table"), this._copyTable.bind(this));
 
-        // FIXME: <https://webkit.org/b/154050> Web Inspector: DataGrid Header Cells should have Context Menu for Sorting
+        let cell = event.target.enclosingNodeOrSelfWithNodeName("th");
+        if (cell && cell.columnIdentifier && cell.classList.contains(WebInspector.DataGrid.SortableColumnStyleClassName)) {
+            contextMenu.appendSeparator();
+
+            if (this.sortColumnIdentifier !== cell.columnIdentifier || this.sortOrder !== WebInspector.DataGrid.SortOrder.Ascending) {
+                contextMenu.appendItem(WebInspector.UIString("Sort Ascending"), () => {
+                    this._selectSortColumnAndSetOrder(cell.columnIdentifier, WebInspector.DataGrid.SortOrder.Ascending);
+                });
+            }
+
+            if (this.sortColumnIdentifier !== cell.columnIdentifier || this.sortOrder !== WebInspector.DataGrid.SortOrder.Descending) {
+                contextMenu.appendItem(WebInspector.UIString("Sort Descending"), () => {
+                    this._selectSortColumnAndSetOrder(cell.columnIdentifier, WebInspector.DataGrid.SortOrder.Descending);
+                });
+            }
+        }
     }
 
     _contextMenuInDataTable(event)
@@ -1186,6 +1246,10 @@ WebInspector.DataGrid = class DataGrid extends WebInspector.View
         let contextMenu = WebInspector.ContextMenu.createFromEvent(event);
 
         let gridNode = this.dataGridNodeFromNode(event.target);
+
+        if (gridNode)
+            gridNode.appendContextMenuItems(contextMenu);
+
         if (this.dataGrid._refreshCallback && (!gridNode || gridNode !== this.placeholderNode))
             contextMenu.appendItem(WebInspector.UIString("Refresh"), this._refreshCallback.bind(this));
 
@@ -1203,6 +1267,7 @@ WebInspector.DataGrid = class DataGrid extends WebInspector.View
                     contextMenu.appendItem(WebInspector.UIString("Edit “%s”").format(columnTitle), this._startEditing.bind(this, event.target));
                 }
             }
+
             if (this.dataGrid._deleteCallback && gridNode !== this.placeholderNode)
                 contextMenu.appendItem(WebInspector.UIString("Delete"), this._deleteCallback.bind(this, gridNode));
         }
@@ -1377,8 +1442,7 @@ WebInspector.DataGrid.Event = {
     SortChanged: "datagrid-sort-changed",
     SelectedNodeChanged: "datagrid-selected-node-changed",
     ExpandedNode: "datagrid-expanded-node",
-    CollapsedNode: "datagrid-collapsed-node",
-    GoToArrowClicked: "datagrid-go-to-arrow-clicked"
+    CollapsedNode: "datagrid-collapsed-node"
 };
 
 WebInspector.DataGrid.ResizeMethod = {
@@ -1486,26 +1550,6 @@ WebInspector.DataGridNode = class DataGridNode extends WebInspector.Object
     {
         for (var columnIdentifier of this.dataGrid.orderedColumns)
             this._element.appendChild(this.createCell(columnIdentifier));
-    }
-
-    createGoToArrowButton(cellElement)
-    {
-        function buttonClicked(event)
-        {
-            if (this.hidden || !this.revealed)
-                return;
-
-            event.stopPropagation();
-
-            let columnIdentifier = cellElement.__columnIdentifier;
-            this.dataGrid.dispatchEventToListeners(WebInspector.DataGrid.Event.GoToArrowClicked, {dataGridNode: this, columnIdentifier});
-        }
-
-        let button = WebInspector.createGoToArrowButton();
-        button.addEventListener("click", buttonClicked.bind(this));
-
-        let contentElement = cellElement.firstChild;
-        contentElement.appendChild(button);
     }
 
     refreshIfNeeded()
@@ -1689,6 +1733,12 @@ WebInspector.DataGridNode = class DataGridNode extends WebInspector.Object
         this.createCells();
     }
 
+    refreshRecursively()
+    {
+        this.refresh();
+        this.forEachChildInSubtree((node) => node.refresh());
+    }
+
     updateLayout()
     {
         // Implemented by subclasses if needed.
@@ -1734,11 +1784,14 @@ WebInspector.DataGridNode = class DataGridNode extends WebInspector.Object
 
     elementWithColumnIdentifier(columnIdentifier)
     {
-        var index = this.dataGrid.orderedColumns.indexOf(columnIdentifier);
+        if (!this.dataGrid)
+            return null;
+
+        let index = this.dataGrid.orderedColumns.indexOf(columnIdentifier);
         if (index === -1)
             return null;
 
-        return this._element.children[index];
+        return this.element.children[index];
     }
 
     // Share these functions with DataGrid. They are written to work with a DataGridNode this object.
@@ -1843,6 +1896,32 @@ WebInspector.DataGridNode = class DataGridNode extends WebInspector.Object
         }
     }
 
+    forEachImmediateChild(callback)
+    {
+        for (let node of this.children)
+            callback(node);
+    }
+
+    forEachChildInSubtree(callback)
+    {
+        let node = this.traverseNextNode(false, this, true);
+        while (node) {
+            callback(node);
+            node = node.traverseNextNode(false, this, true);
+        }
+    }
+
+    isInSubtreeOfNode(baseNode)
+    {
+        let node = baseNode;
+        while (node) {
+            if (node === this)
+                return true;
+            node = node.traverseNextNode(false, baseNode, true);
+        }
+        return false;
+    }
+
     reveal()
     {
         var currentAncestor = this.parent;
@@ -1862,8 +1941,9 @@ WebInspector.DataGridNode = class DataGridNode extends WebInspector.Object
         if (!this.dataGrid || !this.selectable || this.selected)
             return;
 
-        if (this.dataGrid.selectedNode)
-            this.dataGrid.selectedNode.deselect(true);
+        let oldSelectedNode = this.dataGrid.selectedNode;
+        if (oldSelectedNode)
+            oldSelectedNode.deselect(true);
 
         this._selected = true;
         this.dataGrid.selectedNode = this;
@@ -1872,7 +1952,7 @@ WebInspector.DataGridNode = class DataGridNode extends WebInspector.Object
             this._element.classList.add("selected");
 
         if (!suppressSelectedEvent)
-            this.dataGrid.dispatchEventToListeners(WebInspector.DataGrid.Event.SelectedNodeChanged);
+            this.dataGrid.dispatchEventToListeners(WebInspector.DataGrid.Event.SelectedNodeChanged, {oldSelectedNode});
     }
 
     revealAndSelect()
@@ -1893,7 +1973,7 @@ WebInspector.DataGridNode = class DataGridNode extends WebInspector.Object
             this._element.classList.remove("selected");
 
         if (!suppressDeselectedEvent)
-            this.dataGrid.dispatchEventToListeners(WebInspector.DataGrid.Event.SelectedNodeChanged);
+            this.dataGrid.dispatchEventToListeners(WebInspector.DataGrid.Event.SelectedNodeChanged, {oldSelectedNode: this});
     }
 
     traverseNextNode(skipHidden, stayWithin, dontPopulate, info)
@@ -2033,6 +2113,12 @@ WebInspector.DataGridNode = class DataGridNode extends WebInspector.Object
             this._savedPosition.parent.insertChild(this, this._savedPosition.index);
 
         this._savedPosition = null;
+    }
+
+    appendContextMenuItems(contextMenu)
+    {
+        // Subclasses may override
+        return null;
     }
 };
 

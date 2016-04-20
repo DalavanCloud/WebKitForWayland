@@ -1,0 +1,5 @@
+
+PASS Fetching [GET] URL.createObjectURL(blob) is OK 
+PASS Fetching [GET] blob:http://www.localhost:8800/ is KO 
+FAIL Fetching [POST] URL.createObjectURL(blob) is KO assert_unreached: Should have rejected. Reached unreachable code
+

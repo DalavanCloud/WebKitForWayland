@@ -64,9 +64,13 @@ list(APPEND WebCore_SOURCES
     platform/audio/PlatformMediaSessionManager.cpp
 
     platform/cf/FileSystemCF.cpp
+    platform/cf/KeyedDecoderCF.cpp
+    platform/cf/KeyedEncoderCF.cpp
     platform/cf/SharedBufferCF.cpp
 
     platform/cf/win/CertificateCFWin.cpp
+
+    platform/crypto/win/CryptoDigestWin.cpp
 
     platform/graphics/FontPlatformData.cpp
     platform/graphics/GraphicsContext3DPrivate.cpp
@@ -151,7 +155,7 @@ list(APPEND WebCore_USER_AGENT_STYLE_SHEETS
     ${WEBCORE_DIR}/css/themeWinQuirks.css
 )
 
-list(APPEND WebCore_SOURCES
+list(APPEND WebCore_DERIVED_SOURCES
     "${DERIVED_SOURCES_WEBCORE_DIR}/WebCoreHeaderDetection.h"
 )
 
@@ -247,7 +251,7 @@ set(WebCore_FORWARDING_HEADERS_DIRECTORIES
 )
 
 if (CMAKE_SIZEOF_VOID_P EQUAL 4)
-    list(APPEND WebCore_SOURCES ${DERIVED_SOURCES_WEBCORE_DIR}/makesafeseh.obj)
+    list(APPEND WebCore_DERIVED_SOURCES ${DERIVED_SOURCES_WEBCORE_DIR}/makesafeseh.obj)
     add_custom_command(
         OUTPUT ${DERIVED_SOURCES_WEBCORE_DIR}/makesafeseh.obj
         DEPENDS ${WEBCORE_DIR}/platform/win/makesafeseh.asm
@@ -291,10 +295,10 @@ endif ()
 
 file(MAKE_DIRECTORY ${DERIVED_SOURCES_DIR}/ForwardingHeaders/WebCore)
 
-set(WebCore_PRE_BUILD_COMMAND "${CMAKE_BINARY_DIR}/DerivedSources/WebCore/preBuild.cmd")
-file(WRITE "${WebCore_PRE_BUILD_COMMAND}" "@xcopy /y /s /d /f \"${WEBCORE_DIR}/ForwardingHeaders/*.h\" \"${DERIVED_SOURCES_DIR}/ForwardingHeaders/WebCore\" >nul 2>nul\n")
+set(WebCore_DERIVED_SOURCES_PRE_BUILD_COMMAND "${CMAKE_BINARY_DIR}/DerivedSources/WebCore/preBuild.cmd")
+file(WRITE "${WebCore_DERIVED_SOURCES_PRE_BUILD_COMMAND}" "@xcopy /y /s /d /f \"${WEBCORE_DIR}/ForwardingHeaders/*.h\" \"${DERIVED_SOURCES_DIR}/ForwardingHeaders/WebCore\" >nul 2>nul\n")
 foreach (_directory ${WebCore_FORWARDING_HEADERS_DIRECTORIES})
-    file(APPEND "${WebCore_PRE_BUILD_COMMAND}" "@xcopy /y /d /f \"${WEBCORE_DIR}/${_directory}/*.h\" \"${DERIVED_SOURCES_DIR}/ForwardingHeaders/WebCore\" >nul 2>nul\n")
+    file(APPEND "${WebCore_DERIVED_SOURCES_PRE_BUILD_COMMAND}" "@xcopy /y /d /f \"${WEBCORE_DIR}/${_directory}/*.h\" \"${DERIVED_SOURCES_DIR}/ForwardingHeaders/WebCore\" >nul 2>nul\n")
 endforeach ()
 
 set(WebCore_POST_BUILD_COMMAND "${CMAKE_BINARY_DIR}/DerivedSources/WebCore/postBuild.cmd")
@@ -303,3 +307,6 @@ file(WRITE "${WebCore_POST_BUILD_COMMAND}" "@xcopy /y /s /d /f \"${DERIVED_SOURC
 set(WebCore_OUTPUT_NAME
     WebCore${DEBUG_SUFFIX}
 )
+
+list(APPEND WebCore_LIBRARIES WTF${DEBUG_SUFFIX})
+list(APPEND WebCoreTestSupport_LIBRARIES WTF${DEBUG_SUFFIX})

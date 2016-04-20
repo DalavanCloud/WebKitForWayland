@@ -102,7 +102,9 @@ struct WKAutoCorrectionData {
     RetainPtr<_UIWebHighlightLongPressGestureRecognizer> _highlightLongPressGestureRecognizer;
     RetainPtr<UILongPressGestureRecognizer> _longPressGestureRecognizer;
     RetainPtr<UITapGestureRecognizer> _doubleTapGestureRecognizer;
+    RetainPtr<UITapGestureRecognizer> _nonBlockingDoubleTapGestureRecognizer;
     RetainPtr<UITapGestureRecognizer> _twoFingerDoubleTapGestureRecognizer;
+    RetainPtr<UITapGestureRecognizer> _twoFingerSingleTapGestureRecognizer;
     RetainPtr<WKInspectorNodeSearchGestureRecognizer> _inspectorNodeSearchGestureRecognizer;
 
     RetainPtr<UIWKTextInteractionAssistant> _textSelectionAssistant;
@@ -154,6 +156,7 @@ struct WKAutoCorrectionData {
     BOOL _hasValidPositionInformation;
     BOOL _isTapHighlightIDValid;
     BOOL _potentialTapInProgress;
+    BOOL _isDoubleTapPending;
     BOOL _highlightLongPressCanClick;
     BOOL _hasTapHighlightForPotentialTap;
     BOOL _selectionNeedsUpdate;

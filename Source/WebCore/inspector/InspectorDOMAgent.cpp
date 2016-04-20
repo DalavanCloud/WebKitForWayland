@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009, 2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2009, 2015-2016 Apple Inc. All rights reserved.
  * Copyright (C) 2011 Google Inc. All rights reserved.
  * Copyright (C) 2009 Joseph Pecoraro
  *
@@ -45,6 +45,7 @@
 #include "ContainerNode.h"
 #include "Cookie.h"
 #include "CookieJar.h"
+#include "CryptoDigest.h"
 #include "DOMEditor.h"
 #include "DOMPatchSupport.h"
 #include "DOMWindow.h"
@@ -62,6 +63,8 @@
 #include "HTMLNames.h"
 #include "HTMLTemplateElement.h"
 #include "HitTestResult.h"
+#include "InspectorClient.h"
+#include "InspectorController.h"
 #include "InspectorHistory.h"
 #include "InspectorNodeFinder.h"
 #include "InspectorOverlay.h"
@@ -86,6 +89,7 @@
 #include "StyleResolver.h"
 #include "StyleSheetList.h"
 #include "Text.h"
+#include "TextNodeTraversal.h"
 #include "XPathResult.h"
 #include "htmlediting.h"
 #include "markup.h"
@@ -93,6 +97,7 @@
 #include <inspector/InjectedScript.h>
 #include <inspector/InjectedScriptManager.h>
 #include <runtime/JSCInlines.h>
+#include <wtf/text/Base64.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/WTFString.h>
 
@@ -603,9 +608,9 @@ int InspectorDOMAgent::pushNodePathToFrontend(Node* nodeToPush)
     return map->get(nodeToPush);
 }
 
-int InspectorDOMAgent::boundNodeId(Node* node)
+int InspectorDOMAgent::boundNodeId(const Node* node)
 {
-    return m_documentNodeToIdMap.get(node);
+    return m_documentNodeToIdMap.get(const_cast<Node*>(node));
 }
 
 BackendNodeId InspectorDOMAgent::backendNodeIdForNode(Node* node, const String& nodeGroup)
@@ -1012,7 +1017,9 @@ void InspectorDOMAgent::setSearchingForNode(ErrorString& errorString, bool enabl
 {
     if (m_searchingForNode == enabled)
         return;
+
     m_searchingForNode = enabled;
+
     if (enabled) {
         m_inspectModeHighlightConfig = highlightConfigFromInspectorObject(errorString, highlightInspectorObject);
         if (!m_inspectModeHighlightConfig)
@@ -1021,6 +1028,9 @@ void InspectorDOMAgent::setSearchingForNode(ErrorString& errorString, bool enabl
         hideHighlight(errorString);
 
     m_overlay->didSetSearchingForNode(m_searchingForNode);
+
+    if (InspectorClient* client = m_pageAgent->page().inspectorController().inspectorClient())
+        client->elementSelectionChanged(m_searchingForNode);
 }
 
 std::unique_ptr<HighlightConfig> InspectorDOMAgent::highlightConfigFromInspectorObject(ErrorString& errorString, const InspectorObject* highlightInspectorObject)
@@ -1268,6 +1278,19 @@ static bool pseudoElementType(PseudoId pseudoId, Inspector::Protocol::DOM::Pseud
     }
 }
 
+static String computeContentSecurityPolicySHA256Hash(const Element& element)
+{
+    // FIXME: Compute the digest with respect to the raw bytes received from the page.
+    // See <https://bugs.webkit.org/show_bug.cgi?id=155184>.
+    TextEncoding documentEncoding = element.document().textEncoding();
+    const TextEncoding& encodingToUse = documentEncoding.isValid() ? documentEncoding : UTF8Encoding();
+    CString content = encodingToUse.encode(TextNodeTraversal::contentsAsString(element), EntitiesForUnencodables);
+    auto cryptoDigest = CryptoDigest::create(CryptoDigest::Algorithm::SHA_256);
+    cryptoDigest->addBytes(content.data(), content.length());
+    Vector<uint8_t> digest = cryptoDigest->computeHash();
+    return makeString("sha256-", base64Encode(digest.data(), digest.size()));
+}
+
 Ref<Inspector::Protocol::DOM::Node> InspectorDOMAgent::buildObjectForNode(Node* node, int depth, NodeToIdMap* nodesMap)
 {
     int id = bind(node, nodesMap);
@@ -1340,6 +1363,9 @@ Ref<Inspector::Protocol::DOM::Node> InspectorDOMAgent::buildObjectForNode(Node* 
         if (is<HTMLTemplateElement>(element))
             value->setTemplateContent(buildObjectForNode(downcast<HTMLTemplateElement>(element).content(), 0, nodesMap));
 #endif
+
+        if (is<HTMLStyleElement>(element) || (is<HTMLScriptElement>(element) && !element.fastHasAttribute(HTMLNames::srcAttr)))
+            value->setContentSecurityPolicyHash(computeContentSecurityPolicySHA256Hash(element));
 
         if (element.pseudoId()) {
             Inspector::Protocol::DOM::PseudoType pseudoType;
@@ -1571,14 +1597,12 @@ RefPtr<Inspector::Protocol::DOM::AccessibilityProperties> InspectorDOMAgent::bui
             
             processAccessibilityChildren(axObject, WTFMove(childNodeIds));
             
-            if (axObject->supportsARIAControls()) {
-                Vector<Element*> controlledElements;
-                axObject->elementsFromAttribute(controlledElements, aria_controlsAttr);
-                if (controlledElements.size()) {
-                    controlledNodeIds = Inspector::Protocol::Array<int>::create();
-                    for (Element* controlledElement : controlledElements)
-                        controlledNodeIds->addItem(pushNodePathToFrontend(controlledElement));
-                }
+            Vector<Element*> controlledElements;
+            axObject->elementsFromAttribute(controlledElements, aria_controlsAttr);
+            if (controlledElements.size()) {
+                controlledNodeIds = Inspector::Protocol::Array<int>::create();
+                for (Element* controlledElement : controlledElements)
+                    controlledNodeIds->addItem(pushNodePathToFrontend(controlledElement));
             }
             
             switch (axObject->ariaCurrentState()) {
@@ -1613,14 +1637,12 @@ RefPtr<Inspector::Protocol::DOM::AccessibilityProperties> InspectorDOMAgent::bui
             if (supportsExpanded)
                 expanded = axObject->isExpanded();
 
-            if (axObject->supportsARIAFlowTo()) {
-                Vector<Element*> flowedElements;
-                axObject->elementsFromAttribute(flowedElements, aria_flowtoAttr);
-                if (flowedElements.size()) {
-                    flowedNodeIds = Inspector::Protocol::Array<int>::create();
-                    for (Element* flowedElement : flowedElements)
-                        flowedNodeIds->addItem(pushNodePathToFrontend(flowedElement));
-                }
+            Vector<Element*> flowedElements;
+            axObject->elementsFromAttribute(flowedElements, aria_flowtoAttr);
+            if (flowedElements.size()) {
+                flowedNodeIds = Inspector::Protocol::Array<int>::create();
+                for (Element* flowedElement : flowedElements)
+                    flowedNodeIds->addItem(pushNodePathToFrontend(flowedElement));
             }
             
             if (is<Element>(*node)) {
@@ -1654,9 +1676,9 @@ RefPtr<Inspector::Protocol::DOM::AccessibilityProperties> InspectorDOMAgent::bui
                 String ariaRelevantAttrValue = axObject->ariaLiveRegionRelevant();
                 if (!ariaRelevantAttrValue.isEmpty()) {
                     // FIXME: Pass enum values rather than strings once unblocked. http://webkit.org/b/133711
-                    String ariaRelevantAdditions = Inspector::Protocol::getEnumConstantValue(Inspector::Protocol::DOM::LiveRegionRelevant::Additions);
-                    String ariaRelevantRemovals = Inspector::Protocol::getEnumConstantValue(Inspector::Protocol::DOM::LiveRegionRelevant::Removals);
-                    String ariaRelevantText = Inspector::Protocol::getEnumConstantValue(Inspector::Protocol::DOM::LiveRegionRelevant::Text);
+                    String ariaRelevantAdditions = Inspector::Protocol::InspectorHelpers::getEnumConstantValue(Inspector::Protocol::DOM::LiveRegionRelevant::Additions);
+                    String ariaRelevantRemovals = Inspector::Protocol::InspectorHelpers::getEnumConstantValue(Inspector::Protocol::DOM::LiveRegionRelevant::Removals);
+                    String ariaRelevantText = Inspector::Protocol::InspectorHelpers::getEnumConstantValue(Inspector::Protocol::DOM::LiveRegionRelevant::Text);
                     liveRegionRelevant = Inspector::Protocol::Array<String>::create();
                     const SpaceSplitString& values = SpaceSplitString(ariaRelevantAttrValue, true);
                     // @aria-relevant="all" is exposed as ["additions","removals","text"], in order.

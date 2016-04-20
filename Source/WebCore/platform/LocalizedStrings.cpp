@@ -507,6 +507,24 @@ String contextMenuItemTagExitVideoFullscreen()
     return WEB_UI_STRING("Exit Full Screen", "Video Exit Fullscreen context menu item");
 }
 
+#if PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE)
+
+#if USE(APPLE_INTERNAL_SDK)
+#include <WebKitAdditions/ContextMenuLocalizedStringsAdditions.cpp>
+#else
+String contextMenuItemTagEnterVideoEnhancedFullscreen()
+{
+    return { };
+}
+
+String contextMenuItemTagExitVideoEnhancedFullscreen()
+{
+    return { };
+}
+#endif
+
+#endif
+
 String contextMenuItemTagMediaPlay()
 {
     return WEB_UI_STRING("Play", "Media Play context menu item");
@@ -544,6 +562,7 @@ String searchMenuClearRecentSearchesText()
 {
     return WEB_UI_STRING("Clear Recent Searches", "menu item in Recent Searches menu that empties menu's contents");
 }
+#endif // !PLATFORM(IOS)
 
 String AXWebAreaText()
 {
@@ -600,6 +619,11 @@ String AXFileUploadButtonText()
     return WEB_UI_STRING("file upload button", "accessibility role description for a file upload button");
 }
 
+String AXAttachmentRoleText()
+{
+    return WEB_UI_STRING("attachment", "accessibility role description for an attachment element");
+}
+    
 String AXSearchFieldCancelButtonText()
 {
     return WEB_UI_STRING("cancel", "accessibility description for a search field cancel button");
@@ -652,8 +676,17 @@ String AXListItemActionVerb()
     notImplemented();
     return "select";
 }
-#endif // !PLATFORM(IOS)
 
+String AXAutoFillCredentialsLabel()
+{
+    return WEB_UI_STRING("password auto fill", "Label for the auto fill credentials button inside a text field.");
+}
+
+String AXAutoFillContactsLabel()
+{
+    return WEB_UI_STRING("contact info auto fill", "Label for the auto fill contacts button inside a text field.");
+}
+    
 #if PLATFORM(COCOA)
 String AXARIAContentGroupText(const String& ariaType)
 {
@@ -679,8 +712,8 @@ String AXARIAContentGroupText(const String& ariaType)
         return WEB_UI_STRING("note", "An ARIA accessibility group that acts as a note in a document.");
     if (ariaType == "ARIADocumentRegion")
         return WEB_UI_STRING("region", "An ARIA accessibility group that acts as a distinct region in a document.");
-    if (ariaType == "ARIALandmarkApplication")
-        return WEB_UI_STRING("application", "An ARIA accessibility group that acts as an application.");
+    if (ariaType == "ARIAWebApplication")
+        return WEB_UI_STRING("web application", "An ARIA accessibility group that acts as an application.");
     if (ariaType == "ARIALandmarkBanner")
         return WEB_UI_STRING("banner", "An ARIA accessibility group that acts as a banner.");
     if (ariaType == "ARIALandmarkComplementary")

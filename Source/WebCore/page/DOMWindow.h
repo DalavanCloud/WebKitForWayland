@@ -34,6 +34,7 @@
 #include "Supplementable.h"
 #include <functional>
 #include <memory>
+#include <wtf/Optional.h>
 #include <wtf/WeakPtr.h>
 
 namespace Inspector {
@@ -49,7 +50,6 @@ namespace WebCore {
     class DOMApplicationCache;
     class DOMSelection;
     class DOMURL;
-    class DOMWindowCSS;
     class DOMWindowProperty;
     class DOMWrapperWorld;
     class Database;
@@ -111,10 +111,10 @@ namespace WebCore {
         // the network load. See also SecurityContext::isSecureTransitionTo.
         void didSecureTransitionTo(Document*);
 
-        virtual EventTargetInterface eventTargetInterface() const override { return DOMWindowEventTargetInterfaceType; }
-        virtual ScriptExecutionContext* scriptExecutionContext() const override { return ContextDestructionObserver::scriptExecutionContext(); }
+        EventTargetInterface eventTargetInterface() const override { return DOMWindowEventTargetInterfaceType; }
+        ScriptExecutionContext* scriptExecutionContext() const override { return ContextDestructionObserver::scriptExecutionContext(); }
 
-        virtual DOMWindow* toDOMWindow() override;
+        DOMWindow* toDOMWindow() override;
 
         void registerProperty(DOMWindowProperty*);
         void unregisterProperty(DOMWindowProperty*);
@@ -135,7 +135,7 @@ namespace WebCore {
         bool allowPopUp(); // Call on first window, not target window.
         static bool allowPopUp(Frame* firstFrame);
         static bool canShowModalDialog(const Frame*);
-        static bool canShowModalDialogNow(const Frame*);
+        WEBCORE_EXPORT void setCanShowModalDialogOverride(bool);
 
         // DOM Level 0
 
@@ -159,9 +159,11 @@ namespace WebCore {
 
         Element* frameElement() const;
 
-        void focus(ScriptExecutionContext* = nullptr);
+        WEBCORE_EXPORT void focus(bool allowFocus = false);
+        void focus(Document&);
         void blur();
-        WEBCORE_EXPORT void close(ScriptExecutionContext* = nullptr);
+        WEBCORE_EXPORT void close();
+        void close(Document&);
         void print();
         void stop();
 
@@ -269,13 +271,11 @@ namespace WebCore {
         void cancelAnimationFrame(int id);
 #endif
 
-        DOMWindowCSS* css();
-
         // Events
         // EventTarget API
-        virtual bool addEventListener(const AtomicString& eventType, RefPtr<EventListener>&&, bool useCapture) override;
-        virtual bool removeEventListener(const AtomicString& eventType, EventListener*, bool useCapture) override;
-        virtual void removeAllEventListeners() override;
+        bool addEventListener(const AtomicString& eventType, RefPtr<EventListener>&&, bool useCapture) override;
+        bool removeEventListener(const AtomicString& eventType, EventListener*, bool useCapture) override;
+        void removeAllEventListeners() override;
 
         using EventTarget::dispatchEvent;
         bool dispatchEvent(Event&, EventTarget*);
@@ -347,11 +347,11 @@ namespace WebCore {
         Page* page();
         bool allowedToChangeWindowGeometry() const;
 
-        virtual void frameDestroyed() override;
-        virtual void willDetachPage() override;
+        void frameDestroyed() override;
+        void willDetachPage() override;
 
-        virtual void refEventTarget() override { ref(); }
-        virtual void derefEventTarget() override { deref(); }
+        void refEventTarget() override { ref(); }
+        void derefEventTarget() override { deref(); }
 
         static RefPtr<Frame> createWindow(const String& urlString, const AtomicString& frameName, const WindowFeatures&, DOMWindow& activeWindow, Frame& firstFrame, Frame& openerFrame, std::function<void (DOMWindow&)> prepareDialogFunction = nullptr);
         bool isInsecureScriptAccess(DOMWindow& activeWindow, const String& urlString);
@@ -370,6 +370,7 @@ namespace WebCore {
 
         bool m_shouldPrintWhenFinishedLoading;
         bool m_suspendedForDocumentSuspension;
+        Optional<bool> m_canShowModalDialogOverride;
 
         HashSet<DOMWindowProperty*> m_properties;
 
@@ -412,8 +413,6 @@ namespace WebCore {
 #if ENABLE(WEB_TIMING)
         mutable RefPtr<Performance> m_performance;
 #endif
-
-        mutable RefPtr<DOMWindowCSS> m_css;
 
 #if ENABLE(USER_MESSAGE_HANDLERS)
         mutable RefPtr<WebKitNamespace> m_webkitNamespace;

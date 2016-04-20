@@ -1,3 +1,225 @@
+2016-04-13  Jon Davis  <jond@apple.com>
+
+        Remove database quote escapes from pushed tweets.
+
+        Reviewed by Timothy Hatcher.
+
+        * wp-content/plugins/tweet-listener.php:
+
+2016-04-13  Jon Davis  <jond@apple.com>
+
+        Added background color for Safari Technology Preview posts.
+
+        Reviewed by Timothy Hatcher.
+
+        * wp-content/themes/webkit/style.css:
+        (.tile.category-safari-technology-preview .background-image):
+
+2016-04-07  Jon Davis  <jond@apple.com>
+
+        Improved drop down menu with translate; cleaned up unnecessary whitespace.
+        https://bugs.webkit.org/show_bug.cgi?id=156342
+
+        Reviewed by Timothy Hatcher.
+
+        * wp-content/themes/webkit/style.css:
+        (p > a[name]::before):
+        (.has-post-thumbnail .background-image):
+        (.table-of-contents):
+        (header .menu-item-has-children .label-toggle::after):
+        (.sub-menu-layer):
+        (.sub-menu-layer:after, .sub-menu-layer:before):
+        (.sub-menu-layer .menu-item):
+        (.menu > .menu-item > .menu-toggle:checked + .sub-menu):
+        (@media only screen and (max-width: 920px)):
+        (header .sub-menu-layer):
+        (@media only screen and (max-width: 415px)):
+        (@media only screen and (max-width: 1180px)): Deleted.
+        (@media only screen and (max-width: 1000px)): Deleted.
+        (@media only screen and (max-width: 690px)): Deleted.
+        (@media only screen and (max-width: 600px)): Deleted.
+        (@media only screen and (max-height: 415px)): Deleted.
+        (@media only screen and (max-width: 320px)): Deleted.
+
+2016-04-05  Jon Davis  <jond@apple.com>
+
+        Make the @webkit link on the front page link to the feed
+        https://bugs.webkit.org/show_bug.cgi?id=156244
+
+        Reviewed by Timothy Hatcher.
+
+        * wp-content/themes/webkit/widgets/twitter.php:
+
+2016-03-31  Jon Davis  <jond@apple.com>
+
+        Show tweets by @webkit in the Twitter tile on webkit.org
+        https://bugs.webkit.org/show_bug.cgi?id=156093
+
+        Reviewed by Timothy Hatcher.
+
+        * wp-content/plugins/tweet-listener.php: Added.
+        * wp-content/themes/webkit/widgets/twitter.php:
+
+2016-03-31  Jon Davis  <jond@apple.com>
+
+        Fix download links for desktops with small resolutions
+        https://bugs.webkit.org/show_bug.cgi?id=156081
+
+        Reviewed by Timothy Hatcher.
+
+        * wp-content/themes/webkit/downloads.php:
+
+2016-03-29  Jon Davis  <jond@apple.com>
+
+        Fixed a property access error by removing the lamda function for updates
+        https://bugs.webkit.org/show_bug.cgi?id=155989
+
+        * wp-content/plugins/sync-nightly-builds.php: 
+
+2016-03-29  Jon Davis  <jond@apple.com>
+
+        Fixed a context error for Nightly Build sync plugin, tightens layout styles for abovetitle
+        https://bugs.webkit.org/show_bug.cgi?id=155989
+
+        Unreviewed fix for the Sync Nightly Builds plugin to work with the older 
+        PHP environment on the server. Quick style adjustments for abovetitle images.
+
+        * wp-content/plugins/sync-nightly-builds.php: 
+        * wp-content/themes/webkit/nightly-archives.php: 
+        * wp-content/themes/webkit/style.css:
+        (article .abovetitle):
+
+2016-03-29  Jon Davis  <jond@apple.com>
+
+        Add WebKit Nightly Archives, WebKit Nightly Start, and Downloads pages
+        https://bugs.webkit.org/show_bug.cgi?id=155989
+
+        Reviewed by Timothy Hatcher.
+
+        * wp-content/plugins/sync-nightly-builds.php: Added.
+        * wp-content/themes/webkit/downloads.php: Added.
+        * wp-content/themes/webkit/functions.php:
+        * wp-content/themes/webkit/images/download.svg:
+        * wp-content/themes/webkit/images/spinner.svg: Added.
+        * wp-content/themes/webkit/nightly-archives.php: Added.
+        * wp-content/themes/webkit/nightly-start.php: Added.
+        * wp-content/themes/webkit/nightly.php:
+        * wp-content/themes/webkit/scripts/searchbuilds.js: Added.
+        (initsearch.xhrPromise.):
+        (initsearch):
+        (initsearch.displayResults.addEntry):
+        (initsearch.displayResults):
+        (initsearch.displayError):
+        (initsearch.clearErrors):
+        * wp-content/themes/webkit/style.css:
+        (input[type=text]):
+        (input[type=submit]):
+        (article .byline):
+        (article .abovetitle):
+
+2016-03-29  Jon Davis  <jond@apple.com>
+
+        Support images above the title on webkit.org posts
+        https://bugs.webkit.org/show_bug.cgi?id=155979
+
+        Reviewed by Timothy Hatcher.
+
+        * wp-content/themes/webkit/functions.php:
+        * wp-content/themes/webkit/single.php:
+
+2016-03-22  Jonathan Davis  <jond@apple.com>
+
+        Allow the use of custom styles and scripts for blog posts
+        https://bugs.webkit.org/show_bug.cgi?id=155768
+
+        Reviewed by Timothy Hatcher.
+
+        * wp-content/themes/webkit/functions.php:
+
+2016-03-09  Jonathan Davis  <jond@apple.com>
+
+        For RSS feeds, convert image and link relative URIs to absolute URIs
+        https://bugs.webkit.org/show_bug.cgi?id=155237
+
+        Reviewed by Timothy Hatcher.
+
+        * wp-content/themes/webkit/functions.php:
+
+2016-03-03  Saam barati  <sbarati@apple.com>
+
+        Update style guide to reflect our style of only using "override" or "final" when overriding virtual methods
+        https://bugs.webkit.org/show_bug.cgi?id=154978
+
+        Reviewed by Darin Adler.
+
+        * code-style.md:
+
+2016-02-29  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [DFG][FTL][B3] Support floor and ceil
+        https://bugs.webkit.org/show_bug.cgi?id=154683
+
+        Reviewed by Filip Pizlo.
+
+        * docs/b3/intermediate-representation.html:
+
+2016-02-16  Jonathan Davis  <jond@apple.com>
+
+        Add a redirect for B3 documentation
+        https://bugs.webkit.org/show_bug.cgi?id=154293
+
+        Reviewed by Timothy Hatcher.
+
+        * .htaccess:
+
+2016-02-15  Timothy Hatcher  <timothy@apple.com>
+
+        Fix byline to avoid bumping into content sticks out.
+
+        * wp-content/themes/webkit/style.css:
+        (article .byline): Bump padding to avoid content with negative margins.
+
+2016-02-13  Timothy Hatcher  <timothy@apple.com>
+
+        Adjust the appearance of mattewhite figures that are not widescreen.
+
+        * wp-content/themes/webkit/style.css:
+        (article .mattewhite:not(.widescreen):
+
+2016-02-12  Jonathan Davis  <jond@apple.com>
+
+        Add a CSS class to remove padding when using mattewhite class for figures
+        https://bugs.webkit.org/show_bug.cgi?id=154206
+
+        Reviewed by Filip Pizlo.
+
+        * wp-content/themes/webkit/style.css:
+        (article .two-columns):
+        (article .two-columns h6):
+        (article .two-columns p):
+        (article .mattewhite):
+        (article .mattewhite.tightwad):
+        (article figure):
+
+2016-02-12  Filip Pizlo  <fpizlo@apple.com>
+
+        Unreviewed, upload some blog files.
+
+        * blog-files/compile-times.png: Added.
+        * blog-files/fast-isel.png: Added.
+        * blog-files/jetstream-latency.png: Added.
+        * blog-files/jetstream-throughput.png: Added.
+        * blog-files/jetstream.png: Added.
+        * blog-files/kraken.png: Added.
+        * blog-files/low-compile-times.png: Added.
+        * blog-files/low-fast-isel.png: Added.
+        * blog-files/low-jetstream-latency.png: Added.
+        * blog-files/low-jetstream-throughput.png: Added.
+        * blog-files/low-jetstream.png: Added.
+        * blog-files/low-kraken.png: Added.
+        * blog-files/low-octane.png: Added.
+        * blog-files/octane.png: Added.
+
 2016-02-04  Jonathan Davis  <jond@apple.com>
 
         Fix bad link on the Feature Status page.

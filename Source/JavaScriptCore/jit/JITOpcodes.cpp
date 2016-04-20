@@ -153,6 +153,8 @@ void JIT::emit_op_instanceof(Instruction* currentInstruction)
     move(TrustedImm64(JSValue::encode(jsBoolean(true))), regT0);
     Label loop(this);
 
+    addSlowCase(branch8(Equal, Address(regT2, JSCell::typeInfoTypeOffset()), TrustedImm32(ProxyObjectType)));
+
     // Load the prototype of the object in regT2.  If this is equal to regT1 - WIN!
     // Otherwise, check if we've hit null - if we have then drop out of the loop, if not go again.
     emitLoadStructure(regT2, regT2, regT3);
@@ -292,6 +294,13 @@ void JIT::emit_op_to_primitive(Instruction* currentInstruction)
     if (dst != src)
         emitPutVirtualRegister(dst);
 
+}
+
+void JIT::emit_op_set_function_name(Instruction* currentInstruction)
+{
+    emitGetVirtualRegister(currentInstruction[1].u.operand, regT0);
+    emitGetVirtualRegister(currentInstruction[2].u.operand, regT1);
+    callOperation(operationSetFunctionName, regT0, regT1);
 }
 
 void JIT::emit_op_strcat(Instruction* currentInstruction)
@@ -712,6 +721,7 @@ void JIT::emit_op_create_this(Instruction* currentInstruction)
     RegisterID scratchReg = regT3;
 
     emitGetVirtualRegister(callee, calleeReg);
+    addSlowCase(branch8(NotEqual, Address(calleeReg, JSCell::typeInfoTypeOffset()), TrustedImm32(JSFunctionType)));
     loadPtr(Address(calleeReg, JSFunction::offsetOfRareData()), rareDataReg);
     addSlowCase(branchTestPtr(Zero, rareDataReg));
     loadPtr(Address(rareDataReg, FunctionRareData::offsetOfObjectAllocationProfile() + ObjectAllocationProfile::offsetOfAllocator()), allocatorReg);
@@ -729,6 +739,7 @@ void JIT::emit_op_create_this(Instruction* currentInstruction)
 
 void JIT::emitSlow_op_create_this(Instruction* currentInstruction, Vector<SlowCaseEntry>::iterator& iter)
 {
+    linkSlowCase(iter); // Callee::m_type != JSFunctionType.
     linkSlowCase(iter); // doesn't have rare data
     linkSlowCase(iter); // doesn't have an allocation profile
     linkSlowCase(iter); // allocation failed
@@ -854,6 +865,7 @@ void JIT::emitSlow_op_instanceof(Instruction* currentInstruction, Vector<SlowCas
 
     linkSlowCaseIfNotJSCell(iter, value);
     linkSlowCaseIfNotJSCell(iter, proto);
+    linkSlowCase(iter);
     linkSlowCase(iter);
     emitGetVirtualRegister(value, regT0);
     emitGetVirtualRegister(proto, regT1);
@@ -1154,7 +1166,6 @@ void JIT::emitSlow_op_has_indexed_property(Instruction* currentInstruction, Vect
     
     linkSlowCaseIfNotJSCell(iter, base); // base cell check
     linkSlowCase(iter); // base array check
-    linkSlowCase(iter); // read barrier
     linkSlowCase(iter); // vector length check
     linkSlowCase(iter); // empty value
     
@@ -1198,7 +1209,6 @@ void JIT::emit_op_get_direct_pname(Instruction* currentInstruction)
     // Otherwise it's out of line
     outOfLineAccess.link(this);
     loadPtr(Address(regT0, JSObject::butterflyOffset()), regT0);
-    addSlowCase(branchIfNotToSpace(regT0));
     sub32(Address(regT2, JSPropertyNameEnumerator::cachedInlineCapacityOffset()), regT1);
     neg32(regT1);
     signExtend32ToPtr(regT1, regT1);
@@ -1214,7 +1224,6 @@ void JIT::emitSlow_op_get_direct_pname(Instruction* currentInstruction, Vector<S
 {
     int base = currentInstruction[2].u.operand;
     linkSlowCaseIfNotJSCell(iter, base);
-    linkSlowCase(iter);
     linkSlowCase(iter);
 
     JITSlowPathCall slowPathCall(this, currentInstruction, slow_path_get_direct_pname);
@@ -1388,9 +1397,9 @@ void JIT::emit_op_create_scoped_arguments(Instruction* currentInstruction)
     slowPathCall.call();
 }
 
-void JIT::emit_op_create_out_of_band_arguments(Instruction* currentInstruction)
+void JIT::emit_op_create_cloned_arguments(Instruction* currentInstruction)
 {
-    JITSlowPathCall slowPathCall(this, currentInstruction, slow_path_create_out_of_band_arguments);
+    JITSlowPathCall slowPathCall(this, currentInstruction, slow_path_create_cloned_arguments);
     slowPathCall.call();
 }
 
@@ -1439,6 +1448,18 @@ void JIT::emit_op_resume(Instruction* currentInstruction)
 {
     JITSlowPathCall slowPathCall(this, currentInstruction, slow_path_resume);
     slowPathCall.call();
+}
+
+void JIT::emit_op_log_shadow_chicken_prologue(Instruction*)
+{
+    updateTopCallFrame();
+    logShadowChickenProloguePacket();
+}
+
+void JIT::emit_op_log_shadow_chicken_tail(Instruction*)
+{
+    updateTopCallFrame();
+    logShadowChickenTailPacket();
 }
 
 } // namespace JSC

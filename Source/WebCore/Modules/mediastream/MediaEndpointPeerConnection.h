@@ -31,8 +31,9 @@
 #ifndef MediaEndpointPeerConnection_h
 #define MediaEndpointPeerConnection_h
 
-#if ENABLE(MEDIA_STREAM)
+#if ENABLE(WEB_RTC)
 
+#include "MediaEndpoint.h"
 #include "NotImplemented.h"
 #include "PeerConnectionBackend.h"
 #include "RTCSessionDescription.h"
@@ -41,8 +42,11 @@
 namespace WebCore {
 
 class MediaStreamTrack;
+class SDPProcessor;
 
-class MediaEndpointPeerConnection : public PeerConnectionBackend {
+typedef Vector<RefPtr<RTCRtpSender>> RtpSenderVector;
+
+class MediaEndpointPeerConnection : public PeerConnectionBackend, public MediaEndpointClient {
 public:
     MediaEndpointPeerConnection(PeerConnectionBackendClient*);
 
@@ -71,10 +75,39 @@ public:
     bool isNegotiationNeeded() const override { return false; };
     void markAsNeedingNegotiation() override;
     void clearNegotiationNeededState() override { notImplemented(); };
+
+private:
+    void runTask(std::function<void()>);
+    void startRunningTasks();
+
+    void createOfferTask(RTCOfferOptions&, PeerConnection::SessionDescriptionPromise&);
+
+    // MediaEndpointClient
+    void gotDtlsFingerprint(const String& fingerprint, const String& fingerprintFunction) override;
+    void gotIceCandidate(unsigned mdescIndex, RefPtr<IceCandidate>&&) override;
+    void doneGatheringCandidates(unsigned mdescIndex) override;
+    void gotRemoteSource(unsigned mdescIndex, RefPtr<RealtimeMediaSource>&&) override;
+
+    PeerConnectionBackendClient* m_client;
+    std::unique_ptr<MediaEndpoint> m_mediaEndpoint;
+
+    std::function<void()> m_initialDeferredTask;
+
+    std::unique_ptr<SDPProcessor> m_sdpProcessor;
+
+    Vector<RefPtr<MediaPayload>> m_defaultAudioPayloads;
+    Vector<RefPtr<MediaPayload>> m_defaultVideoPayloads;
+
+    String m_cname;
+    String m_iceUfrag;
+    String m_icePassword;
+    String m_dtlsFingerprint;
+    String m_dtlsFingerprintFunction;
+    unsigned m_sdpSessionVersion { 0 };
 };
 
 } // namespace WebCore
 
-#endif // ENABLE(MEDIA_STREAM)
+#endif // ENABLE(WEB_RTC)
 
 #endif // MediaEndpointPeerConnection_h

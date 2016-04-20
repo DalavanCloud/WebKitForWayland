@@ -202,10 +202,14 @@ WebInspector.NavigationSidebarPanel = class NavigationSidebarPanel extends WebIn
         console.assert(treeElement);
         console.assert(treeElement.representedObject);
         if (!treeElement || !treeElement.representedObject)
-            return;
+            return false;
 
-        this.contentBrowser.showContentViewForRepresentedObject(treeElement.representedObject);
+        let contentView = this.contentBrowser.showContentViewForRepresentedObject(treeElement.representedObject);
+        if (!contentView)
+            return false;
+
         treeElement.revealAndSelect(true, false, true, true);
+        return true;
     }
 
     saveStateToCookie(cookie)
@@ -609,14 +613,6 @@ WebInspector.NavigationSidebarPanel = class NavigationSidebarPanel extends WebIn
 
         this._checkForEmptyFilterResults();
         this._updateContentOverflowShadowVisibility();
-
-        // Filter may have hidden the selected resource in the timeline view, which should now notify its listeners.
-        // FIXME: This is a layering violation. This should at least be in TimelineSidebarPanel.
-        if (selectedTreeElement && selectedTreeElement.hidden !== selectionWasHidden) {
-            var currentContentView = this.contentBrowser.currentContentView;
-            if (currentContentView instanceof WebInspector.TimelineRecordingContentView && typeof currentContentView.currentTimelineView.filterUpdated === "function")
-                currentContentView.currentTimelineView.filterUpdated();
-        }
     }
 
     _treeElementAddedOrChanged(event)
@@ -682,6 +678,7 @@ WebInspector.NavigationSidebarPanel = class NavigationSidebarPanel extends WebIn
         return treeElement instanceof WebInspector.FolderTreeElement
             || treeElement instanceof WebInspector.DatabaseHostTreeElement
             || treeElement instanceof WebInspector.IndexedDatabaseHostTreeElement
+            || treeElement instanceof WebInspector.ApplicationCacheManifestTreeElement
             || typeof treeElement.representedObject === "string"
             || treeElement.representedObject instanceof String;
     }
@@ -747,7 +744,9 @@ WebInspector.NavigationSidebarPanel = class NavigationSidebarPanel extends WebIn
         }, this);
 
         if (matchedElement) {
-            this.showDefaultContentViewForTreeElement(matchedElement);
+            let didShowContentView = this.showDefaultContentViewForTreeElement(matchedElement);
+            if (!didShowContentView)
+                return;
 
             this._pendingViewStateCookie = null;
 

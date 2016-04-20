@@ -114,7 +114,7 @@ public:
     {
     }
 
-    virtual void strokeStyle(GraphicsContext* c) override
+    void strokeStyle(GraphicsContext* c) override
     {
         c->setStrokeThickness(m_canvasContext->lineWidth());
         c->setLineCap(m_canvasContext->getLineCap());
@@ -1625,7 +1625,7 @@ void CanvasRenderingContext2D::drawImage(HTMLVideoElement* video, const FloatRec
     checkOrigin(video);
 
 #if USE(CG) || (ENABLE(ACCELERATED_2D_CANVAS) && USE(GSTREAMER_GL) && USE(CAIRO))
-    if (PassNativeImagePtr image = video->nativeImageForCurrentTime()) {
+    if (NativeImagePtr image = video->nativeImageForCurrentTime()) {
         c->drawNativeImage(image, FloatSize(video->videoWidth(), video->videoHeight()), dstRect, srcRect);
         if (rectContainsCanvas(dstRect))
             didDrawEntireCanvas();
@@ -2130,6 +2130,16 @@ void CanvasRenderingContext2D::webkitPutImageDataHD(ImageData* data, float dx, f
     putImageData(data, ImageBuffer::BackingStoreCoordinateSystem, dx, dy, dirtyX, dirtyY, dirtyWidth, dirtyHeight, ec);
 }
 
+void CanvasRenderingContext2D::drawSystemFocusRing(Element* element)
+{
+    drawFocusIfNeededInternal(m_path, element);
+}
+
+void CanvasRenderingContext2D::drawSystemFocusRing(DOMPath* path, Element* element)
+{
+    drawFocusIfNeededInternal(path->path(), element);
+}
+
 void CanvasRenderingContext2D::drawFocusIfNeeded(Element* element)
 {
     drawFocusIfNeededInternal(m_path, element);
@@ -2139,6 +2149,7 @@ void CanvasRenderingContext2D::drawFocusIfNeeded(DOMPath* path, Element* element
 {
     drawFocusIfNeededInternal(path->path(), element);
 }
+
 
 void CanvasRenderingContext2D::drawFocusIfNeededInternal(const Path& path, Element* element)
 {
@@ -2426,6 +2437,9 @@ Ref<TextMetrics> CanvasRenderingContext2D::measureText(const String& text)
 
 void CanvasRenderingContext2D::drawTextInternal(const String& text, float x, float y, bool fill, float maxWidth, bool useMaxWidth)
 {
+    const auto& fontProxy = this->fontProxy();
+    const FontMetrics& fontMetrics = fontProxy.fontMetrics();
+
     GraphicsContext* c = drawingContext();
     if (!c)
         return;
@@ -2445,16 +2459,12 @@ void CanvasRenderingContext2D::drawTextInternal(const String& text, float x, flo
     if (fill && gradient && gradient->isZeroSize())
         return;
 
-    const auto& fontProxy = this->fontProxy();
-    const FontMetrics& fontMetrics = fontProxy.fontMetrics();
-
     String normalizedText = text;
     normalizeSpaces(normalizedText);
 
     // FIXME: Need to turn off font smoothing.
 
     RenderStyle* computedStyle;
-    canvas()->document().updateStyleIfNeeded();
     TextDirection direction = toTextDirection(state().direction, &computedStyle);
     bool isRTL = direction == RTL;
     bool override = computedStyle ? isOverride(computedStyle->unicodeBidi()) : false;

@@ -180,14 +180,11 @@ public:
     void systemFont(CSSValueID, FontCascadeDescription&) const;
     virtual Color systemColor(CSSValueID) const;
 
-    virtual int minimumMenuListSize(RenderStyle&) const { return 0; }
+    virtual int minimumMenuListSize(const RenderStyle&) const { return 0; }
 
     virtual void adjustSliderThumbSize(RenderStyle&, Element*) const;
 
-    virtual int popupInternalPaddingLeft(RenderStyle&) const { return 0; }
-    virtual int popupInternalPaddingRight(RenderStyle&) const { return 0; }
-    virtual int popupInternalPaddingTop(RenderStyle&) const { return 0; }
-    virtual int popupInternalPaddingBottom(RenderStyle&) const { return 0; }
+    virtual LengthBox popupInternalPaddingBox(const RenderStyle&) const { return { 0, 0, 0, 0 }; }
     virtual bool popupOptionSupportsTextIndent() const { return false; }
     virtual PopupMenuStyle::PopupMenuSize popupMenuSize(const RenderStyle&, IntRect&) const { return PopupMenuStyle::PopupMenuSizeNormal; }
 
@@ -255,6 +252,9 @@ public:
     virtual LayoutSize attachmentIntrinsicSize(const RenderAttachment&) const { return LayoutSize(); }
     virtual int attachmentBaseline(const RenderAttachment&) const { return -1; }
 #endif
+
+    enum class InnerSpinButtonLayout { Vertical, HorizontalUpLeft, HorizontalUpRight };
+    virtual InnerSpinButtonLayout innerSpinButtonLayout(const RenderObject&) const { return InnerSpinButtonLayout::Vertical; }
 
 protected:
     virtual FontCascadeDescription& cachedSystemFontDescription(CSSValueID systemFontID) const;

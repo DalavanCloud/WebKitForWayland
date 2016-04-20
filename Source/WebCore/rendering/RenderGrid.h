@@ -29,13 +29,13 @@
 
 #if ENABLE(CSS_GRID_LAYOUT)
 
-#include "GridResolvedPosition.h"
+#include "GridPositionsResolver.h"
 #include "OrderIterator.h"
 #include "RenderBlock.h"
 
 namespace WebCore {
 
-class GridCoordinate;
+class GridArea;
 class GridSpan;
 class GridTrack;
 class GridItemWithSpan;
@@ -51,11 +51,11 @@ public:
 
     Element& element() const { return downcast<Element>(nodeForNonAnonymous()); }
 
-    virtual void styleDidChange(StyleDifference, const RenderStyle* oldStyle) override;
-    virtual void layoutBlock(bool relayoutChildren, LayoutUnit pageLogicalHeight = 0) override;
+    void styleDidChange(StyleDifference, const RenderStyle* oldStyle) override;
+    void layoutBlock(bool relayoutChildren, LayoutUnit pageLogicalHeight = 0) override;
 
-    virtual bool avoidsFloats() const override { return true; }
-    virtual bool canDropAnonymousBlockChild() const override { return false; }
+    bool avoidsFloats() const override { return true; }
+    bool canDropAnonymousBlockChild() const override { return false; }
 
     const Vector<LayoutUnit>& columnPositions() const { return m_columnPositions; }
     const Vector<LayoutUnit>& rowPositions() const { return m_rowPositions; }
@@ -63,9 +63,9 @@ public:
     LayoutUnit guttersSize(GridTrackSizingDirection, size_t span) const;
 
 private:
-    virtual const char* renderName() const override;
-    virtual bool isRenderGrid() const override { return true; }
-    virtual void computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const override;
+    const char* renderName() const override;
+    bool isRenderGrid() const override { return true; }
+    void computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const override;
 
     Optional<LayoutUnit> computeIntrinsicLogicalContentHeightUsing(Length logicalHeightLength, Optional<LayoutUnit> intrinsicContentHeight, LayoutUnit borderAndPadding) const override;
 
@@ -77,10 +77,10 @@ private:
     void resolveContentBasedTrackSizingFunctions(GridTrackSizingDirection, GridSizingData&);
 
     void ensureGridSize(unsigned maximumRowSize, unsigned maximumColumnSize);
-    void insertItemIntoGrid(RenderBox&, const GridCoordinate&);
+    void insertItemIntoGrid(RenderBox&, const GridArea&);
     void placeItemsOnGrid();
     void populateExplicitGridAndOrderIterator();
-    std::unique_ptr<GridCoordinate> createEmptyGridAreaAtSpecifiedPositionsOutsideGrid(const RenderBox&, GridTrackSizingDirection, const GridSpan&) const;
+    std::unique_ptr<GridArea> createEmptyGridAreaAtSpecifiedPositionsOutsideGrid(const RenderBox&, GridTrackSizingDirection, const GridSpan&) const;
     void placeSpecifiedMajorAxisItemsOnGrid(const Vector<RenderBox*>&);
     void placeAutoMajorAxisItemsOnGrid(const Vector<RenderBox*>&);
     typedef std::pair<unsigned, unsigned> AutoPlacementCursor;
@@ -117,10 +117,10 @@ private:
     static bool trackShouldGrowBeyondGrowthLimitsForTrackSizeComputationPhase(TrackSizeComputationPhase, const GridTrackSize&);
     static void markAsInfinitelyGrowableForTrackSizeComputationPhase(TrackSizeComputationPhase, GridTrack&);
     static void updateTrackSizeForTrackSizeComputationPhase(TrackSizeComputationPhase, GridTrack&);
-    LayoutUnit currentItemSizeForTrackSizeComputationPhase(TrackSizeComputationPhase, RenderBox&, GridTrackSizingDirection, Vector<GridTrack>& columnTracks);
+    LayoutUnit currentItemSizeForTrackSizeComputationPhase(TrackSizeComputationPhase, RenderBox&, GridTrackSizingDirection, GridSizingData&);
 
     typedef struct GridItemsSpanGroupRange GridItemsSpanGroupRange;
-    void resolveContentBasedTrackSizingFunctionsForNonSpanningItems(GridTrackSizingDirection, const GridSpan&, RenderBox& gridItem, GridTrack&, Vector<GridTrack>& columnTracks);
+    void resolveContentBasedTrackSizingFunctionsForNonSpanningItems(GridTrackSizingDirection, const GridSpan&, RenderBox& gridItem, GridTrack&, GridSizingData&);
     template <TrackSizeComputationPhase> void resolveContentBasedTrackSizingFunctionsForItems(GridTrackSizingDirection, GridSizingData&, const GridItemsSpanGroupRange&);
     template <TrackSizeComputationPhase> void distributeSpaceToTracks(Vector<GridTrack*>&, const Vector<GridTrack*>* growBeyondGrowthLimitsTracks, LayoutUnit& availableLogicalSpace);
 
@@ -130,16 +130,17 @@ private:
 
     GridTrackSize gridTrackSize(GridTrackSizingDirection, unsigned) const;
 
-    LayoutUnit logicalContentHeightForChild(RenderBox&, Vector<GridTrack>&);
-    LayoutUnit minSizeForChild(RenderBox&, GridTrackSizingDirection, Vector<GridTrack>& columnTracks);
-    LayoutUnit minContentForChild(RenderBox&, GridTrackSizingDirection, Vector<GridTrack>& columnTracks);
-    LayoutUnit maxContentForChild(RenderBox&, GridTrackSizingDirection, Vector<GridTrack>& columnTracks);
+    LayoutUnit logicalContentHeightForChild(RenderBox&, GridSizingData&);
+    LayoutUnit minSizeForChild(RenderBox&, GridTrackSizingDirection, GridSizingData&);
+    LayoutUnit minContentForChild(RenderBox&, GridTrackSizingDirection, GridSizingData&);
+    LayoutUnit maxContentForChild(RenderBox&, GridTrackSizingDirection, GridSizingData&);
     GridAxisPosition columnAxisPositionForChild(const RenderBox&) const;
     GridAxisPosition rowAxisPositionForChild(const RenderBox&) const;
     LayoutUnit columnAxisOffsetForChild(const RenderBox&) const;
     LayoutUnit rowAxisOffsetForChild(const RenderBox&) const;
     ContentAlignmentData computeContentPositionAndDistributionOffset(GridTrackSizingDirection, const LayoutUnit& availableFreeSpace, unsigned numberOfGridTracks) const;
     LayoutPoint findChildLogicalPosition(const RenderBox&) const;
+    GridArea cachedGridArea(const RenderBox&) const;
     GridSpan cachedGridSpan(const RenderBox&, GridTrackSizingDirection) const;
 
 
@@ -148,7 +149,7 @@ private:
 
     void applyStretchAlignmentToTracksIfNeeded(GridTrackSizingDirection, GridSizingData&);
 
-    virtual void paintChildren(PaintInfo& forSelf, const LayoutPoint& paintOffset, PaintInfo& forChild, bool usePrintRect) override;
+    void paintChildren(PaintInfo& forSelf, const LayoutPoint& paintOffset, PaintInfo& forChild, bool usePrintRect) override;
     bool needToStretchChildLogicalHeight(const RenderBox&) const;
     LayoutUnit marginLogicalHeightForChild(const RenderBox&) const;
     LayoutUnit computeMarginLogicalHeightForChild(const RenderBox&) const;
@@ -184,11 +185,14 @@ private:
     Vector<Vector<Vector<RenderBox*, 1>>> m_grid;
     Vector<LayoutUnit> m_columnPositions;
     Vector<LayoutUnit> m_rowPositions;
-    HashMap<const RenderBox*, GridCoordinate> m_gridItemCoordinate;
+    HashMap<const RenderBox*, GridArea> m_gridItemArea;
     OrderIterator m_orderIterator;
 
     Optional<LayoutUnit> m_minContentHeight;
     Optional<LayoutUnit> m_maxContentHeight;
+
+    int m_smallestColumnStart;
+    int m_smallestRowStart;
 };
 
 } // namespace WebCore

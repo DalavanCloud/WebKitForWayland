@@ -93,16 +93,9 @@ public:
     // Create a new drawing area proxy for the given page.
     virtual std::unique_ptr<DrawingAreaProxy> createDrawingAreaProxy() = 0;
 
-    // Tell the view to invalidate the given rect. The rect is in view coordinates.
-    virtual void setViewNeedsDisplay(const WebCore::IntRect&) = 0;
+    // Tell the view to invalidate the given region. The region is in view coordinates.
+    virtual void setViewNeedsDisplay(const WebCore::Region&) = 0;
 
-    // Tell the view to immediately display its invalid rect.
-    virtual void displayView() = 0;
-
-    // Return true if scrollView() can copy bits in the view.
-    virtual bool canScrollView() = 0;
-    // Tell the view to scroll scrollRect by scrollOffset.
-    virtual void scrollView(const WebCore::IntRect& scrollRect, const WebCore::IntSize& scrollOffset) = 0;
     // Tell the view to scroll to the given position, and whether this was a programmatic scroll.
     virtual void requestScroll(const WebCore::FloatPoint& scrollPosition, const WebCore::IntPoint& scrollOrigin, bool isProgrammaticScroll) = 0;
 
@@ -209,6 +202,9 @@ public:
     virtual WebCore::FloatRect convertToUserSpace(const WebCore::FloatRect&) = 0;
     virtual WebCore::IntPoint screenToRootView(const WebCore::IntPoint&) = 0;
     virtual WebCore::IntRect rootViewToScreen(const WebCore::IntRect&) = 0;
+#if PLATFORM(MAC)
+    virtual WebCore::IntRect rootViewToWindow(const WebCore::IntRect&) = 0;
+#endif
 #if PLATFORM(IOS)
     virtual WebCore::IntPoint accessibilityScreenToRootView(const WebCore::IntPoint&) = 0;
     virtual WebCore::IntRect rootViewToAccessibilityScreen(const WebCore::IntRect&) = 0;
@@ -285,10 +281,12 @@ public:
     virtual void didGetTapHighlightGeometries(uint64_t requestID, const WebCore::Color&, const Vector<WebCore::FloatQuad>& highlightedQuads, const WebCore::IntSize& topLeftRadius, const WebCore::IntSize& topRightRadius, const WebCore::IntSize& bottomLeftRadius, const WebCore::IntSize& bottomRightRadius) = 0;
 
     virtual void didCommitLayerTree(const RemoteLayerTreeTransaction&) = 0;
+    virtual void layerTreeCommitComplete() = 0;
+
     virtual void dynamicViewportUpdateChangedTarget(double newScale, const WebCore::FloatPoint& newScrollPosition, uint64_t transactionID) = 0;
     virtual void couldNotRestorePageState() = 0;
-    virtual void restorePageState(const WebCore::FloatRect&, double) = 0;
-    virtual void restorePageCenterAndScale(const WebCore::FloatPoint&, double) = 0;
+    virtual void restorePageState(const WebCore::FloatPoint& scrollPosition, const WebCore::FloatPoint& scrollOrigin, const WebCore::FloatSize& obscuredInsetOnSave, double scale) = 0;
+    virtual void restorePageCenterAndScale(const WebCore::FloatPoint& center, double scale) = 0;
 
     virtual void startAssistingNode(const AssistedNodeInformation&, bool userIsInteracting, bool blurPreviousNode, API::Object* userData) = 0;
     virtual void stopAssistingNode() = 0;
@@ -345,6 +343,10 @@ public:
     virtual void didPerformImmediateActionHitTest(const WebHitTestResultData&, bool contentPreventsDefault, API::Object*) = 0;
 
     virtual void* immediateActionAnimationControllerForHitTestResult(RefPtr<API::HitTestResult>, uint64_t, RefPtr<API::Object>) = 0;
+
+    virtual void didHandleAcceptedCandidate() = 0;
+
+    virtual void videoControlsManagerDidChange() = 0;
 #endif
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS)

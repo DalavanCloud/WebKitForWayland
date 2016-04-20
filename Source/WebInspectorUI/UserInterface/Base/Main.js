@@ -114,6 +114,7 @@ WebInspector.loaded = function()
     this.analyzerManager = new WebInspector.AnalyzerManager;
     this.runtimeManager = new WebInspector.RuntimeManager;
     this.heapManager = new WebInspector.HeapManager;
+    this.memoryManager = new WebInspector.MemoryManager;
     this.applicationCacheManager = new WebInspector.ApplicationCacheManager;
     this.timelineManager = new WebInspector.TimelineManager;
     this.debuggerManager = new WebInspector.DebuggerManager;
@@ -226,11 +227,11 @@ WebInspector.contentLoaded = function()
     this.tabBar.addEventListener(WebInspector.TabBar.Event.NewTabItemClicked, this._newTabItemClicked, this);
     this.tabBar.addEventListener(WebInspector.TabBar.Event.OpenDefaultTab, this._openDefaultTab, this);
 
-    var contentElement = document.getElementById("content");
-    contentElement.setAttribute("role", "main");
-    contentElement.setAttribute("aria-label", WebInspector.UIString("Content"));
+    this._contentElement = document.getElementById("content");
+    this._contentElement.setAttribute("role", "main");
+    this._contentElement.setAttribute("aria-label", WebInspector.UIString("Content"));
 
-    this.splitContentBrowser = new WebInspector.ContentBrowser(document.getElementById("split-content-browser"), this, true);
+    this.splitContentBrowser = new WebInspector.ContentBrowser(document.getElementById("split-content-browser"), this, true, true);
     this.splitContentBrowser.navigationBar.element.addEventListener("mousedown", this._consoleResizerMouseDown.bind(this));
 
     this.quickConsole = new WebInspector.QuickConsole(document.getElementById("quick-console"));
@@ -254,8 +255,10 @@ WebInspector.contentLoaded = function()
     this._saveKeyboardShortcut = new WebInspector.KeyboardShortcut(WebInspector.KeyboardShortcut.Modifier.CommandOrControl, "S", this._save.bind(this));
     this._saveAsKeyboardShortcut = new WebInspector.KeyboardShortcut(WebInspector.KeyboardShortcut.Modifier.Shift | WebInspector.KeyboardShortcut.Modifier.CommandOrControl, "S", this._saveAs.bind(this));
 
-    this.navigationSidebarKeyboardShortcut = new WebInspector.KeyboardShortcut(WebInspector.KeyboardShortcut.Modifier.CommandOrControl | WebInspector.KeyboardShortcut.Modifier.Option, "L", this.toggleNavigationSidebar.bind(this));
-    this.detailsSidebarKeyboardShortcut = new WebInspector.KeyboardShortcut(WebInspector.KeyboardShortcut.Modifier.CommandOrControl | WebInspector.KeyboardShortcut.Modifier.Option, "R", this.toggleDetailsSidebar.bind(this));
+    this.openResourceKeyboardShortcut = new WebInspector.KeyboardShortcut(WebInspector.KeyboardShortcut.Modifier.Command | WebInspector.KeyboardShortcut.Modifier.Shift, "O", this._showOpenResourceDialog.bind(this));
+
+    this.navigationSidebarKeyboardShortcut = new WebInspector.KeyboardShortcut(WebInspector.KeyboardShortcut.Modifier.CommandOrControl | WebInspector.KeyboardShortcut.Modifier.Shift, "0", this.toggleNavigationSidebar.bind(this));
+    this.detailsSidebarKeyboardShortcut = new WebInspector.KeyboardShortcut(WebInspector.KeyboardShortcut.Modifier.CommandOrControl | WebInspector.KeyboardShortcut.Modifier.Option, "0", this.toggleDetailsSidebar.bind(this));
 
     this._increaseZoomKeyboardShortcut = new WebInspector.KeyboardShortcut(WebInspector.KeyboardShortcut.Modifier.CommandOrControl, WebInspector.KeyboardShortcut.Key.Plus, this._increaseZoom.bind(this));
     this._decreaseZoomKeyboardShortcut = new WebInspector.KeyboardShortcut(WebInspector.KeyboardShortcut.Modifier.CommandOrControl, WebInspector.KeyboardShortcut.Key.Minus, this._decreaseZoom.bind(this));
@@ -324,8 +327,8 @@ WebInspector.contentLoaded = function()
 
     // The toolbar button for node inspection.
     if (this.debuggableType === WebInspector.DebuggableType.Web) {
-        var toolTip = WebInspector.UIString("Enable point to inspect mode (%s)").format(WebInspector._inspectModeKeyboardShortcut.displayName);
-        var activatedToolTip = WebInspector.UIString("Disable point to inspect mode (%s)").format(WebInspector._inspectModeKeyboardShortcut.displayName);
+        var toolTip = WebInspector.UIString("Start element selection (%s)").format(WebInspector._inspectModeKeyboardShortcut.displayName);
+        var activatedToolTip = WebInspector.UIString("Stop element selection (%s)").format(WebInspector._inspectModeKeyboardShortcut.displayName);
         this._inspectModeToolbarButton = new WebInspector.ActivateButtonToolbarItem("inspect", toolTip, activatedToolTip, null, "Images/Crosshair.svg");
         this._inspectModeToolbarButton.addEventListener(WebInspector.ButtonNavigationItem.Event.Clicked, this._toggleInspectMode, this);
     }
@@ -462,6 +465,17 @@ WebInspector.isTabTypeAllowed = function(tabType)
 WebInspector.knownTabClasses = function()
 {
     return new Set(this._knownTabClassesByType.values());
+}
+
+WebInspector._showOpenResourceDialog = function()
+{
+    if (!this._openResourceDialog)
+        this._openResourceDialog = new WebInspector.OpenResourceDialog(this);
+
+    if (this._openResourceDialog.visible)
+        return;
+
+    this._openResourceDialog.present(this._contentElement);
 }
 
 WebInspector._createTabContentViewForType = function(tabType)
@@ -2379,9 +2393,9 @@ WebInspector.removeWindowKeydownListener = function(listener)
 
 WebInspector._updateWindowKeydownListener = function()
 {
-    if (this._windowKeydownListeners.length > 0)
+    if (this._windowKeydownListeners.length === 1)
         window.addEventListener("keydown", WebInspector._sharedWindowKeydownListener, true);
-    else
+    else if (!this._windowKeydownListeners.length)
         window.removeEventListener("keydown", WebInspector._sharedWindowKeydownListener, true);
 };
 
@@ -2394,4 +2408,15 @@ WebInspector._sharedWindowKeydownListener = function(event)
             break;
         }
     }
+};
+
+// OpenResourceDialog delegate
+
+WebInspector.dialogWasDismissed = function(dialog)
+{
+    let representedObject = dialog.representedObject;
+    if (!representedObject)
+        return;
+
+    WebInspector.showRepresentedObject(representedObject);
 };

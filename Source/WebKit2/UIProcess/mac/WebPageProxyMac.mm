@@ -67,7 +67,7 @@ namespace WebKit {
 
 static inline bool expectsLegacyImplicitRubberBandControl()
 {
-    if (applicationIsSafari()) {
+    if (MacApplication::isSafari()) {
         const int32_t firstVersionOfSafariNotExpectingImplicitRubberBandControl = 0x021A0F00; // 538.15.0
         bool linkedAgainstSafariExpectingImplicitRubberBandControl = NSVersionOfLinkTimeLibrary("Safari") < firstVersionOfSafariNotExpectingImplicitRubberBandControl;
         return linkedAgainstSafariExpectingImplicitRubberBandControl;
@@ -547,7 +547,7 @@ CGRect WebPageProxy::boundsOfLayerInLayerBackedWindowCoordinates(CALayer *layer)
 
 bool WebPageProxy::appleMailPaginationQuirkEnabled()
 {
-    return applicationIsAppleMail();
+    return MacApplication::isAppleMail();
 }
 
 void WebPageProxy::setFont(const String& fontFamily, double fontSize, uint64_t fontTraits)
@@ -582,6 +582,11 @@ void WebPageProxy::startWindowDrag()
 NSWindow *WebPageProxy::platformWindow()
 {
     return m_pageClient.platformWindow();
+}
+
+void WebPageProxy::rootViewToWindow(const WebCore::IntRect& viewRect, WebCore::IntRect& windowRect)
+{
+    windowRect = m_pageClient.rootViewToWindow(viewRect);
 }
 
 #if WK_API_ENABLED

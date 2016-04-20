@@ -71,9 +71,9 @@ public:
     {
         return adoptRef(*new MessageEvent(data, origin));
     }
-    static Ref<MessageEvent> create(PassRefPtr<ArrayBuffer> data, const String& origin = String())
+    static Ref<MessageEvent> create(Ref<ArrayBuffer>&& data, const String& origin = String())
     {
-        return adoptRef(*new MessageEvent(data, origin));
+        return adoptRef(*new MessageEvent(WTFMove(data), origin));
     }
     static Ref<MessageEvent> createForBindings()
     {
@@ -100,7 +100,7 @@ public:
     MessagePort* messagePort();
     void initMessageEvent(const AtomicString& type, bool canBubble, bool cancelable, PassRefPtr<SerializedScriptValue> data, const String& origin, const String& lastEventId, DOMWindow* source, MessagePort*);
 
-    virtual EventInterface eventInterface() const override;
+    EventInterface eventInterface() const override;
 
     enum DataType {
         DataTypeScriptValue,
@@ -127,7 +127,7 @@ private:
 
     explicit MessageEvent(const String& data, const String& origin);
     explicit MessageEvent(PassRefPtr<Blob> data, const String& origin);
-    explicit MessageEvent(PassRefPtr<ArrayBuffer> data, const String& origin);
+    explicit MessageEvent(Ref<ArrayBuffer>&& data, const String& origin);
 
     DataType m_dataType;
     Deprecated::ScriptValue m_dataAsScriptValue;

@@ -57,22 +57,20 @@ void ProcessLauncher::launchProcess()
 
     IPC::Connection::SocketPair socketPair = IPC::Connection::createPlatformConnection(IPC::Connection::ConnectionOptions::SetCloexecOnServer);
 
-    String executablePath, pluginPath;
-    CString realExecutablePath, realPluginPath;
+    String executablePath;
+    CString realExecutablePath;
     switch (m_launchOptions.processType) {
-    case WebProcess:
+    case ProcessLauncher::ProcessType::Web:
         executablePath = executablePathOfWebProcess();
         break;
-#if ENABLE(PLUGIN_PROCESS)
-    case PluginProcess:
-        executablePath = executablePathOfPluginProcess();
-        pluginPath = m_launchOptions.extraInitializationData.get("plugin-path");
-        realPluginPath = fileSystemRepresentation(pluginPath);
-        break;
-#endif
-    case NetworkProcess:
+    case ProcessLauncher::ProcessType::Network:
         executablePath = executablePathOfNetworkProcess();
         break;
+#if ENABLE(DATABASE_PROCESS)
+    case ProcessLauncher::ProcessType::Database:
+        executablePath = executablePathOfDatabaseProcess();
+        break;
+#endif
     default:
         ASSERT_NOT_REACHED();
         return;
@@ -103,11 +101,10 @@ void ProcessLauncher::launchProcess()
 #endif
     argv[i++] = const_cast<char*>(realExecutablePath.data());
     argv[i++] = socket.get();
-    argv[i++] = const_cast<char*>(realPluginPath.data());
     argv[i++] = 0;
 
     GUniqueOutPtr<GError> error;
-    if (!g_spawn_async(0, argv, 0, G_SPAWN_LEAVE_DESCRIPTORS_OPEN, childSetupFunction, GINT_TO_POINTER(socketPair.server), &pid, &error.outPtr())) {
+    if (!g_spawn_async(nullptr, argv, nullptr, static_cast<GSpawnFlags>(G_SPAWN_LEAVE_DESCRIPTORS_OPEN | G_SPAWN_DO_NOT_REAP_CHILD), childSetupFunction, GINT_TO_POINTER(socketPair.server), &pid, &error.outPtr())) {
         g_printerr("Unable to fork a new WebProcess: %s.\n", error->message);
         ASSERT_NOT_REACHED();
     }
@@ -115,6 +112,8 @@ void ProcessLauncher::launchProcess()
     // Don't expose the parent socket to potential future children.
     while (fcntl(socketPair.client, F_SETFD, FD_CLOEXEC) == -1)
         RELEASE_ASSERT(errno != EINTR);
+
+    g_child_watch_add(pid, [](GPid pid, gint, gpointer) { g_spawn_close_pid(pid); }, nullptr);
 
     close(socketPair.client);
     m_processIdentifier = pid;

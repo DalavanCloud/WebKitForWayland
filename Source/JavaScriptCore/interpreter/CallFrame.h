@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 1999-2001 Harri Porten (porten@kde.org)
  *  Copyright (C) 2001 Peter Kelly (pmk@post.com)
- *  Copyright (C) 2003, 2007, 2008, 2011, 2013-2015 Apple Inc. All rights reserved.
+ *  Copyright (C) 2003, 2007, 2008, 2011, 2013-2016 Apple Inc. All rights reserved.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Library General Public
@@ -66,8 +66,9 @@ namespace JSC  {
     public:
         JSValue calleeAsValue() const { return this[JSStack::Callee].jsValue(); }
         JSObject* callee() const { return this[JSStack::Callee].object(); }
-        JSValue unsafeCallee() const { return this[JSStack::Callee].asanUnsafeJSValue(); }
+        SUPPRESS_ASAN JSValue unsafeCallee() const { return this[JSStack::Callee].asanUnsafeJSValue(); }
         CodeBlock* codeBlock() const { return this[JSStack::CodeBlock].Register::codeBlock(); }
+        SUPPRESS_ASAN CodeBlock* unsafeCodeBlock() const { return this[JSStack::CodeBlock].Register::asanUnsafeCodeBlock(); }
         JSScope* scope(int scopeRegisterOffset) const
         {
             ASSERT(this[scopeRegisterOffset].Register::scope());
@@ -115,7 +116,9 @@ namespace JSC  {
 
         CallFrame* callerFrame() const { return static_cast<CallFrame*>(callerFrameOrVMEntryFrame()); }
         void* callerFrameOrVMEntryFrame() const { return callerFrameAndPC().callerFrame; }
+        SUPPRESS_ASAN void* unsafeCallerFrameOrVMEntryFrame() const { return unsafeCallerFrameAndPC().callerFrame; }
 
+        CallFrame* unsafeCallerFrame(VMEntryFrame*&);
         JS_EXPORT_PRIVATE CallFrame* callerFrame(VMEntryFrame*&);
 
         static ptrdiff_t callerFrameOffset() { return OBJECT_OFFSETOF(CallerFrameAndPC, callerFrame); }
@@ -130,7 +133,9 @@ namespace JSC  {
         bool callSiteBitsAreCodeOriginIndex() const;
 
         unsigned callSiteAsRawBits() const;
+        unsigned unsafeCallSiteAsRawBits() const;
         CallSiteIndex callSiteIndex() const;
+        CallSiteIndex unsafeCallSiteIndex() const;
     private:
         unsigned callSiteBitsAsBytecodeOffset() const;
     public:
@@ -240,9 +245,10 @@ namespace JSC  {
         String friendlyFunctionName();
 
         // CallFrame::iterate() expects a Functor that implements the following method:
-        //     StackVisitor::Status operator()(StackVisitor&);
-
-        template <typename Functor> void iterate(Functor& functor)
+        //     StackVisitor::Status operator()(StackVisitor&) const;
+        // FIXME: This method is improper. We rely on the fact that we can call it with a null
+        // receiver. We should always be using StackVisitor directly.
+        template <typename Functor> void iterate(const Functor& functor)
         {
             StackVisitor::visit<Functor>(this, functor);
         }
@@ -282,6 +288,7 @@ namespace JSC  {
 
         CallerFrameAndPC& callerFrameAndPC() { return *reinterpret_cast<CallerFrameAndPC*>(this); }
         const CallerFrameAndPC& callerFrameAndPC() const { return *reinterpret_cast<const CallerFrameAndPC*>(this); }
+        SUPPRESS_ASAN const CallerFrameAndPC& unsafeCallerFrameAndPC() const { return *reinterpret_cast<const CallerFrameAndPC*>(this); }
 
         friend class JSStack;
     };

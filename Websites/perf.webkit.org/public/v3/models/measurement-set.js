@@ -1,3 +1,7 @@
+'use strict';
+
+if (!Array.prototype.includes)
+    Array.prototype.includes = function (value) { return this.indexOf(value) >= 0; }
 
 class MeasurementSet {
     constructor(platformId, metricId, lastModified)
@@ -96,10 +100,8 @@ class MeasurementSet {
             else if (!callbackList.includes(callback))
                 callbackList.push(callback);
 
-            if (shouldStartFetch) {
-                console.assert(!shouldInvokeCallackNow);
+            if (shouldStartFetch)
                 this._fetch(endTime, true);
-            }
         }
 
         if (shouldInvokeCallackNow)
@@ -121,7 +123,7 @@ class MeasurementSet {
 
         var self = this;
 
-        return getJSONWithStatus(url).then(function (data) {
+        return RemoteAPI.getJSONWithStatus(url).then(function (data) {
             if (!clusterEndTime && useCache && +data['lastModified'] < self._lastModified)
                 self._fetch(clusterEndTime, false);
             else
@@ -164,22 +166,22 @@ class MeasurementSet {
     _failedToFetchJSON(clusterEndTime, error)
     {
         if (clusterEndTime) {
-            this._invokeCallbacks(clusterEndTime);
+            this._invokeCallbacks(clusterEndTime, error || true);
             return;
         }
 
         console.assert(!this._fetchedPrimary);
         console.assert(this._waitingForPrimaryCluster instanceof Array);
         for (var entry of this._waitingForPrimaryCluster)
-            entry.callback();
+            entry.callback(error || true);
         this._waitingForPrimaryCluster = false;
     }
 
-    _invokeCallbacks(clusterEndTime)
+    _invokeCallbacks(clusterEndTime, error)
     {
         var callbackList = this._endTimeToCallback[clusterEndTime];
         for (var callback of callbackList)
-            callback();
+            callback(error);
         this._endTimeToCallback[clusterEndTime] = true;
     }
 
@@ -189,6 +191,23 @@ class MeasurementSet {
         this._sortedClusters = this._sortedClusters.sort(function (c1, c2) {
             return c1.startTime() - c2.startTime();
         });
+    }
+
+    hasFetchedRange(startTime, endTime)
+    {
+        console.assert(startTime < endTime);
+        var hasHole = false;
+        var previousEndTime = null;
+        for (var cluster of this._sortedClusters) {
+            if (cluster.startTime() < startTime && startTime < cluster.endTime())
+                hasHole = false;
+            if (previousEndTime !== null && previousEndTime != cluster.startTime())
+                hasHole = true;
+            if (cluster.startTime() < endTime && endTime < cluster.endTime())
+                break;
+            previousEndTime = cluster.endTime();
+        }
+        return !hasHole;
     }
 
     fetchedTimeSeries(configType, includeOutliers, extendToFuture)
@@ -201,17 +220,8 @@ class MeasurementSet {
         for (var cluster of this._sortedClusters)
             cluster.addToSeries(series, configType, includeOutliers, idMap);
 
-        if (extendToFuture && series._series.length) {
-            var lastPoint = series._series[series._series.length - 1];
-            series._series.push({
-                series: series,
-                seriesIndex: series._series.length,
-                measurement: null,
-                time: Date.now() + 365 * 24 * 3600 * 1000,
-                value: lastPoint.value,
-                interval: lastPoint.interval,
-            });
-        }
+        if (extendToFuture)
+            series.extendToFuture();
 
         Instrumentation.endMeasuringTime('MeasurementSet', 'fetchedTimeSeries');
 
@@ -219,25 +229,5 @@ class MeasurementSet {
     }
 }
 
-TimeSeries.prototype.findById = function (id)
-{
-    return this._series.find(function (point) { return point.id == id });
-}
-
-TimeSeries.prototype.dataBetweenPoints = function (firstPoint, lastPoint)
-{
-    var data = this._series;
-    var filteredData = [];
-    for (var i = firstPoint.seriesIndex; i <= lastPoint.seriesIndex; i++) {
-        if (!data[i].markedOutlier)
-            filteredData.push(data[i]);
-    }
-    return filteredData;
-}
-
-TimeSeries.prototype.firstPoint = function ()
-{
-    if (!this._series || !this._series.length)
-        return null;
-    return this._series[0];
-}
+if (typeof module != 'undefined')
+    module.exports.MeasurementSet = MeasurementSet;

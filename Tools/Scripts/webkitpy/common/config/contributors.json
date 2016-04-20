@@ -109,6 +109,14 @@
             "alecf"
          ]
       },
+      "Aleksandr Skachkov" : {
+         "emails" : [
+            "gskachkov@gmail.com"
+         ],
+         "nicks" : [
+            "gskachkov"
+         ]
+      },
       "Alexander F\u00e6r\u00f8y" : {
          "emails" : [
             "ahf@0x90.dk",
@@ -534,11 +542,9 @@
       },
       "ChangSeok Oh" : {
          "emails" : [
-            "changseok.oh@collabora.com",
-            "changseok.oh@collabora.co.uk",
-            "kevin.cs.oh@gmail.com"
+            "changseok@webkit.org"
          ],
-         "expertise" : "The WebKitGTK+ port, H/W acceleration",
+         "expertise" : "The WebKitGTK+ port, H/W acceleration, Layout and Rendering",
          "nicks" : [
             "changseok"
          ]
@@ -860,6 +866,11 @@
             "dwim"
          ]
       },
+      "Doug Russell" : {
+         "emails" : [
+            "d_russell@apple.com"
+         ]
+      },
       "Drew Wilson" : {
          "emails" : [
             "atwilson@chromium.org"
@@ -981,7 +992,8 @@
       },
       "Frédéric Wang" : {
          "emails" : [
-            "fred.wang@free.fr"
+            "fred.wang@free.fr",
+            "fwang@igalia.com"
          ],
          "nicks" : [
             "fredw"
@@ -1467,15 +1479,6 @@
             "jinwoo"
          ]
       },
-      "Joanmarie Diggs" : {
-         "emails" : [
-            "jdiggs@igalia.com"
-         ],
-         "expertise" : "Accessibility, WebKitGTK+",
-         "nicks" : [
-            "joanie"
-         ]
-      },
       "Joe Thomas" : {
          "emails" : [
             "joethomas@motorola.com"
@@ -1684,13 +1687,9 @@
             "silverroots"
          ]
       },
-      "Keith Miller" : {
+      "Keith Rollin" : {
          "emails" : [
-            "keith_miller@apple.com"
-         ],
-         "nicks" : [
-            "keith_miller",
-            "keith_miller_"
+            "krollin@apple.com"
          ]
       },
       "Keishi Hattori" : {
@@ -2740,16 +2739,6 @@
             "babu"
          ]
       },
-      "Sukolsak Sakshuwong": {
-         "emails" : [
-            "sukolsak@gmail.com",
-            "ssakshuwong@apple.com"
-         ],
-         "expertise" : "JavaScript/ECMAScript, WebAssembly",
-         "nicks" : [
-            "sukol"
-         ]
-      },
       "Szilard Ledan-Muntean" : {
          "emails" : [
             "szledan@inf.u-szeged.hu"
@@ -3158,14 +3147,6 @@
       "Alejandro Pineiro" : {
          "emails" : [
             "apinheiro@igalia.com"
-         ]
-      },
-      "Aleksandr Skachkov" : {
-         "emails" : [
-            "gskachkov@gmail.com"
-         ],
-         "nicks" : [
-            "gskachkov"
          ]
       },
       "Alexey Marinichev" : {
@@ -4374,6 +4355,15 @@
             "jianli"
          ]
       },
+      "Joanmarie Diggs" : {
+         "emails" : [
+            "jdiggs@igalia.com"
+         ],
+         "expertise" : "Accessibility, WebKitGTK+",
+         "nicks" : [
+            "joanie"
+         ]
+      },
       "Jocelyn Turcotte" : {
          "emails" : [
             "jturcotte@woboq.com",
@@ -4441,6 +4431,16 @@
          "expertise" : "Multipart Mixed Replace, HTML Editing",
          "nicks" : [
             "justing"
+         ]
+      },
+      "Keith Miller" : {
+         "emails" : [
+            "keith_miller@apple.com"
+         ],
+         "expertise" : "JavaScript/ECMAScript",
+         "nicks" : [
+            "keith_miller",
+            "keith_miller_"
          ]
       },
       "Ken Kocienda" : {
@@ -4914,6 +4914,16 @@
          "expertise" : "WebKit on Windows",
          "nicks" : [
             "sfalken"
+         ]
+      },
+      "Sukolsak Sakshuwong": {
+         "emails" : [
+            "sukolsak@gmail.com",
+            "ssakshuwong@apple.com"
+         ],
+         "expertise" : "JavaScript/ECMAScript, WebAssembly",
+         "nicks" : [
+            "sukol"
          ]
       },
       "Tim Horton" : {

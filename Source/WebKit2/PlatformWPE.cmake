@@ -20,11 +20,17 @@ list(APPEND WebProcess_SOURCES
     WebProcess/EntryPoint/unix/WebProcessMain.cpp
 )
 
+list(APPEND DatabaseProcess_SOURCES
+    DatabaseProcess/EntryPoint/unix/DatabaseProcessMain.cpp
+)
+
 list(APPEND NetworkProcess_SOURCES
     NetworkProcess/EntryPoint/unix/NetworkProcessMain.cpp
 )
 
 list(APPEND WebKit2_SOURCES
+    DatabaseProcess/wpe/DatabaseProcessMainWPE.cpp
+
     NetworkProcess/CustomProtocols/soup/CustomProtocolManagerImpl.cpp
     NetworkProcess/CustomProtocols/soup/CustomProtocolManagerSoup.cpp
 
@@ -56,10 +62,14 @@ list(APPEND WebKit2_SOURCES
 
     Shared/API/c/cairo/WKImageCairo.cpp
 
+    Shared/Authentication/soup/AuthenticationManagerSoup.cpp
+
     Shared/CoordinatedGraphics/CoordinatedBackingStore.cpp
     Shared/CoordinatedGraphics/CoordinatedGraphicsScene.cpp
     Shared/CoordinatedGraphics/SimpleViewportController.cpp
 
+    Shared/CoordinatedGraphics/threadedcompositor/CompositingRunLoop.cpp
+    Shared/CoordinatedGraphics/threadedcompositor/DisplayRefreshMonitor.cpp
     Shared/CoordinatedGraphics/threadedcompositor/ThreadedCompositor.cpp
     Shared/CoordinatedGraphics/threadedcompositor/ThreadSafeCoordinatedSurface.cpp
 
@@ -91,10 +101,12 @@ list(APPEND WebKit2_SOURCES
     UIProcess/API/wpe/DrawingAreaProxyWPE.cpp
     UIProcess/API/wpe/PageClientImpl.cpp
     UIProcess/API/wpe/WPEView.cpp
+    UIProcess/API/wpe/WPEViewClient.cpp
 
     UIProcess/BackingStore.cpp
     UIProcess/DefaultUndoController.cpp
     UIProcess/LegacySessionStateCodingNone.cpp
+    UIProcess/WebResourceLoadStatisticsStore.cpp
 
     UIProcess/InspectorServer/wpe/WebInspectorServerWPE.cpp
 
@@ -105,8 +117,6 @@ list(APPEND WebKit2_SOURCES
     UIProcess/Network/CustomProtocols/soup/CustomProtocolManagerProxySoup.cpp
     UIProcess/Network/CustomProtocols/soup/WebSoupCustomProtocolRequestManagerClient.cpp
     UIProcess/Network/CustomProtocols/soup/WebSoupCustomProtocolRequestManager.cpp
-
-    UIProcess/Network/soup/NetworkProcessProxySoup.cpp
 
     UIProcess/Plugins/unix/PluginInfoStoreUnix.cpp
     UIProcess/Plugins/unix/PluginProcessProxyUnix.cpp
@@ -129,7 +139,6 @@ list(APPEND WebKit2_SOURCES
     UIProcess/wpe/WebPasteboardProxyWPE.cpp
     UIProcess/wpe/WebPreferencesWPE.cpp
     UIProcess/wpe/WebProcessPoolWPE.cpp
-    UIProcess/wpe/WebProcessProxyWPE.cpp
 
     WebProcess/Cookies/soup/WebCookieManagerSoup.cpp
     WebProcess/Cookies/soup/WebKitSoupCookieJarSqlite.cpp
@@ -202,6 +211,7 @@ list(APPEND WebKit2_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/platform/graphics/opentype"
     "${WEBCORE_DIR}/platform/graphics/texmap/coordinated"
     "${WEBCORE_DIR}/platform/network/soup"
+    "${WEBKIT2_DIR}/DatabaseProcess/unix"
     "${WEBKIT2_DIR}/NetworkProcess/CustomProtocols/soup"
     "${WEBKIT2_DIR}/NetworkProcess/Downloads/soup"
     "${WEBKIT2_DIR}/NetworkProcess/unix"
@@ -247,6 +257,7 @@ list(APPEND WebKit2_LIBRARIES
 )
 
 set(InspectorFiles
+    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/Localizations/en.lproj/localizedStrings.js
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/*.html
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Base/*.js
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Controllers/*.css
@@ -257,14 +268,16 @@ set(InspectorFiles
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/External/CodeMirror/*.js
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/External/ESLint/*.js
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/External/Esprima/*.js
+    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Images/*.png
+    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Images/*.svg
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Models/*.js
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Protocol/*.js
+    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Proxies/*.js
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Test/*.js
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Views/*.css
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Views/*.js
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Images/gtk/*.png
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Images/gtk/*.svg
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/Localizations/en.lproj/localizedStrings.js
+    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Workers/HeapSnapshot/*.js
+    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Workers/Formatter/*.js
 )
 
 file(GLOB InspectorFilesDependencies

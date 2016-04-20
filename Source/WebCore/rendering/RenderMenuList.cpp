@@ -123,10 +123,7 @@ void RenderMenuList::adjustInnerStyle()
         innerStyle.setAlignSelfPosition(ItemPositionFlexStart);
     }
 
-    innerStyle.setPaddingLeft(Length(theme().popupInternalPaddingLeft(style()), Fixed));
-    innerStyle.setPaddingRight(Length(theme().popupInternalPaddingRight(style()), Fixed));
-    innerStyle.setPaddingTop(Length(theme().popupInternalPaddingTop(style()), Fixed));
-    innerStyle.setPaddingBottom(Length(theme().popupInternalPaddingBottom(style()), Fixed));
+    innerStyle.setPaddingBox(theme().popupInternalPaddingBox(style()));
 
     if (document().page()->chrome().selectItemWritingDirectionIsNatural()) {
         // Items in the popup will not respect the CSS text-align and direction properties,
@@ -222,13 +219,13 @@ void RenderMenuList::updateOptionsWidth()
                 optionWidth += minimumValueForLength(optionStyle->textIndent(), 0);
             if (!text.isEmpty()) {
                 const FontCascade& font = style().fontCascade();
-                TextRun run = RenderBlock::constructTextRun(this, font, text, style(), AllowTrailingExpansion | ForbidLeadingExpansion, DefaultTextRunFlags);
+                TextRun run = RenderBlock::constructTextRun(text, style(), AllowTrailingExpansion | ForbidLeadingExpansion, DefaultTextRunFlags);
                 optionWidth += font.width(run);
             }
             maxOptionWidth = std::max(maxOptionWidth, optionWidth);
         } else if (!text.isEmpty()) {
             const FontCascade& font = style().fontCascade();
-            TextRun run = RenderBlock::constructTextRun(this, font, text, style(), AllowTrailingExpansion | ForbidLeadingExpansion, DefaultTextRunFlags);
+            TextRun run = RenderBlock::constructTextRun(text, style(), AllowTrailingExpansion | ForbidLeadingExpansion, DefaultTextRunFlags);
             maxOptionWidth = std::max(maxOptionWidth, font.width(run));
         }
     }

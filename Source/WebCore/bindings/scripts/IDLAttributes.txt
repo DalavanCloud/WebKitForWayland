@@ -19,12 +19,12 @@
 #
 
 ActiveDOMObject
+AppleCopyright
 AtomicString
-CPPPureInterface
 CachedAttribute
 CallbackNeedsOperatorEqual
 Callback=FunctionOnly
-CallWith=ScriptExecutionContext|ScriptState|ScriptArguments|CallStack|ActiveWindow|FirstWindow
+CallWith=Document|ScriptExecutionContext|ScriptState|ScriptArguments|CallStack|ActiveWindow|FirstWindow
 CheckSecurity
 CheckSecurityForNode
 Clamp
@@ -35,7 +35,6 @@ ConstructorConditional=*
 ConstructorRaisesException
 ConstructorTemplate=Event|TypedArray
 Custom
-CustomBinding
 CustomCall
 CustomConstructor
 CustomDeleteProperty
@@ -61,7 +60,7 @@ DocumentEventHandler
 EnabledAtRuntime=*
 EnabledBySetting=*
 EnforceRange
-EventTarget
+ExportMacro=WEBCORE_EXPORT|WEBCORE_TESTSUPPORT_EXPORT
 ForwardDeclareInHeader
 GenerateIsReachable=|Impl|ImplWebGLRenderingContext|ImplDocument|ImplElementRoot|ImplFrame|ImplOwnerNodeRoot
 GetterRaisesException
@@ -92,6 +91,7 @@ JSLegacyParent=*
 LenientThis
 MasqueradesAsUndefined
 NamedConstructor=*
+InvokesCustomElementLifecycleCallbacks
 NewImpurePropertyFiresWatchpoints
 NewObject
 NoInterfaceObject
@@ -120,14 +120,10 @@ SetterCallWith=ScriptExecutionContext|ScriptState|ScriptArguments|CallStack|Acti
 SkipVTableValidation
 StrictTypeChecking
 SuppressToJSObject
-TreatNullAs=NullString
+TreatNullAs=EmptyString|LegacyNullString
 TreatReturnedNaNDateAs=Null|NaN
-TreatReturnedNullStringAs=Null|Undefined
-TreatUndefinedAs=NullString
 TypedArray=*
 URL
 Unforgeable
+UsePointersEvenForNonNullableObjectArguments
 WindowEventHandler
-
-# PLATFORM(IOS)
-AppleCopyright

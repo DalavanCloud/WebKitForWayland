@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2009, 2013 Apple Inc. All rights reserved.
+ *  Copyright (C) 2009, 2013, 2015-2016 Apple Inc. All rights reserved.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Library General Public
@@ -890,30 +890,40 @@ namespace JSC {
     }
 
     
-    inline BaseFuncExprNode::BaseFuncExprNode(const JSTokenLocation& location, const Identifier& ident, FunctionMetadataNode* m_metadata, const SourceCode& source)
+    inline BaseFuncExprNode::BaseFuncExprNode(const JSTokenLocation& location, const Identifier& ident, FunctionMetadataNode* metadata, const SourceCode& source, FunctionMode functionMode)
         : ExpressionNode(location)
-        , m_metadata(m_metadata)
+        , m_metadata(metadata)
     {
-        m_metadata->finishParsing(source, ident, FunctionExpression);
+        m_metadata->finishParsing(source, ident, functionMode);
     }
 
-    inline FuncExprNode::FuncExprNode(const JSTokenLocation& location, const Identifier& ident, FunctionMetadataNode* m_metadata, const SourceCode& source)
-        : BaseFuncExprNode(location, ident, m_metadata, source)
+    inline FuncExprNode::FuncExprNode(const JSTokenLocation& location, const Identifier& ident, FunctionMetadataNode* metadata, const SourceCode& source)
+        : BaseFuncExprNode(location, ident, metadata, source, FunctionMode::FunctionExpression)
     {
     }
 
-    inline FuncDeclNode::FuncDeclNode(const JSTokenLocation& location, const Identifier& ident, FunctionMetadataNode* m_metadata, const SourceCode& source)
+    inline FuncExprNode::FuncExprNode(const JSTokenLocation& location, const Identifier& ident, FunctionMetadataNode* metadata, const SourceCode& source, FunctionMode functionMode)
+        : BaseFuncExprNode(location, ident, metadata, source, functionMode)
+    {
+    }
+    
+    inline FuncDeclNode::FuncDeclNode(const JSTokenLocation& location, const Identifier& ident, FunctionMetadataNode* metadata, const SourceCode& source)
         : StatementNode(location)
-        , m_metadata(m_metadata)
+        , m_metadata(metadata)
     {
-        m_metadata->finishParsing(source, ident, FunctionDeclaration);
+        m_metadata->finishParsing(source, ident, FunctionMode::FunctionDeclaration);
     }
 
-    inline ArrowFuncExprNode::ArrowFuncExprNode(const JSTokenLocation& location, const Identifier& ident, FunctionMetadataNode* m_metadata, const SourceCode& source)
-        : BaseFuncExprNode(location, ident, m_metadata, source)
+    inline ArrowFuncExprNode::ArrowFuncExprNode(const JSTokenLocation& location, const Identifier& ident, FunctionMetadataNode* metadata, const SourceCode& source)
+        : BaseFuncExprNode(location, ident, metadata, source, FunctionMode::FunctionExpression)
     {
     }
 
+    inline MethodDefinitionNode::MethodDefinitionNode(const JSTokenLocation& location, const Identifier& ident, FunctionMetadataNode* metadata, const SourceCode& source)
+        : FuncExprNode(location, ident, metadata, source, FunctionMode::MethodDefinition)
+    {
+    }
+    
     inline YieldExprNode::YieldExprNode(const JSTokenLocation& location, ExpressionNode* argument, bool delegate)
         : ExpressionNode(location)
         , m_argument(argument)
@@ -927,10 +937,12 @@ namespace JSC {
     {
     }
 
-    inline ClassExprNode::ClassExprNode(const JSTokenLocation& location, const Identifier& name, VariableEnvironment& classEnvironment, ExpressionNode* constructorExpression, ExpressionNode* classHeritage, PropertyListNode* instanceMethods, PropertyListNode* staticMethods)
+    inline ClassExprNode::ClassExprNode(const JSTokenLocation& location, const Identifier& name, const SourceCode& classSource, VariableEnvironment& classEnvironment, ExpressionNode* constructorExpression, ExpressionNode* classHeritage, PropertyListNode* instanceMethods, PropertyListNode* staticMethods)
         : ExpressionNode(location)
         , VariableEnvironmentNode(classEnvironment)
+        , m_classSource(classSource)
         , m_name(name)
+        , m_ecmaName(&name)
         , m_constructorExpression(constructorExpression)
         , m_classHeritage(classHeritage)
         , m_instanceMethods(instanceMethods)
@@ -964,17 +976,17 @@ namespace JSC {
     {
     }
 
-    inline SwitchNode::SwitchNode(const JSTokenLocation& location, ExpressionNode* expr, CaseBlockNode* block, VariableEnvironment& lexicalVariables)
+    inline SwitchNode::SwitchNode(const JSTokenLocation& location, ExpressionNode* expr, CaseBlockNode* block, VariableEnvironment& lexicalVariables, FunctionStack&& functionStack)
         : StatementNode(location)
-        , VariableEnvironmentNode(lexicalVariables)
+        , VariableEnvironmentNode(lexicalVariables, WTFMove(functionStack))
         , m_expr(expr)
         , m_block(block)
     {
     }
 
-    inline BlockNode::BlockNode(const JSTokenLocation& location, SourceElements* statements, VariableEnvironment& lexicalVariables)
+    inline BlockNode::BlockNode(const JSTokenLocation& location, SourceElements* statements, VariableEnvironment& lexicalVariables, FunctionStack&& functionStack)
         : StatementNode(location)
-        , VariableEnvironmentNode(lexicalVariables)
+        , VariableEnvironmentNode(lexicalVariables, WTFMove(functionStack))
         , m_statements(statements)
     {
     }

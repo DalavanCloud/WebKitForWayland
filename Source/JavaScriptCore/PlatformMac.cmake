@@ -18,6 +18,11 @@ list(APPEND JavaScriptCore_SOURCES
 )
 add_definitions(-DSTATICALLY_LINKED_WITH_WTF)
 
+find_library(SECURITY_LIBRARY Security)
+list(APPEND JavaScriptCore_LIBRARIES
+    ${SECURITY_LIBRARY}
+)
+
 add_custom_command(
     OUTPUT ${DERIVED_SOURCES_JAVASCRIPTCORE_DIR}/TracingDtrace.h
     DEPENDS ${JAVASCRIPTCORE_DIR}/runtime/Tracing.d
@@ -33,6 +38,8 @@ list(APPEND JavaScriptCore_INCLUDE_DIRECTORIES
 list(APPEND JavaScriptCore_HEADERS
     ${DERIVED_SOURCES_JAVASCRIPTCORE_DIR}/TracingDtrace.h
 )
+
+set(CMAKE_SHARED_LINKER_FLAGS ${CMAKE_SHARED_LINKER_FLAGS} "-compatibility_version 1 -current_version ${WEBKIT_MAC_VERSION}")
 
 # FIXME: Make including these files consistent in the source so these forwarding headers are not needed.
 if (NOT EXISTS ${DERIVED_SOURCES_JAVASCRIPTCORE_DIR}/InspectorBackendDispatchers.h)

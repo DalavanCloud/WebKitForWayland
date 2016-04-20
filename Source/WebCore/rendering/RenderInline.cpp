@@ -171,7 +171,7 @@ void RenderInline::styleWillChange(StyleDifference diff, const RenderStyle& newS
     // Check if this inline can hold absolute positioned elmements even after the style change.
     if (canContainAbsolutelyPositionedObjects() && newStyle.position() == StaticPosition) {
         // RenderInlines forward their absolute positioned descendants to their (non-anonymous) containing block.
-        auto* container = containingBlockForAbsolutePosition();
+        auto* container = containingBlockForAbsolutePosition(this);
         if (container && !container->canContainAbsolutelyPositionedObjects())
             container->removePositionedObjects(nullptr, NewContainingBlock);
     }
@@ -416,6 +416,7 @@ RenderPtr<RenderInline> RenderInline::clone() const
     RenderPtr<RenderInline> cloneInline = createRenderer<RenderInline>(*element(), style());
     cloneInline->initializeStyle();
     cloneInline->setFlowThreadState(flowThreadState());
+    cloneInline->setHasOutlineAutoAncestor(hasOutlineAutoAncestor());
     return cloneInline;
 }
 
@@ -743,18 +744,18 @@ namespace {
 
 class AbsoluteRectsGeneratorContext {
 public:
-    AbsoluteRectsGeneratorContext(Vector<IntRect>& rects, const LayoutPoint& accumulatedOffset)
+    AbsoluteRectsGeneratorContext(Vector<LayoutRect>& rects, const LayoutPoint& accumulatedOffset)
         : m_rects(rects)
         , m_accumulatedOffset(accumulatedOffset) { }
 
     void addRect(const FloatRect& rect)
     {
-        IntRect intRect = enclosingIntRect(rect);
-        intRect.move(m_accumulatedOffset.x(), m_accumulatedOffset.y());
-        m_rects.append(intRect);
+        LayoutRect adjustedRect = LayoutRect(rect);
+        adjustedRect.moveBy(m_accumulatedOffset);
+        m_rects.append(adjustedRect);
     }
 private:
-    Vector<IntRect>& m_rects;
+    Vector<LayoutRect>& m_rects;
     const LayoutPoint& m_accumulatedOffset;
 };
 
@@ -762,8 +763,11 @@ private:
 
 void RenderInline::absoluteRects(Vector<IntRect>& rects, const LayoutPoint& accumulatedOffset) const
 {
-    AbsoluteRectsGeneratorContext context(rects, accumulatedOffset);
+    Vector<LayoutRect> lineboxRects;
+    AbsoluteRectsGeneratorContext context(lineboxRects, accumulatedOffset);
     generateLineBoxRects(context);
+    for (const auto& rect : lineboxRects)
+        rects.append(snappedIntRect(rect));
 
     if (RenderBoxModelObject* continuation = this->continuation()) {
         if (is<RenderBox>(*continuation)) {
@@ -1567,7 +1571,7 @@ void RenderInline::imageChanged(WrappedImagePtr, const IntRect*)
     repaint();
 }
 
-void RenderInline::addFocusRingRects(Vector<IntRect>& rects, const LayoutPoint& additionalOffset, const RenderLayerModelObject* paintContainer)
+void RenderInline::addFocusRingRects(Vector<LayoutRect>& rects, const LayoutPoint& additionalOffset, const RenderLayerModelObject* paintContainer)
 {
     AbsoluteRectsGeneratorContext context(rects, additionalOffset);
     generateLineBoxRects(context);
@@ -1599,8 +1603,11 @@ void RenderInline::paintOutline(PaintInfo& paintInfo, const LayoutPoint& paintOf
 
     RenderStyle& styleToUse = style();
     // Only paint the focus ring by hand if the theme isn't able to draw it.
-    if (styleToUse.outlineStyleIsAuto() && !theme().supportsFocusRing(styleToUse))
-        paintFocusRing(paintInfo, paintOffset, styleToUse);
+    if (styleToUse.outlineStyleIsAuto() && !theme().supportsFocusRing(styleToUse)) {
+        Vector<LayoutRect> focusRingRects;
+        addFocusRingRects(focusRingRects, paintOffset, paintInfo.paintContainer);
+        paintFocusRing(paintInfo, styleToUse, focusRingRects);
+    }
 
     if (hasOutlineAnnotation() && !styleToUse.outlineStyleIsAuto() && !theme().supportsFocusRing(styleToUse))
         addPDFURLRect(paintInfo, paintOffset);

@@ -91,11 +91,11 @@ static String urlForLogging(const String& url)
 class DefaultIconDatabaseClient final : public IconDatabaseClient {
     WTF_MAKE_FAST_ALLOCATED;
 public:
-    virtual void didImportIconURLForPageURL(const String&) override { }
-    virtual void didImportIconDataForPageURL(const String&) override { }
-    virtual void didChangeIconForPageURL(const String&) override { }
-    virtual void didRemoveAllIcons() override { }
-    virtual void didFinishURLImport() override { }
+    void didImportIconURLForPageURL(const String&) override { }
+    void didImportIconDataForPageURL(const String&) override { }
+    void didChangeIconForPageURL(const String&) override { }
+    void didRemoveAllIcons() override { }
+    void didFinishURLImport() override { }
 };
 
 static IconDatabaseClient* defaultClient() 
@@ -300,7 +300,7 @@ Image* IconDatabase::synchronousIconForPageURL(const String& pageURLOriginal, co
     return iconRecord->image(size);
 }
 
-PassNativeImagePtr IconDatabase::synchronousNativeIconForPageURL(const String& pageURLOriginal, const IntSize& size)
+NativeImagePtr IconDatabase::synchronousNativeIconForPageURL(const String& pageURLOriginal, const IntSize& size)
 {
     Image* icon = synchronousIconForPageURL(pageURLOriginal, size);
     if (!icon)
@@ -390,8 +390,8 @@ static inline void loadDefaultIconRecord(IconRecord* defaultIconRecord)
         0x00, 0x00, 0x01, 0x52, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x08, 0x00, 0x08, 0x00, 0x08, 0x00, 0x0A, 
         0xFC, 0x80, 0x00, 0x00, 0x27, 0x10, 0x00, 0x0A, 0xFC, 0x80, 0x00, 0x00, 0x27, 0x10 };
         
-    static SharedBuffer* defaultIconBuffer = SharedBuffer::create(defaultIconData, sizeof(defaultIconData)).leakRef();
-    defaultIconRecord->setImageData(defaultIconBuffer);
+    static auto& defaultIconBuffer = SharedBuffer::create(defaultIconData, sizeof(defaultIconData)).leakRef();
+    defaultIconRecord->setImageData(&defaultIconBuffer);
 }
 #endif
 

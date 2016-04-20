@@ -388,7 +388,8 @@ AccessibilityObject* AccessibilityRenderObject::nextSibling() const
         nextSibling = endOfContinuations(*m_renderer)->nextSibling();
 
     // Case 5: node has no next sibling, and its parent is an inline with a continuation.
-    else if (isInlineWithContinuation(*m_renderer->parent())) {
+    // Case 5.1: After case 4, (the element was inline w/ continuation but had no sibling), then check it's parent.
+    if (!nextSibling && isInlineWithContinuation(*m_renderer->parent())) {
         auto& continuation = *downcast<RenderInline>(*m_renderer->parent()).continuation();
         
         // Case 5a: continuation is a block - in this case the block itself is the next sibling.
@@ -643,8 +644,7 @@ String AccessibilityRenderObject::textUnderElement(AccessibilityTextUnderElement
         return downcast<RenderMathMLOperator>(*m_renderer).element().textContent();
 #endif
 
-    // rangeOfContents does not include CSS-generated content.
-    if (m_renderer->isBeforeOrAfterContent())
+    if (shouldGetTextFromNode(mode))
         return AccessibilityNodeObject::textUnderElement(mode);
 
     // We use a text iterator for text objects AND for those cases where we are
@@ -656,12 +656,6 @@ String AccessibilityRenderObject::textUnderElement(AccessibilityTextUnderElement
         Document* nodeDocument = nullptr;
         RefPtr<Range> textRange;
         if (Node* node = m_renderer->node()) {
-            // rangeOfContents does not include CSS-generated content.
-            Node* firstChild = node->pseudoAwareFirstChild();
-            Node* lastChild = node->pseudoAwareLastChild();
-            if ((firstChild && firstChild->isPseudoElement()) || (lastChild && lastChild->isPseudoElement()))
-                return AccessibilityNodeObject::textUnderElement(mode);
-
             nodeDocument = &node->document();
             textRange = rangeOfContents(*node);
         } else {
@@ -717,6 +711,31 @@ String AccessibilityRenderObject::textUnderElement(AccessibilityTextUnderElement
     }
     
     return AccessibilityNodeObject::textUnderElement(mode);
+}
+
+bool AccessibilityRenderObject::shouldGetTextFromNode(AccessibilityTextUnderElementMode mode) const
+{
+    if (!m_renderer)
+        return false;
+
+    // AccessibilityRenderObject::textUnderElement() gets the text of anonymous blocks by using
+    // the child nodes to define positions. CSS tables and their anonymous descendants lack
+    // children with nodes.
+    if (m_renderer->isAnonymous() && m_renderer->isTablePart())
+        return mode.childrenInclusion == AccessibilityTextUnderElementMode::TextUnderElementModeIncludeAllChildren;
+
+    // AccessibilityRenderObject::textUnderElement() calls rangeOfContents() to create the text
+    // range. rangeOfContents() does not include CSS-generated content.
+    if (m_renderer->isBeforeOrAfterContent())
+        return true;
+    if (Node* node = m_renderer->node()) {
+        Node* firstChild = node->pseudoAwareFirstChild();
+        Node* lastChild = node->pseudoAwareLastChild();
+        if ((firstChild && firstChild->isPseudoElement()) || (lastChild && lastChild->isPseudoElement()))
+            return true;
+    }
+
+    return false;
 }
 
 Node* AccessibilityRenderObject::node() const
@@ -948,28 +967,33 @@ ESpeak AccessibilityRenderObject::speakProperty() const
     return m_renderer->style().speak();
 }
     
+void AccessibilityRenderObject::addRadioButtonGroupChildren(AccessibilityObject* parent, AccessibilityChildrenVector& linkedUIElements) const
+{
+    for (const auto& child : parent->children()) {
+        if (child->roleValue() == RadioButtonRole)
+            linkedUIElements.append(child);
+        else
+            addRadioButtonGroupChildren(child.get(), linkedUIElements);
+    }
+}
+    
 void AccessibilityRenderObject::addRadioButtonGroupMembers(AccessibilityChildrenVector& linkedUIElements) const
 {
-    if (!m_renderer || roleValue() != RadioButtonRole)
+    if (roleValue() != RadioButtonRole)
         return;
     
-    Node* node = m_renderer->node();
-    if (!is<HTMLInputElement>(node))
-        return;
-    
-    HTMLInputElement& input = downcast<HTMLInputElement>(*node);
-    // if there's a form, then this is easy
-    if (input.form()) {
-        for (auto& associateElement : input.form()->namedElements(input.name())) {
-            if (AccessibilityObject* object = axObjectCache()->getOrCreate(&associateElement.get()))
-                linkedUIElements.append(object);        
-        } 
+    Node* node = this->node();
+    if (is<HTMLInputElement>(node)) {
+        HTMLInputElement& input = downcast<HTMLInputElement>(*node);
+        for (auto& radioSibling : input.radioButtonGroup()) {
+            if (AccessibilityObject* object = axObjectCache()->getOrCreate(radioSibling))
+                linkedUIElements.append(object);
+        }
     } else {
-        for (auto& associateElement : descendantsOfType<HTMLInputElement>(node->document())) {
-            if (associateElement.isRadioButton() && associateElement.name() == input.name()) {
-                if (AccessibilityObject* object = axObjectCache()->getOrCreate(&associateElement))
-                    linkedUIElements.append(object);
-            }
+        // If we didn't find any radio button siblings with the traditional naming, lets search for a radio group role and find its children.
+        for (AccessibilityObject* parent = parentObject(); parent; parent = parent->parentObject()) {
+            if (parent->roleValue() == RadioGroupRole)
+                addRadioButtonGroupChildren(parent, linkedUIElements);
         }
     }
 }
@@ -1000,47 +1024,6 @@ bool AccessibilityRenderObject::hasTextAlternative() const
 bool AccessibilityRenderObject::ariaHasPopup() const
 {
     return elementAttributeValue(aria_haspopupAttr);
-}
-
-void AccessibilityRenderObject::ariaElementsFromAttribute(AccessibilityChildrenVector& children, const QualifiedName& attributeName) const
-{
-    Vector<Element*> elements;
-    elementsFromAttribute(elements, attributeName);
-    AXObjectCache* cache = axObjectCache();
-    for (const auto& element : elements) {
-        if (AccessibilityObject* axObject = cache->getOrCreate(element))
-            children.append(axObject);
-    }
-}
-
-bool AccessibilityRenderObject::supportsARIAFlowTo() const
-{
-    return !getAttribute(aria_flowtoAttr).isEmpty();
-}
-    
-void AccessibilityRenderObject::ariaFlowToElements(AccessibilityChildrenVector& flowTo) const
-{
-    ariaElementsFromAttribute(flowTo, aria_flowtoAttr);
-}
-
-bool AccessibilityRenderObject::supportsARIADescribedBy() const
-{
-    return !getAttribute(aria_describedbyAttr).isEmpty();
-}
-
-void AccessibilityRenderObject::ariaDescribedByElements(AccessibilityChildrenVector& ariaDescribedBy) const
-{
-    ariaElementsFromAttribute(ariaDescribedBy, aria_describedbyAttr);
-}
-
-bool AccessibilityRenderObject::supportsARIAControls() const
-{
-    return !getAttribute(aria_controlsAttr).isEmpty();
-}
-
-void AccessibilityRenderObject::ariaControlsElements(AccessibilityChildrenVector& ariaControls) const
-{
-    ariaElementsFromAttribute(ariaControls, aria_controlsAttr);
 }
 
 bool AccessibilityRenderObject::supportsARIADropping() const 
@@ -1524,18 +1507,17 @@ static void clearTextSelectionIntent(AXObjectCache* cache)
 
 void AccessibilityRenderObject::setSelectedTextRange(const PlainTextRange& range)
 {
+    setTextSelectionIntent(axObjectCache(), range.length ? AXTextStateChangeTypeSelectionExtend : AXTextStateChangeTypeSelectionMove);
+
     if (isNativeTextControl()) {
-        setTextSelectionIntent(axObjectCache(), range.length ? AXTextStateChangeTypeSelectionExtend : AXTextStateChangeTypeSelectionMove);
         HTMLTextFormControlElement& textControl = downcast<RenderTextControl>(*m_renderer).textFormControlElement();
         textControl.setSelectionRange(range.start, range.start + range.length);
-        clearTextSelectionIntent(axObjectCache());
-        return;
+    } else {
+        VisiblePosition start = visiblePositionForIndexUsingCharacterIterator(node(), range.start);
+        VisiblePosition end = visiblePositionForIndexUsingCharacterIterator(node(), range.start + range.length);
+        m_renderer->frame().selection().setSelection(VisibleSelection(start, end), FrameSelection::defaultSetSelectionOptions(UserTriggered));
     }
-
-    Node* node = m_renderer->node();
-    VisibleSelection newSelection(Position(node, range.start, Position::PositionIsOffsetInAnchor), Position(node, range.start + range.length, Position::PositionIsOffsetInAnchor), DOWNSTREAM);
-    setTextSelectionIntent(axObjectCache(), range.length ? AXTextStateChangeTypeSelectionExtend : AXTextStateChangeTypeSelectionMove);
-    m_renderer->frame().selection().setSelection(newSelection, FrameSelection::defaultSetSelectionOptions());
+    
     clearTextSelectionIntent(axObjectCache());
 }
 
@@ -1732,11 +1714,6 @@ void AccessibilityRenderObject::setValue(const String& string)
         downcast<HTMLInputElement>(element).setValue(string);
     else if (renderer.isTextArea() && is<HTMLTextAreaElement>(element))
         downcast<HTMLTextAreaElement>(element).setValue(string);
-}
-
-void AccessibilityRenderObject::ariaOwnsElements(AccessibilityChildrenVector& axObjects) const
-{
-    ariaElementsFromAttribute(axObjects, aria_ownsAttr);
 }
 
 bool AccessibilityRenderObject::supportsARIAOwns() const
@@ -1962,6 +1939,26 @@ bool AccessibilityRenderObject::nodeIsTextControl(const Node* node) const
     return false;
 }
 
+IntRect AccessibilityRenderObject::boundsForRects(LayoutRect& rect1, LayoutRect& rect2, RefPtr<Range> dataRange) const
+{
+    LayoutRect ourRect = rect1;
+    ourRect.unite(rect2);
+    
+    // if the rectangle spans lines and contains multiple text chars, use the range's bounding box intead
+    if (rect1.maxY() != rect2.maxY()) {
+        LayoutRect boundingBox = dataRange->absoluteBoundingBox();
+        String rangeString = plainText(dataRange.get());
+        if (rangeString.length() > 1 && !boundingBox.isEmpty())
+            ourRect = boundingBox;
+    }
+    
+#if PLATFORM(MAC)
+    return m_renderer->view().frameView().contentsToScreen(snappedIntRect(ourRect));
+#else
+    return snappedIntRect(ourRect);
+#endif
+}
+
 IntRect AccessibilityRenderObject::boundsForVisiblePositionRange(const VisiblePositionRange& visiblePositionRange) const
 {
     if (visiblePositionRange.isNull())
@@ -1985,23 +1982,39 @@ IntRect AccessibilityRenderObject::boundsForVisiblePositionRange(const VisiblePo
         }
     }
     
-    LayoutRect ourrect = rect1;
-    ourrect.unite(rect2);
+    RefPtr<Range> dataRange = makeRange(range.start, range.end);
+    return boundsForRects(rect1, rect2, dataRange);
+}
+
+IntRect AccessibilityRenderObject::boundsForRange(const RefPtr<Range> range) const
+{
+    if (!range)
+        return IntRect();
     
-    // if the rectangle spans lines and contains multiple text chars, use the range's bounding box intead
-    if (rect1.maxY() != rect2.maxY()) {
-        RefPtr<Range> dataRange = makeRange(range.start, range.end);
-        LayoutRect boundingBox = dataRange->absoluteBoundingBox();
-        String rangeString = plainText(dataRange.get());
-        if (rangeString.length() > 1 && !boundingBox.isEmpty())
-            ourrect = boundingBox;
+    AXObjectCache* cache = this->axObjectCache();
+    if (!cache)
+        return IntRect();
+    
+    CharacterOffset start = cache->startOrEndCharacterOffsetForRange(range, true);
+    CharacterOffset end = cache->startOrEndCharacterOffsetForRange(range, false);
+    
+    LayoutRect rect1 = cache->absoluteCaretBoundsForCharacterOffset(start);
+    LayoutRect rect2 = cache->absoluteCaretBoundsForCharacterOffset(end);
+    
+    // readjust for position at the edge of a line. This is to exclude line rect that doesn't need to be accounted in the range bounds.
+    if (rect2.y() != rect1.y()) {
+        CharacterOffset endOfFirstLine = cache->endCharacterOffsetOfLine(start);
+        if (start.isEqual(endOfFirstLine)) {
+            start = cache->nextCharacterOffset(start, false);
+            rect1 = cache->absoluteCaretBoundsForCharacterOffset(start);
+        }
+        if (end.isEqual(endOfFirstLine)) {
+            end = cache->previousCharacterOffset(end, false);
+            rect2 = cache->absoluteCaretBoundsForCharacterOffset(end);
+        }
     }
     
-#if PLATFORM(MAC)
-    return m_renderer->view().frameView().contentsToScreen(snappedIntRect(ourrect));
-#else
-    return snappedIntRect(ourrect);
-#endif
+    return boundsForRects(rect1, rect2, range);
 }
     
 void AccessibilityRenderObject::setSelectedVisiblePositionRange(const VisiblePositionRange& range) const
@@ -2196,6 +2209,13 @@ IntRect AccessibilityRenderObject::doAXBoundsForRange(const PlainTextRange& rang
     return IntRect();
 }
 
+IntRect AccessibilityRenderObject::doAXBoundsForRangeUsingCharacterOffset(const PlainTextRange& range) const
+{
+    if (allowsTextRanges())
+        return boundsForRange(rangeForPlainTextRange(range));
+    return IntRect();
+}
+
 AccessibilityObject* AccessibilityRenderObject::accessibilityImageMapHitTest(HTMLAreaElement* area, const IntPoint& point) const
 {
     if (!area)
@@ -2237,6 +2257,12 @@ AccessibilityObject* AccessibilityRenderObject::elementAccessibilityHitTest(cons
     return AccessibilityObject::elementAccessibilityHitTest(point);
 }
     
+static bool shouldUseShadowHostForHitTesting(Node* shadowHost)
+{
+    // We need to allow automation of mouse events on video tags.
+    return shadowHost && !shadowHost->hasTagName(videoTag);
+}
+
 AccessibilityObject* AccessibilityRenderObject::accessibilityHitTest(const IntPoint& point) const
 {
     if (!m_renderer || !m_renderer->hasLayer())
@@ -2249,9 +2275,12 @@ AccessibilityObject* AccessibilityRenderObject::accessibilityHitTest(const IntPo
     HitTestRequest request(HitTestRequest::ReadOnly | HitTestRequest::Active | HitTestRequest::AccessibilityHitTest);
     HitTestResult hitTestResult = HitTestResult(point);
     layer->hitTest(request, hitTestResult);
-    if (!hitTestResult.innerNode())
+    Node* node = hitTestResult.innerNode();
+    if (!node)
         return nullptr;
-    Node* node = hitTestResult.innerNode()->deprecatedShadowAncestorNode();
+    Node* shadowAncestorNode = node->shadowHost();
+    if (shouldUseShadowHostForHitTesting(shadowAncestorNode))
+        node = shadowAncestorNode;
     ASSERT(node);
 
     if (is<HTMLAreaElement>(*node))
@@ -2578,15 +2607,11 @@ AccessibilityRole AccessibilityRenderObject::determineAccessibilityRole()
     if (headingLevel())
         return HeadingRole;
     
-    if (m_renderer->isSVGImage())
-        return ImageRole;
     if (m_renderer->isSVGRoot())
         return SVGRootRole;
-    if (node && node->hasTagName(SVGNames::gTag))
-        return GroupRole;
     
     if (isStyleFormatGroup())
-        return GroupRole;
+        return is<RenderInline>(*m_renderer) ? InlineRole : GroupRole;
     
 #if ENABLE(MATHML)
     if (node && node->hasTagName(MathMLNames::mathTag))
@@ -2839,7 +2864,6 @@ bool AccessibilityRenderObject::canSetExpandedAttribute() const
 
 bool AccessibilityRenderObject::canSetValueAttribute() const
 {
-
     // In the event of a (Boolean)@readonly and (True/False/Undefined)@aria-readonly
     // value mismatch, the host language native attribute value wins.    
     if (isNativeTextControl())
@@ -2937,6 +2961,11 @@ void AccessibilityRenderObject::addTextFieldChildren()
         return;
     
     HTMLInputElement& input = downcast<HTMLInputElement>(*node);
+    if (HTMLElement* autoFillElement = input.autoFillButtonElement()) {
+        if (AccessibilityObject* axAutoFill = axObjectCache()->getOrCreate(autoFillElement))
+            m_children.append(axAutoFill);
+    }
+    
     HTMLElement* spinButtonElement = input.innerSpinButtonElement();
     if (!is<SpinButtonElement>(spinButtonElement))
         return;
@@ -3968,7 +3997,7 @@ int AccessibilityRenderObject::mathLineThickness() const
     if (!is<RenderMathMLFraction>(m_renderer))
         return -1;
     
-    return downcast<RenderMathMLFraction>(*m_renderer).lineThickness();
+    return downcast<RenderMathMLFraction>(*m_renderer).relativeLineThickness();
 }
 
 #endif

@@ -36,15 +36,12 @@
 #include "FontCache.h"
 #include "FontDescription.h"
 
-#if ENABLE(SVG_OTF_CONVERTER)
 #include "FontCustomPlatformData.h"
 #include "SVGToOTFFontConversion.h"
-#endif
 
 #if ENABLE(SVG_FONTS)
 #include "CachedSVGFont.h"
 #include "FontCustomPlatformData.h"
-#include "SVGFontData.h"
 #include "SVGFontElement.h"
 #include "SVGFontFaceElement.h"
 #include "SVGNames.h"
@@ -104,6 +101,11 @@ void CSSFontFaceSource::fontLoaded(CachedFont& loadedFont)
     // If the font is in the cache, this will be synchronously called from CachedFont::addClient().
     if (m_status == Status::Pending)
         setStatus(Status::Loading);
+    else if (m_status == Status::Failure) {
+        // This function may be called twice if loading was cancelled.
+        ASSERT(m_font->errorOccurred());
+        return;
+    }
 
     if (m_font->errorOccurred())
         setStatus(Status::Failure);
@@ -131,7 +133,7 @@ RefPtr<Font> CSSFontFaceSource::font(const FontDescription& fontDescription, boo
     if (!m_font && !fontFaceElement) {
         // We're local. Just return a Font from the normal cache.
         // We don't want to check alternate font family names here, so pass true as the checkingAlternateName parameter.
-        return FontCache::singleton().fontForFamily(fontDescription, m_familyNameOrURI, true);
+        return FontCache::singleton().fontForFamily(fontDescription, m_familyNameOrURI, &fontFaceFeatures, &fontFaceVariantSettings, true);
     }
 
     if (m_font) {
@@ -146,22 +148,22 @@ RefPtr<Font> CSSFontFaceSource::font(const FontDescription& fontDescription, boo
         return nullptr;
 
 #if ENABLE(SVG_FONTS)
-#if ENABLE(SVG_OTF_CONVERTER)
     if (!is<SVGFontElement>(m_svgFontFaceElement->parentNode()))
         return nullptr;
-    SVGFontElement& fontElement = downcast<SVGFontElement>(*m_svgFontFaceElement->parentNode());
-    // FIXME: Re-run this when script modifies the element or any of its descendents
-    // FIXME: We might have already converted this font. Make existing conversions discoverable.
-    if (auto otfFont = convertSVGToOTFFont(fontElement))
-        m_generatedOTFBuffer = SharedBuffer::adoptVector(otfFont.value());
-    if (!m_generatedOTFBuffer)
-        return nullptr;
-    m_inDocumentCustomPlatformData = createFontCustomPlatformData(*m_generatedOTFBuffer);
+    if (!m_inDocumentCustomPlatformData) {
+        SVGFontElement& fontElement = downcast<SVGFontElement>(*m_svgFontFaceElement->parentNode());
+        if (auto otfFont = convertSVGToOTFFont(fontElement))
+            m_generatedOTFBuffer = SharedBuffer::adoptVector(otfFont.value());
+        if (!m_generatedOTFBuffer)
+            return nullptr;
+        m_inDocumentCustomPlatformData = createFontCustomPlatformData(*m_generatedOTFBuffer);
+    }
     if (!m_inDocumentCustomPlatformData)
         return nullptr;
+#if PLATFORM(COCOA)
     return Font::create(m_inDocumentCustomPlatformData->fontPlatformData(fontDescription, syntheticBold, syntheticItalic, fontFaceFeatures, fontFaceVariantSettings), true, false);
 #else
-    return Font::create(std::make_unique<SVGFontData>(m_svgFontFaceElement.get()), fontDescription.computedPixelSize(), syntheticBold, syntheticItalic);
+    return Font::create(m_inDocumentCustomPlatformData->fontPlatformData(fontDescription, syntheticBold, syntheticItalic), true, false);
 #endif
 #endif
 

@@ -62,7 +62,7 @@
 #include "EventHandler.h"
 #include "ExtensionStyleSheets.h"
 #include "FocusController.h"
-#include "FontLoader.h"
+#include "FontFaceSet.h"
 #include "FormController.h"
 #include "FrameLoader.h"
 #include "FrameLoaderClient.h"
@@ -103,6 +103,7 @@
 #include "JSModuleLoader.h"
 #include "KeyboardEvent.h"
 #include "Language.h"
+#include "LifecycleCallbackQueue.h"
 #include "LoaderStrategy.h"
 #include "Logging.h"
 #include "MainFrame.h"
@@ -115,6 +116,7 @@
 #include "MutationEvent.h"
 #include "NameNodeList.h"
 #include "NestingLevelIncrementer.h"
+#include "NoEventDispatchAssertion.h"
 #include "NodeIterator.h"
 #include "NodeRareData.h"
 #include "NodeWithIndex.h"
@@ -132,8 +134,10 @@
 #include "ProcessingInstruction.h"
 #include "RenderChildIterator.h"
 #include "RenderLayerCompositor.h"
+#include "RenderTreeUpdater.h"
 #include "RenderView.h"
 #include "RenderWidget.h"
+#include "ResourceLoadObserver.h"
 #include "RuntimeEnabledFeatures.h"
 #include "SVGDocumentExtensions.h"
 #include "SVGElement.h"
@@ -187,10 +191,6 @@
 #include <wtf/TemporaryChange.h>
 #include <wtf/text/StringBuffer.h>
 #include <yarr/RegularExpression.h>
-
-#if ENABLE(CSP_NEXT)
-#include "DOMSecurityPolicy.h"
-#endif
 
 #if ENABLE(DEVICE_ORIENTATION)
 #include "DeviceMotionEvent.h"
@@ -535,7 +535,7 @@ Document::Document(Frame* frame, const URL& url, unsigned documentClasses, unsig
     , m_scheduledTasksAreSuspended(false)
     , m_visualUpdatesAllowed(true)
     , m_visualUpdatesSuppressionTimer(*this, &Document::visualUpdatesSuppressionTimerFired)
-    , m_sharedObjectPoolClearTimer(*this, &Document::sharedObjectPoolClearTimerFired)
+    , m_sharedObjectPoolClearTimer(*this, &Document::clearSharedObjectPool)
 #ifndef NDEBUG
     , m_didDispatchViewportPropertiesChanged(false)
 #endif
@@ -882,24 +882,35 @@ void Document::childrenChanged(const ChildChange& change)
     clearStyleResolver();
 }
 
-static RefPtr<Element> createHTMLElementWithNameValidation(Document& document, const QualifiedName qualifiedName, ExceptionCode& ec)
+static RefPtr<Element> createHTMLElementWithNameValidation(Document& document, const AtomicString& localName, ExceptionCode& ec)
 {
-    RefPtr<HTMLElement> element = HTMLElementFactory::createKnownElement(qualifiedName, document);
+    RefPtr<HTMLElement> element = HTMLElementFactory::createKnownElement(localName, document);
     if (LIKELY(element))
         return element;
 
 #if ENABLE(CUSTOM_ELEMENTS)
     auto* definitions = document.customElementDefinitions();
     if (UNLIKELY(definitions)) {
-        if (auto* interface = definitions->findInterface(qualifiedName))
-            return interface->constructElement(qualifiedName.localName());
+        if (auto* interface = definitions->findInterface(localName))
+            return interface->constructElement(localName, JSCustomElementInterface::ShouldClearException::DoNotClear);
     }
 #endif
 
-    if (UNLIKELY(!Document::isValidName(qualifiedName.localName()))) {
+    if (UNLIKELY(!Document::isValidName(localName))) {
         ec = INVALID_CHARACTER_ERR;
         return nullptr;
     }
+
+    QualifiedName qualifiedName(nullAtom, localName, xhtmlNamespaceURI);
+
+#if ENABLE(CUSTOM_ELEMENTS)
+    if (CustomElementDefinitions::checkName(localName) == CustomElementDefinitions::NameStatus::Valid) {
+        Ref<HTMLElement> element = HTMLElement::create(qualifiedName, document);
+        element->setIsUnresolvedCustomElement();
+        document.ensureCustomElementDefinitions().addUpgradeCandidate(element.get());
+        return WTFMove(element);
+    }
+#endif
 
     return HTMLUnknownElement::create(qualifiedName, document);
 }
@@ -907,10 +918,10 @@ static RefPtr<Element> createHTMLElementWithNameValidation(Document& document, c
 RefPtr<Element> Document::createElementForBindings(const AtomicString& name, ExceptionCode& ec)
 {
     if (isHTMLDocument())
-        return createHTMLElementWithNameValidation(*this, QualifiedName(nullAtom, name.convertToASCIILowercase(), xhtmlNamespaceURI), ec);
+        return createHTMLElementWithNameValidation(*this, name.convertToASCIILowercase(), ec);
 
     if (isXHTMLDocument())
-        return createHTMLElementWithNameValidation(*this, QualifiedName(nullAtom, name, xhtmlNamespaceURI), ec);
+        return createHTMLElementWithNameValidation(*this, name, ec);
 
     if (!isValidName(name)) {
         ec = INVALID_CHARACTER_ERR;
@@ -984,12 +995,15 @@ RefPtr<Node> Document::importNode(Node* importedNode, bool deep, ExceptionCode& 
     }
 
     switch (importedNode->nodeType()) {
+    case DOCUMENT_FRAGMENT_NODE:
+        if (importedNode->isShadowRoot())
+            break;
+        FALLTHROUGH;
     case ELEMENT_NODE:
     case TEXT_NODE:
     case CDATA_SECTION_NODE:
     case PROCESSING_INSTRUCTION_NODE:
     case COMMENT_NODE:
-    case DOCUMENT_FRAGMENT_NODE:
         return importedNode->cloneNodeInternal(document(), deep ? CloningOperation::Everything : CloningOperation::OnlySelf);
 
     case ATTRIBUTE_NODE:
@@ -1072,15 +1086,40 @@ bool Document::hasValidNamespaceForAttributes(const QualifiedName& qName)
     return hasValidNamespaceForElements(qName);
 }
 
+static Ref<HTMLElement> createFallbackHTMLElement(Document& document, const QualifiedName& name)
+{
+#if ENABLE(CUSTOM_ELEMENTS)
+    auto* definitions = document.customElementDefinitions();
+    if (UNLIKELY(definitions)) {
+        if (auto* interface = definitions->findInterface(name)) {
+            Ref<HTMLElement> element = HTMLElement::create(name, document);
+            element->setIsUnresolvedCustomElement();
+            LifecycleCallbackQueue::enqueueElementUpgrade(element.get(), *interface);
+            return element;
+        }
+    }
+    // FIXME: Should we also check the equality of prefix between the custom element and name?
+    if (CustomElementDefinitions::checkName(name.localName()) == CustomElementDefinitions::NameStatus::Valid) {
+        Ref<HTMLElement> element = HTMLElement::create(name, document);
+        element->setIsUnresolvedCustomElement();
+        document.ensureCustomElementDefinitions().addUpgradeCandidate(element.get());
+        return element;
+    }
+#endif
+    return HTMLUnknownElement::create(name, document);
+}
+
 // FIXME: This should really be in a possible ElementFactory class.
 Ref<Element> Document::createElement(const QualifiedName& name, bool createdByParser)
 {
     RefPtr<Element> element;
 
     // FIXME: Use registered namespaces and look up in a hash to find the right factory.
-    if (name.namespaceURI() == xhtmlNamespaceURI)
-        element = HTMLElementFactory::createElement(name, *this, nullptr, createdByParser);
-    else if (name.namespaceURI() == SVGNames::svgNamespaceURI)
+    if (name.namespaceURI() == xhtmlNamespaceURI) {
+        element = HTMLElementFactory::createKnownElement(name, *this, nullptr, createdByParser);
+        if (UNLIKELY(!element))
+            element = createFallbackHTMLElement(*this, name);
+    } else if (name.namespaceURI() == SVGNames::svgNamespaceURI)
         element = SVGElementFactory::createElement(name, *this, createdByParser);
 #if ENABLE(MATHML)
     else if (name.namespaceURI() == MathMLNames::mathmlNamespaceURI)
@@ -1290,7 +1329,7 @@ String Document::defaultCharset() const
 {
     if (Settings* settings = this->settings())
         return settings->defaultTextEncodingName();
-    return String();
+    return UTF8Encoding().domName();
 }
 
 void Document::setCharset(const String& charset)
@@ -1683,15 +1722,6 @@ void Document::allowsMediaDocumentInlinePlaybackChanged()
 }
 #endif
 
-#if ENABLE(CSP_NEXT)
-DOMSecurityPolicy& Document::securityPolicy()
-{
-    if (!m_domSecurityPolicy)
-        m_domSecurityPolicy = DOMSecurityPolicy::create(this);
-    return *m_domSecurityPolicy;
-}
-#endif
-
 String Document::nodeName() const
 {
     return "#document";
@@ -1898,15 +1928,22 @@ void Document::recalcStyle(Style::Change change)
         }
 
         Style::TreeResolver resolver(*this);
-        resolver.resolve(change);
-
-        updatedCompositingLayers = frameView.updateCompositingLayersAfterStyleChange();
+        auto styleUpdate = resolver.resolve(change);
 
         clearNeedsStyleRecalc();
         clearChildNeedsStyleRecalc();
         unscheduleStyleRecalc();
 
         m_inStyleRecalc = false;
+
+        if (styleUpdate) {
+            TemporaryChange<bool> inRenderTreeUpdate(m_inRenderTreeUpdate, true);
+
+            RenderTreeUpdater updater(*this);
+            updater.commit(WTFMove(styleUpdate));
+        }
+
+        updatedCompositingLayers = frameView.updateCompositingLayersAfterStyleChange();
     }
 
     // If we wanted to call implicitClose() during recalcStyle, do so now that we're finished.
@@ -1940,7 +1977,7 @@ void Document::updateStyleIfNeeded()
     ASSERT(isMainThread());
     ASSERT(!view() || !view()->isPainting());
 
-    if (!view() || view()->isInLayout())
+    if (!view() || view()->isInRenderTreeLayout())
         return;
 
     if (m_optimizedStyleSheetUpdateTimer.isActive())
@@ -1957,7 +1994,7 @@ void Document::updateLayout()
     ASSERT(isMainThread());
 
     FrameView* frameView = view();
-    if (frameView && frameView->isInLayout()) {
+    if (frameView && frameView->isInRenderTreeLayout()) {
         // View layout should not be re-entrant.
         ASSERT_NOT_REACHED();
         return;
@@ -2022,7 +2059,14 @@ Ref<RenderStyle> Document::styleForElementIgnoringPendingStylesheets(Element& el
     ResourceLoadSuspender suspender;
 
     TemporaryChange<bool> change(m_ignorePendingStylesheets, true);
-    return element.resolveStyle(parentStyle);
+    auto elementStyle = element.resolveStyle(parentStyle);
+
+    if (elementStyle.relations) {
+        Style::Update emptyUpdate(*this);
+        Style::commitRelations(WTFMove(elementStyle.relations), emptyUpdate);
+    }
+
+    return WTFMove(elementStyle.renderStyle);
 }
 
 bool Document::updateLayoutIfDimensionsOutOfDate(Element& element, DimensionsCheck dimensionsCheck)
@@ -2037,7 +2081,7 @@ bool Document::updateLayoutIfDimensionsOutOfDate(Element& element, DimensionsChe
     
     // Check for re-entrancy and assert (same code that is in updateLayout()).
     FrameView* frameView = view();
-    if (frameView && frameView->isInLayout()) {
+    if (frameView && frameView->isInRenderTreeLayout()) {
         // View layout should not be re-entrant.
         ASSERT_NOT_REACHED();
         return true;
@@ -2309,7 +2353,7 @@ void Document::destroyRenderTree()
     m_activeElement = nullptr;
 
     if (m_documentElement)
-        Style::detachRenderTree(*m_documentElement);
+        RenderTreeUpdater::tearDownRenderers(*m_documentElement);
 
     clearChildNeedsStyleRecalc();
 
@@ -2905,9 +2949,9 @@ void Document::writeln(const String& text, Document* ownerDocument)
     write("\n", ownerDocument);
 }
 
-double Document::minimumTimerInterval() const
+std::chrono::milliseconds Document::minimumTimerInterval() const
 {
-    Page* page = this->page();
+    auto* page = this->page();
     if (!page)
         return ScriptExecutionContext::minimumTimerInterval();
     return page->settings().minimumDOMTimerInterval();
@@ -2922,16 +2966,18 @@ void Document::setTimerThrottlingEnabled(bool shouldThrottle)
     didChangeTimerAlignmentInterval();
 }
 
-double Document::timerAlignmentInterval(bool hasReachedMaxNestingLevel) const
+std::chrono::milliseconds Document::timerAlignmentInterval(bool hasReachedMaxNestingLevel) const
 {
+    auto alignmentInterval = ScriptExecutionContext::timerAlignmentInterval(hasReachedMaxNestingLevel);
+
     // Apply Document-level DOMTimer throttling only if timers have reached their maximum nesting level as the Page may still be visible.
     if (m_isTimerThrottlingEnabled && hasReachedMaxNestingLevel)
-        return DOMTimer::hiddenPageAlignmentInterval();
+        alignmentInterval = std::max(alignmentInterval, DOMTimer::hiddenPageAlignmentInterval());
 
-    Page* page = this->page();
-    if (!page)
-        return ScriptExecutionContext::timerAlignmentInterval(hasReachedMaxNestingLevel);
-    return page->settings().domTimerAlignmentInterval();
+    if (Page* page = this->page())
+        alignmentInterval = std::max(alignmentInterval, page->domTimerAlignmentInterval());
+
+    return alignmentInterval;
 }
 
 EventTarget* Document::errorEventTarget()
@@ -3173,9 +3219,10 @@ bool Document::usesStyleBasedEditability() const
     return authorSheets.usesStyleBasedEditability();
 }
 
-void Document::processHttpEquiv(const String& equiv, const String& content)
+void Document::processHttpEquiv(const String& equiv, const String& content, bool isInDocumentHead)
 {
-    ASSERT(!equiv.isNull() && !content.isNull());
+    ASSERT(!equiv.isNull());
+    ASSERT(!content.isNull());
 
     HttpEquivPolicy policy = httpEquivPolicy();
     if (policy != HttpEquivPolicy::Enabled) {
@@ -3270,19 +3317,23 @@ void Document::processHttpEquiv(const String& equiv, const String& content)
         break;
 
     case HTTPHeaderName::ContentSecurityPolicy:
-        contentSecurityPolicy()->didReceiveHeader(content, ContentSecurityPolicyHeaderType::Enforce);
+        if (isInDocumentHead)
+            contentSecurityPolicy()->processHTTPEquiv(content, ContentSecurityPolicyHeaderType::Enforce);
         break;
 
     case HTTPHeaderName::ContentSecurityPolicyReportOnly:
-        contentSecurityPolicy()->didReceiveHeader(content, ContentSecurityPolicyHeaderType::Report);
+        if (isInDocumentHead)
+            contentSecurityPolicy()->processHTTPEquiv(content, ContentSecurityPolicyHeaderType::Report);
         break;
 
     case HTTPHeaderName::XWebKitCSP:
-        contentSecurityPolicy()->didReceiveHeader(content, ContentSecurityPolicyHeaderType::PrefixedEnforce);
+        if (isInDocumentHead)
+            contentSecurityPolicy()->processHTTPEquiv(content, ContentSecurityPolicyHeaderType::PrefixedEnforce);
         break;
 
     case HTTPHeaderName::XWebKitCSPReportOnly:
-        contentSecurityPolicy()->didReceiveHeader(content, ContentSecurityPolicyHeaderType::PrefixedReport);
+        if (isInDocumentHead)
+            contentSecurityPolicy()->processHTTPEquiv(content, ContentSecurityPolicyHeaderType::PrefixedReport);
         break;
 
     default:
@@ -4077,6 +4128,11 @@ void Document::takeDOMWindowFrom(Document* document)
     ASSERT(m_domWindow->frame() == m_frame);
 }
 
+void Document::setAttributeEventListener(const AtomicString& eventType, const QualifiedName& attributeName, const AtomicString& attributeValue)
+{
+    setAttributeEventListener(eventType, JSLazyEventListener::create(*this, attributeName, attributeValue));
+}
+
 void Document::setWindowAttributeEventListener(const AtomicString& eventType, PassRefPtr<EventListener> listener)
 {
     if (!m_domWindow)
@@ -4086,9 +4142,9 @@ void Document::setWindowAttributeEventListener(const AtomicString& eventType, Pa
 
 void Document::setWindowAttributeEventListener(const AtomicString& eventType, const QualifiedName& attributeName, const AtomicString& attributeValue)
 {
-    if (!m_frame)
+    if (!m_domWindow)
         return;
-    setWindowAttributeEventListener(eventType, JSLazyEventListener::createForDOMWindow(*m_frame, attributeName, attributeValue));
+    setWindowAttributeEventListener(eventType, JSLazyEventListener::create(*m_domWindow, attributeName, attributeValue));
 }
 
 EventListener* Document::getWindowAttributeEventListener(const AtomicString& eventType)
@@ -4129,6 +4185,11 @@ void Document::enqueueDocumentEvent(Ref<Event>&& event)
 }
 
 void Document::enqueueOverflowEvent(Ref<Event>&& event)
+{
+    m_eventQueue.enqueueEvent(WTFMove(event));
+}
+
+void Document::enqueueSlotchangeEvent(Ref<Event>&& event)
 {
     m_eventQueue.enqueueEvent(WTFMove(event));
 }
@@ -4598,6 +4659,10 @@ void Document::setInPageCache(bool flag)
                 v->resetScrollbars();
         }
         m_styleRecalcTimer.stop();
+
+        clearStyleResolver();
+        clearSelectorQueryCache();
+        clearSharedObjectPool();
     } else {
         if (childNeedsStyleRecalc())
             scheduleStyleRecalc();
@@ -5044,9 +5109,10 @@ void Document::finishedParsing()
     m_cachedResourceLoader->clearPreloads();
 }
 
-void Document::sharedObjectPoolClearTimerFired()
+void Document::clearSharedObjectPool()
 {
     m_sharedObjectPool = nullptr;
+    m_sharedObjectPoolClearTimer.stop();
 }
 
 #if ENABLE(TELEPHONE_NUMBER_DETECTION)
@@ -5507,7 +5573,7 @@ void Document::enqueueHashchangeEvent(const String& oldURL, const String& newURL
 
 void Document::enqueuePopstateEvent(RefPtr<SerializedScriptValue>&& stateObject)
 {
-    enqueueWindowEvent(PopStateEvent::create(WTFMove(stateObject), m_domWindow ? m_domWindow->history() : nullptr));
+    dispatchWindowEvent(PopStateEvent::create(WTFMove(stateObject), m_domWindow ? m_domWindow->history() : nullptr));
 }
 
 void Document::addMediaCanStartListener(MediaCanStartListener* listener)
@@ -5801,6 +5867,9 @@ void Document::webkitWillEnterFullScreenForElement(Element* element)
 
     unwrapFullScreenRenderer(m_fullScreenRenderer, m_fullScreenElement.get());
 
+    if (element)
+        element->willBecomeFullscreenElement();
+    
     m_fullScreenElement = element;
 
 #if USE(NATIVE_FULLSCREEN_VIDEO)
@@ -6396,6 +6465,9 @@ Document::RegionFixedPair Document::absoluteRegionForEventTargets(const EventTar
 
 void Document::updateLastHandledUserGestureTimestamp()
 {
+    if (!m_lastHandledUserGestureTimestamp)
+        ResourceLoadObserver::sharedObserver().logUserInteraction(*this);
+
     m_lastHandledUserGestureTimestamp = monotonicallyIncreasingTime();
 }
 
@@ -6672,14 +6744,11 @@ Document& Document::ensureTemplateDocument()
 }
 #endif
 
-#if ENABLE(FONT_LOAD_EVENTS)
-RefPtr<FontLoader> Document::fonts()
+Ref<FontFaceSet> Document::fonts()
 {
-    if (!m_fontloader)
-        m_fontloader = FontLoader::create(this);
-    return m_fontloader;
+    updateStyleIfNeeded();
+    return fontSelector().fontFaceSet();
 }
-#endif
 
 float Document::deviceScaleFactor() const
 {

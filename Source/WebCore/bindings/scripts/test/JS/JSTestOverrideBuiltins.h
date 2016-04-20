@@ -37,8 +37,10 @@ public:
         return ptr;
     }
 
+    static const bool hasStaticPropertyTable = false;
+
     static JSC::JSObject* createPrototype(JSC::VM&, JSC::JSGlobalObject*);
-    static JSC::JSObject* getPrototype(JSC::VM&, JSC::JSGlobalObject*);
+    static JSC::JSObject* prototype(JSC::VM&, JSC::JSGlobalObject*);
     static TestOverrideBuiltins* toWrapped(JSC::JSValue);
     static bool getOwnPropertySlot(JSC::JSObject*, JSC::ExecState*, JSC::PropertyName, JSC::PropertySlot&);
     static bool getOwnPropertySlotByIndex(JSC::JSObject*, JSC::ExecState*, unsigned propertyName, JSC::PropertySlot&);
@@ -78,6 +80,11 @@ inline JSC::WeakHandleOwner* wrapperOwner(DOMWrapperWorld&, TestOverrideBuiltins
 {
     static NeverDestroyed<JSTestOverrideBuiltinsOwner> owner;
     return &owner.get();
+}
+
+inline void* wrapperKey(TestOverrideBuiltins* wrappableObject)
+{
+    return wrappableObject;
 }
 
 JSC::JSValue toJS(JSC::ExecState*, JSDOMGlobalObject*, TestOverrideBuiltins*);

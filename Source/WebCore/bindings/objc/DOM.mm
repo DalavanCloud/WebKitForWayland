@@ -55,6 +55,10 @@
 #import <JavaScriptCore/APICast.h>
 #import <wtf/HashMap.h>
 
+#if ENABLE(VIDEO)
+#import "DOMHTMLVideoElement.h"
+#endif
+
 #if PLATFORM(IOS)
 #import "FocusController.h"
 #import "HTMLLinkElement.h"
@@ -163,6 +167,9 @@ static void createElementClassMap()
     addElementClass(HTMLNames::titleTag, [DOMHTMLTitleElement class]);
     addElementClass(HTMLNames::trTag, [DOMHTMLTableRowElement class]);
     addElementClass(HTMLNames::ulTag, [DOMHTMLUListElement class]);
+#if ENABLE(VIDEO)
+    addElementClass(HTMLNames::videoTag, [DOMHTMLVideoElement class]);
+#endif
     addElementClass(HTMLNames::xmpTag, [DOMHTMLPreElement class]);
 }
 
@@ -520,8 +527,7 @@ id <DOMEventTarget> kit(WebCore::EventTarget* eventTarget)
 
     // FIXME: using KeyboardEvent::createForDummy() here should be deprecated,
     // should use one that is not for bindings.
-    RefPtr<KeyboardEvent> key = KeyboardEvent::createForDummy();
-    return kit(page->focusController().nextFocusableElement(FocusNavigationScope::focusNavigationScopeOf(&core(self)->document()), core(self), key.get()));
+    return kit(page->focusController().nextFocusableElement(*core(self)));
 }
 
 - (DOMNode *)previousFocusNode
@@ -532,8 +538,7 @@ id <DOMEventTarget> kit(WebCore::EventTarget* eventTarget)
 
     // FIXME: using KeyboardEvent::createForDummy() here should be deprecated,
     // should use one that is not for bindings.
-    RefPtr<KeyboardEvent> key = KeyboardEvent::createForDummy();
-    return kit(page->focusController().previousFocusableElement(FocusNavigationScope::focusNavigationScopeOf(&core(self)->document()), core(self), key.get()));
+    return kit(page->focusController().previousFocusableElement(*core(self)));
 }
 
 #endif // PLATFORM(IOS)

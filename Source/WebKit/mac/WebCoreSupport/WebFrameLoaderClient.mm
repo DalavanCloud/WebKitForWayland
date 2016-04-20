@@ -148,7 +148,7 @@
 #import <WebCore/FileSystemIOS.h>
 #import <WebCore/NSFileManagerSPI.h>
 #import <WebCore/QuickLook.h>
-#import <WebCore/RuntimeApplicationChecksIOS.h>
+#import <WebCore/RuntimeApplicationChecks.h>
 #endif
 
 #if HAVE(APP_LINKS)
@@ -1561,7 +1561,10 @@ NSDictionary *WebFrameLoaderClient::actionDictionary(const NavigationAction& act
     unsigned modifierFlags = 0;
     const Event* event = action.event();
 #if !PLATFORM(IOS)
-    if (const UIEventWithKeyState* keyStateEvent = findEventWithKeyState(const_cast<Event*>(event))) {
+    const UIEventWithKeyState* keyStateEvent = findEventWithKeyState(const_cast<Event*>(event));
+    if (keyStateEvent && keyStateEvent->isTrusted()) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         if (keyStateEvent->ctrlKey())
             modifierFlags |= NSControlKeyMask;
         if (keyStateEvent->altKey())
@@ -1570,6 +1573,7 @@ NSDictionary *WebFrameLoaderClient::actionDictionary(const NavigationAction& act
             modifierFlags |= NSShiftKeyMask;
         if (keyStateEvent->metaKey())
             modifierFlags |= NSCommandKeyMask;
+#pragma clang diagnostic pop
     }
 #else
     // No modifier flags on iOS right now
@@ -1590,7 +1594,10 @@ NSDictionary *WebFrameLoaderClient::actionDictionary(const NavigationAction& act
         [result setObject:element forKey:WebActionElementKey];
         [element release];
 
-        [result setObject:[NSNumber numberWithInt:mouseEvent->button()] forKey:WebActionButtonKey];
+        if (mouseEvent->isTrusted())
+            [result setObject:[NSNumber numberWithInt:mouseEvent->button()] forKey:WebActionButtonKey];
+        else
+            [result setObject:[NSNumber numberWithInt:WebCore::NoButton] forKey:WebActionButtonKey];
     }
 
     if (formState) {
@@ -2235,7 +2242,7 @@ void WebFrameLoaderClient::didCreateQuickLookHandle(WebCore::QuickLookHandle& ha
             : m_firstRequestURL(handle.firstRequestURL())
         {
             NSURL *previewRequestURL = handle.previewRequestURL();
-            if (!applicationIsMobileSafari()) {
+            if (!IOSApplication::isMobileSafari()) {
                 // This keeps the QLPreviewConverter alive to serve any subresource requests.
                 // It is removed by -[WebDataSource dealloc].
                 addQLPreviewConverterWithFileForURL(previewRequestURL, handle.converter(), nil);

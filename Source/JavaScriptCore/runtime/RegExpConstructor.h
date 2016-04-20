@@ -54,6 +54,7 @@ public:
 
     MatchResult performMatch(VM&, RegExp*, JSString*, const String&, int startOffset, int** ovector);
     MatchResult performMatch(VM&, RegExp*, JSString*, const String&, int startOffset);
+    void recordMatch(VM&, RegExp*, JSString*, const MatchResult&);
 
     void setMultiline(bool multiline) { m_multiline = multiline; }
     bool multiline() const { return m_multiline; }
@@ -67,6 +68,8 @@ public:
     JSString* input() { return m_cachedResult.input(); }
 
     static void visitChildren(JSCell*, SlotVisitor&);
+
+    static ptrdiff_t offsetOfCachedResult() { return OBJECT_OFFSETOF(RegExpConstructor, m_cachedResult); }
 
 protected:
     void finishCreation(VM&, RegExpPrototype*, GetterSetter* species);
@@ -84,7 +87,7 @@ private:
 
 RegExpConstructor* asRegExpConstructor(JSValue);
 
-JSObject* constructRegExp(ExecState*, JSGlobalObject*, const ArgList&, JSValue newTarget = jsUndefined());
+JSObject* constructRegExp(ExecState*, JSGlobalObject*, const ArgList&, JSObject* callee = nullptr, JSValue newTarget = jsUndefined());
 
 inline RegExpConstructor* asRegExpConstructor(JSValue value)
 {
@@ -123,6 +126,29 @@ ALWAYS_INLINE MatchResult RegExpConstructor::performMatch(VM& vm, RegExp* regExp
         m_cachedResult.record(vm, this, regExp, string, result);
     return result;
 }
+
+ALWAYS_INLINE void RegExpConstructor::recordMatch(VM& vm, RegExp* regExp, JSString* string, const MatchResult& result)
+{
+    ASSERT(result);
+    m_cachedResult.record(vm, this, regExp, string, result);
+}
+
+ALWAYS_INLINE bool isRegExp(VM& vm, ExecState* exec, JSValue value)
+{
+    if (!value.isObject())
+        return false;
+
+    JSObject* object = asObject(value);
+    JSValue matchValue = object->get(exec, vm.propertyNames->matchSymbol);
+    if (vm.exception())
+        return false;
+    if (!matchValue.isUndefined())
+        return matchValue.toBoolean(exec);
+
+    return object->inherits(RegExpObject::info());
+}
+
+EncodedJSValue JSC_HOST_CALL esSpecRegExpCreate(ExecState*);
 
 } // namespace JSC
 

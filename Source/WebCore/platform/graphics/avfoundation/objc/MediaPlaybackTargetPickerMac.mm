@@ -51,11 +51,6 @@ using namespace WebCore;
 static NSString *externalOutputDeviceAvailableKeyName = @"externalOutputDeviceAvailable";
 static NSString *externalOutputDevicePickedKeyName = @"externalOutputDevicePicked";
 
-// FIXME: remove this once the headers are available.
-@interface AVOutputDeviceMenuController (ForwardDeclaration)
-- (BOOL)showMenuForRect:(NSRect)screenRect appearanceName:(NSString *)appearanceName allowReselectionOfSelectedOutputDevice:(BOOL)allowReselectionOfSelectedOutputDevice;
-@end
-
 @interface WebAVOutputDeviceMenuControllerHelper : NSObject {
     MediaPlaybackTargetPickerMac* m_callback;
 }

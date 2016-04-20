@@ -13,20 +13,40 @@ var Suites = [];
 Suites.push(new Suite("Animometer",
     [
         {
+            url: "master/multiply.html",
+            name: "Multiply"
+        },
+        {
             url: "master/canvas-stage.html?pathType=arcs",
             name: "Canvas arcs"
         },
         {
-            url: "master/canvas-stage.html?pathType=linePath&lineJoin=round&lineCap=round",
-            name: "Canvas line path, round join"
+            url: "master/leaves.html",
+            name: "Leaves"
+        },
+        {
+            url: "master/canvas-stage.html?pathType=linePath",
+            name: "Paths"
         },
         {
             url: "master/canvas-stage.html?pathType=line&lineCap=square",
             name: "Canvas line segments"
         },
         {
-            url: "master/particles.html",
-            name: "DOM particles, SVG masks"
+            url: "master/focus.html",
+            name: "Focus"
+        },
+        {
+            url: "master/image-data.html",
+            name: "Images"
+        },
+        {
+            url: "master/text.html",
+            name: "Design"
+        },
+        {
+            url: "master/svg-particles.html",
+            name: "Suits"
         },
     ]
 ));

@@ -83,6 +83,7 @@ PASS Intl.DateTimeFormat.prototype.resolvedOptions() === Intl.DateTimeFormat.pro
 PASS Intl.DateTimeFormat.prototype.resolvedOptions.call(5) threw exception TypeError: Intl.DateTimeFormat.prototype.resolvedOptions called on value that's not an object initialized as a DateTimeFormat.
 PASS Intl.DateTimeFormat('$') threw exception RangeError: invalid language tag: $.
 PASS Intl.DateTimeFormat('en', null) threw exception TypeError: null is not an object (evaluating 'Intl.DateTimeFormat('en', null)').
+PASS Intl.DateTimeFormat().resolvedOptions().locale is 'en-US'
 PASS Intl.DateTimeFormat('en').resolvedOptions().weekday is undefined
 PASS Intl.DateTimeFormat('en').resolvedOptions().era is undefined
 PASS Intl.DateTimeFormat('en').resolvedOptions().month is 'numeric'
@@ -2146,6 +2147,9 @@ PASS
     var resolved = Intl.DateTimeFormat("zh-TW", options).resolvedOptions();
     Object.keys(options).every(option => resolved[option] != null) is true
 PASS typeof Intl.DateTimeFormat("zh-TW", { hour: "numeric", minute: "numeric" }).format() === "string" is true
+PASS var legacy = Object.create(Intl.DateTimeFormat.prototype);Intl.DateTimeFormat.apply(legacy) is legacy
+PASS var legacy = Object.create(Intl.DateTimeFormat.prototype);Intl.DateTimeFormat.call(legacy, 'en-u-nu-arab', { timeZone: 'America/Los_Angeles' }).format(1451099872641) is '١٢/٢٥/٢٠١٥'
+PASS var incompat = {};Intl.DateTimeFormat.apply(incompat) is not incompat
 PASS successfullyParsed is true
 
 TEST COMPLETE

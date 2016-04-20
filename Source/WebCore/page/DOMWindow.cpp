@@ -44,7 +44,6 @@
 #include "DOMTimer.h"
 #include "DOMTokenList.h"
 #include "DOMURL.h"
-#include "DOMWindowCSS.h"
 #include "DOMWindowExtension.h"
 #include "DOMWindowNotifications.h"
 #include "DeviceMotionController.h"
@@ -165,7 +164,7 @@ public:
     ScriptCallStack* stackTrace() const { return m_stackTrace.get(); }
 
 private:
-    virtual void fired()
+    void fired() override
     {
         // This object gets deleted when std::unique_ptr falls out of scope..
         std::unique_ptr<PostMessageTimer> timer(this);
@@ -373,20 +372,22 @@ bool DOMWindow::canShowModalDialog(const Frame* frame)
 {
     if (!frame)
         return false;
-    Page* page = frame->page();
-    if (!page)
-        return false;
-    return page->chrome().canRunModal();
+
+    // Override support for layout testing purposes.
+    if (auto* document = frame->document()) {
+        if (auto* window = document->domWindow()) {
+            if (window->m_canShowModalDialogOverride)
+                return window->m_canShowModalDialogOverride.value();
+        }
+    }
+
+    auto* page = frame->page();
+    return page ? page->chrome().canRunModal() : false;
 }
 
-bool DOMWindow::canShowModalDialogNow(const Frame* frame)
+void DOMWindow::setCanShowModalDialogOverride(bool allow)
 {
-    if (!frame)
-        return false;
-    Page* page = frame->page();
-    if (!page)
-        return false;
-    return page->chrome().canRunModal();
+    m_canShowModalDialogOverride = allow;
 }
 
 DOMWindow::DOMWindow(Document* document)
@@ -759,28 +760,26 @@ bool DOMWindow::shouldHaveWebKitNamespaceForWorld(DOMWrapperWorld& world)
     if (!page)
         return false;
 
-    auto* userContentController = page->userContentController();
-    if (!userContentController)
-        return false;
+    bool hasUserMessageHandler = false;
+    page->userContentProvider().forEachUserMessageHandler([&](const UserMessageHandlerDescriptor& descriptor) {
+        if (&descriptor.world() == &world) {
+            hasUserMessageHandler = true;
+            return;
+        }
+    });
 
-    auto* descriptorMap = userContentController->userMessageHandlerDescriptors();
-    if (!descriptorMap)
-        return false;
-
-    for (auto& descriptor : descriptorMap->values()) {
-        if (&descriptor->world() == &world)
-            return true;
-    }
-
-    return false;
+    return hasUserMessageHandler;
 }
 
 WebKitNamespace* DOMWindow::webkitNamespace() const
 {
     if (!isCurrentlyDisplayedInFrame())
         return nullptr;
+    auto* page = m_frame->page();
+    if (!page)
+        return nullptr;
     if (!m_webkitNamespace)
-        m_webkitNamespace = WebKitNamespace::create(*m_frame);
+        m_webkitNamespace = WebKitNamespace::create(*m_frame, page->userContentProvider());
     return m_webkitNamespace.get();
 }
 #endif
@@ -960,7 +959,12 @@ Element* DOMWindow::frameElement() const
     return m_frame->ownerElement();
 }
 
-void DOMWindow::focus(ScriptExecutionContext* context)
+void DOMWindow::focus(Document& document)
+{
+    focus(opener() && opener() != this && document.domWindow() == opener());
+}
+
+void DOMWindow::focus(bool allowFocus)
 {
     if (!m_frame)
         return;
@@ -969,13 +973,7 @@ void DOMWindow::focus(ScriptExecutionContext* context)
     if (!page)
         return;
 
-    bool allowFocus = WindowFocusAllowedIndicator::windowFocusAllowed() || !m_frame->settings().windowFocusRestricted();
-    if (context) {
-        ASSERT(isMainThread());
-        Document& activeDocument = downcast<Document>(*context);
-        if (opener() && opener() != this && activeDocument.domWindow() == opener())
-            allowFocus = true;
-    }
+    allowFocus = allowFocus || WindowFocusAllowedIndicator::windowFocusAllowed() || !m_frame->settings().windowFocusRestricted();
 
     // If we're a top level window, bring the window to the front.
     if (m_frame->isMainFrame() && allowFocus)
@@ -1010,7 +1008,14 @@ void DOMWindow::blur()
     page->chrome().unfocus();
 }
 
-void DOMWindow::close(ScriptExecutionContext* context)
+void DOMWindow::close(Document& document)
+{
+    if (!document.canNavigate(m_frame))
+        return;
+    close();
+}
+
+void DOMWindow::close()
 {
     if (!m_frame)
         return;
@@ -1021,12 +1026,6 @@ void DOMWindow::close(ScriptExecutionContext* context)
 
     if (!m_frame->isMainFrame())
         return;
-
-    if (context) {
-        ASSERT(isMainThread());
-        if (!downcast<Document>(*context).canNavigate(m_frame))
-            return;
-    }
 
     bool allowScriptsToCloseWindows = m_frame->settings().allowScriptsToCloseWindows();
 
@@ -1601,7 +1600,7 @@ int DOMWindow::setTimeout(std::unique_ptr<ScheduledAction> action, int timeout, 
         ec = INVALID_ACCESS_ERR;
         return -1;
     }
-    return DOMTimer::install(*context, WTFMove(action), timeout, true);
+    return DOMTimer::install(*context, WTFMove(action), std::chrono::milliseconds(timeout), true);
 }
 
 void DOMWindow::clearTimeout(int timeoutId)
@@ -1635,7 +1634,7 @@ int DOMWindow::setInterval(std::unique_ptr<ScheduledAction> action, int timeout,
         ec = INVALID_ACCESS_ERR;
         return -1;
     }
-    return DOMTimer::install(*context, WTFMove(action), timeout, false);
+    return DOMTimer::install(*context, WTFMove(action), std::chrono::milliseconds(timeout), false);
 }
 
 void DOMWindow::clearInterval(int timeoutId)
@@ -1669,13 +1668,6 @@ void DOMWindow::cancelAnimationFrame(int id)
         d->cancelAnimationFrame(id);
 }
 #endif
-
-DOMWindowCSS* DOMWindow::css()
-{
-    if (!m_css)
-        m_css = DOMWindowCSS::create();
-    return m_css.get();
-}
 
 static void didAddStorageEventListener(DOMWindow* window)
 {
@@ -2166,11 +2158,10 @@ PassRefPtr<DOMWindow> DOMWindow::open(const String& urlString, const AtomicStrin
 #if ENABLE(CONTENT_EXTENSIONS)
     if (firstFrame->document()
         && firstFrame->mainFrame().page()
-        && firstFrame->mainFrame().page()->userContentController()
         && firstFrame->mainFrame().document()
         && firstFrame->mainFrame().document()->loader()) {
-        ResourceLoadInfo resourceLoadInfo = {firstFrame->document()->completeURL(urlString), firstFrame->mainFrame().document()->url(), ResourceType::Popup};
-        Vector<ContentExtensions::Action> actions = firstFrame->mainFrame().page()->userContentController()->actionsForResourceLoad(resourceLoadInfo, *firstFrame->mainFrame().document()->loader());
+        ResourceLoadInfo resourceLoadInfo = { firstFrame->document()->completeURL(urlString), firstFrame->mainFrame().document()->url(), ResourceType::Popup };
+        Vector<ContentExtensions::Action> actions = firstFrame->mainFrame().page()->userContentProvider().actionsForResourceLoad(resourceLoadInfo, *firstFrame->mainFrame().document()->loader());
         for (const ContentExtensions::Action& action : actions) {
             if (action.type() == ContentExtensions::ActionType::BlockLoad)
                 return nullptr;
@@ -2240,7 +2231,7 @@ void DOMWindow::showModalDialog(const String& urlString, const String& dialogFea
         return;
     }
 
-    if (!canShowModalDialogNow(m_frame) || !firstWindow.allowPopUp())
+    if (!canShowModalDialog(m_frame) || !firstWindow.allowPopUp())
         return;
 
     RefPtr<Frame> dialogFrame = createWindow(urlString, emptyAtom, parseDialogFeatures(dialogFeaturesString, screenAvailableRect(m_frame->view())), activeWindow, *firstFrame, *m_frame, WTFMove(prepareDialogFunction));

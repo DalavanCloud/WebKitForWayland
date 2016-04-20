@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2011, 2012 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -72,6 +72,8 @@ struct WebProcessCreationParameters {
     SandboxExtension::Handle applicationCacheDirectoryExtensionHandle;
     String webSQLDatabaseDirectory;
     SandboxExtension::Handle webSQLDatabaseDirectoryExtensionHandle;
+    String mediaCacheDirectory;
+    SandboxExtension::Handle mediaCacheDirectoryExtensionHandle;
 #if ENABLE(SECCOMP_FILTERS)
     String cookieStorageDirectory;
 #endif
@@ -105,12 +107,13 @@ struct WebProcessCreationParameters {
 
     bool shouldAlwaysUseComplexTextCodePath;
     bool shouldEnableMemoryPressureReliefLogging;
+    bool shouldSuppressMemoryPressureHandler { false };
     bool shouldUseFontSmoothing;
+    bool resourceLoadStatisticsEnabled { false };
 
     Vector<String> fontWhitelist;
 
     bool iconDatabaseEnabled;
-    bool shouldRewriteConstAsVar { false };
 
     double terminationTimeout;
 
@@ -142,10 +145,6 @@ struct WebProcessCreationParameters {
     RefPtr<API::Data> bundleParameterData;
 
 #endif // PLATFORM(COCOA)
-
-#if PLATFORM(MAC)
-    bool shouldEnableTabSuspension;
-#endif
 
 #if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     HashMap<String, bool> notificationPermissions;

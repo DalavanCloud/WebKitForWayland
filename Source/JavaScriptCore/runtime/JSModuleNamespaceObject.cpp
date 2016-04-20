@@ -49,8 +49,9 @@ JSModuleNamespaceObject::JSModuleNamespaceObject(VM& vm, Structure* structure)
 {
 }
 
-void JSModuleNamespaceObject::finishCreation(VM& vm, JSGlobalObject* globalObject, JSModuleRecord* moduleRecord, const IdentifierSet& exports)
+void JSModuleNamespaceObject::finishCreation(ExecState* exec, JSGlobalObject* globalObject, JSModuleRecord* moduleRecord, const IdentifierSet& exports)
 {
+    VM& vm = exec->vm();
     Base::finishCreation(vm);
     ASSERT(inherits(info()));
 
@@ -78,7 +79,8 @@ void JSModuleNamespaceObject::finishCreation(VM& vm, JSGlobalObject* globalObjec
     // http://www.ecma-international.org/ecma-262/6.0/#sec-module-namespace-exotic-objects-setprototypeof-v
     // http://www.ecma-international.org/ecma-262/6.0/#sec-module-namespace-exotic-objects-isextensible
     // http://www.ecma-international.org/ecma-262/6.0/#sec-module-namespace-exotic-objects-preventextensions
-    preventExtensions(vm);
+    methodTable(vm)->preventExtensions(this, exec);
+    ASSERT(!exec->hadException());
 }
 
 void JSModuleNamespaceObject::destroy(JSCell* cell)
@@ -106,7 +108,7 @@ static EncodedJSValue callbackGetter(ExecState* exec, EncodedJSValue thisValue, 
     JSModuleRecord* targetModule = resolution.moduleRecord;
     JSModuleEnvironment* targetEnvironment = targetModule->moduleEnvironment();
 
-    PropertySlot trampolineSlot(targetEnvironment);
+    PropertySlot trampolineSlot(targetEnvironment, PropertySlot::InternalMethodType::Get);
     if (!targetEnvironment->methodTable(exec->vm())->getOwnPropertySlot(targetEnvironment, exec, resolution.localName, trampolineSlot))
         return JSValue::encode(jsUndefined());
 
@@ -149,17 +151,19 @@ bool JSModuleNamespaceObject::getOwnPropertySlot(JSObject* cell, ExecState* exec
     return true;
 }
 
-void JSModuleNamespaceObject::put(JSCell*, ExecState* exec, PropertyName, JSValue, PutPropertySlot& slot)
+bool JSModuleNamespaceObject::put(JSCell*, ExecState* exec, PropertyName, JSValue, PutPropertySlot& slot)
 {
     // http://www.ecma-international.org/ecma-262/6.0/#sec-module-namespace-exotic-objects-set-p-v-receiver
     if (slot.isStrictMode())
         throwTypeError(exec, ASCIILiteral(StrictModeReadonlyPropertyWriteError));
+    return false;
 }
 
-void JSModuleNamespaceObject::putByIndex(JSCell*, ExecState* exec, unsigned, JSValue, bool shouldThrow)
+bool JSModuleNamespaceObject::putByIndex(JSCell*, ExecState* exec, unsigned, JSValue, bool shouldThrow)
 {
     if (shouldThrow)
         throwTypeError(exec, ASCIILiteral(StrictModeReadonlyPropertyWriteError));
+    return false;
 }
 
 bool JSModuleNamespaceObject::deleteProperty(JSCell* cell, ExecState*, PropertyName propertyName)

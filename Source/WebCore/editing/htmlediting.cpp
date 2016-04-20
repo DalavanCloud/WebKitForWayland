@@ -795,15 +795,6 @@ bool canMergeLists(Element* firstList, Element* secondList)
     // Make sure there is no visible content between this li and the previous list
 }
 
-Node* highestAncestor(Node* node)
-{
-    ASSERT(node);
-    Node* parent = node;
-    while ((node = node->parentNode()))
-        parent = node;
-    return parent;
-}
-
 static Node* previousNodeConsideringAtomicNodes(const Node* node)
 {
     if (node->previousSibling()) {
@@ -921,17 +912,17 @@ Ref<HTMLElement> createBreakElement(Document& document)
     return HTMLBRElement::create(document);
 }
 
-PassRefPtr<HTMLElement> createOrderedListElement(Document& document)
+Ref<HTMLElement> createOrderedListElement(Document& document)
 {
     return HTMLOListElement::create(document);
 }
 
-PassRefPtr<HTMLElement> createUnorderedListElement(Document& document)
+Ref<HTMLElement> createUnorderedListElement(Document& document)
 {
     return HTMLUListElement::create(document);
 }
 
-PassRefPtr<HTMLElement> createListItemElement(Document& document)
+Ref<HTMLElement> createListItemElement(Document& document)
 {
     return HTMLLIElement::create(document);
 }
@@ -975,12 +966,10 @@ Position positionOutsideTabSpan(const Position& pos)
     return positionInParentBeforeNode(node);
 }
 
-Ref<Element> createTabSpanElement(Document& document, PassRefPtr<Node> prpTabTextNode)
+Ref<Element> createTabSpanElement(Document& document, RefPtr<Node>&& tabTextNode)
 {
-    RefPtr<Node> tabTextNode = prpTabTextNode;
-
     // Make the span to hold the tab.
-    RefPtr<Element> spanElement = document.createElement(spanTag, false);
+    Ref<Element> spanElement = document.createElement(spanTag, false);
     spanElement->setAttribute(classAttr, AppleTabSpanClass);
     spanElement->setAttribute(styleAttr, "white-space:pre");
 
@@ -990,7 +979,7 @@ Ref<Element> createTabSpanElement(Document& document, PassRefPtr<Node> prpTabTex
 
     spanElement->appendChild(tabTextNode.releaseNonNull(), ASSERT_NO_EXCEPTION);
 
-    return spanElement.releaseNonNull();
+    return spanElement;
 }
 
 Ref<Element> createTabSpanElement(Document& document, const String& tabText)
@@ -1000,7 +989,7 @@ Ref<Element> createTabSpanElement(Document& document, const String& tabText)
 
 Ref<Element> createTabSpanElement(Document& document)
 {
-    return createTabSpanElement(document, PassRefPtr<Node>());
+    return createTabSpanElement(document, RefPtr<Node>());
 }
 
 bool isNodeRendered(const Node* node)
@@ -1329,9 +1318,14 @@ LayoutRect localCaretRectInRendererForCaretPainting(const VisiblePosition& caret
     RenderObject* renderer;
     LayoutRect localRect = caretPosition.localCaretRect(renderer);
 
+    return localCaretRectInRendererForRect(localRect, caretPosition.deepEquivalent().deprecatedNode(), renderer, caretPainter);
+}
+
+LayoutRect localCaretRectInRendererForRect(LayoutRect& localRect, Node* node, RenderObject* renderer, RenderBlock*& caretPainter)
+{
     // Get the renderer that will be responsible for painting the caret
     // (which is either the renderer we just found, or one of its containers).
-    caretPainter = rendererForCaretPainting(caretPosition.deepEquivalent().deprecatedNode());
+    caretPainter = rendererForCaretPainting(node);
 
     // Compute an offset between the renderer and the caretPainter.
     while (renderer != caretPainter) {

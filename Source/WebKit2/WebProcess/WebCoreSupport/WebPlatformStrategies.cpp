@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2011, 2012, 2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2010, 2011, 2012, 2015, 2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -40,7 +40,6 @@
 #include "WebErrors.h"
 #include "WebFrame.h"
 #include "WebFrameLoaderClient.h"
-#include "WebIDBFactoryBackend.h"
 #include "WebLoaderStrategy.h"
 #include "WebPage.h"
 #include "WebPasteboardOverrides.h"
@@ -50,7 +49,6 @@
 #include <WebCore/Color.h>
 #include <WebCore/Document.h>
 #include <WebCore/DocumentLoader.h>
-#include <WebCore/IDBFactoryBackendInterface.h>
 #include <WebCore/LoaderStrategy.h>
 #include <WebCore/MainFrame.h>
 #include <WebCore/NetworkStorageSession.h>
@@ -155,6 +153,11 @@ bool WebPlatformStrategies::getRawCookies(const NetworkStorageSession& session, 
 void WebPlatformStrategies::deleteCookie(const NetworkStorageSession& session, const URL& url, const String& cookieName)
 {
     WebProcess::singleton().networkConnection()->connection()->send(Messages::NetworkConnectionToWebProcess::DeleteCookie(SessionTracker::sessionID(session), url, cookieName), 0);
+}
+
+void WebPlatformStrategies::addCookie(const NetworkStorageSession& session, const URL& url, const Cookie& cookie)
+{
+    WebProcess::singleton().networkConnection()->connection()->send(Messages::NetworkConnectionToWebProcess::AddCookie(SessionTracker::sessionID(session), url, cookie), 0);
 }
 
 // PluginStrategy
@@ -366,7 +369,7 @@ void WebPlatformStrategies::getTypes(Vector<String>& types, const String& pasteb
     WebProcess::singleton().parentProcessConnection()->sendSync(Messages::WebPasteboardProxy::GetPasteboardTypes(pasteboardName), Messages::WebPasteboardProxy::GetPasteboardTypes::Reply(types), 0);
 }
 
-PassRefPtr<WebCore::SharedBuffer> WebPlatformStrategies::bufferForType(const String& pasteboardType, const String& pasteboardName)
+RefPtr<WebCore::SharedBuffer> WebPlatformStrategies::bufferForType(const String& pasteboardType, const String& pasteboardName)
 {
     // First check the overrides.
     Vector<char> overrideBuffer;
@@ -378,7 +381,7 @@ PassRefPtr<WebCore::SharedBuffer> WebPlatformStrategies::bufferForType(const Str
     uint64_t size = 0;
     WebProcess::singleton().parentProcessConnection()->sendSync(Messages::WebPasteboardProxy::GetPasteboardBufferForType(pasteboardName, pasteboardType), Messages::WebPasteboardProxy::GetPasteboardBufferForType::Reply(handle, size), 0);
     if (handle.isNull())
-        return 0;
+        return nullptr;
     RefPtr<SharedMemory> sharedMemoryBuffer = SharedMemory::map(handle, SharedMemory::Protection::ReadOnly);
     return SharedBuffer::create(static_cast<unsigned char *>(sharedMemoryBuffer->data()), size);
 }
@@ -498,13 +501,13 @@ int WebPlatformStrategies::getPasteboardItemsCount()
     return itemsCount;
 }
 
-PassRefPtr<WebCore::SharedBuffer> WebPlatformStrategies::readBufferFromPasteboard(int index, const String& pasteboardType)
+RefPtr<WebCore::SharedBuffer> WebPlatformStrategies::readBufferFromPasteboard(int index, const String& pasteboardType)
 {
     SharedMemory::Handle handle;
     uint64_t size = 0;
     WebProcess::singleton().parentProcessConnection()->sendSync(Messages::WebPasteboardProxy::ReadBufferFromPasteboard(index, pasteboardType), Messages::WebPasteboardProxy::ReadBufferFromPasteboard::Reply(handle, size), 0);
     if (handle.isNull())
-        return 0;
+        return nullptr;
     RefPtr<SharedMemory> sharedMemoryBuffer = SharedMemory::map(handle, SharedMemory::Protection::ReadOnly);
     return SharedBuffer::create(static_cast<unsigned char *>(sharedMemoryBuffer->data()), size);
 }

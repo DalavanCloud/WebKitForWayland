@@ -104,6 +104,8 @@ static EncodedJSValue JSC_HOST_CALL constructPromise(ExecState* exec)
         return throwVMTypeError(exec);
 
     Structure* promiseStructure = InternalFunction::createSubclassStructure(exec, exec->newTarget(), globalObject->promiseStructure());
+    if (exec->hadException())
+        return JSValue::encode(JSValue());
     JSPromise* promise = JSPromise::create(vm, promiseStructure);
     promise->initialize(exec, globalObject, exec->argument(0));
 
@@ -112,13 +114,13 @@ static EncodedJSValue JSC_HOST_CALL constructPromise(ExecState* exec)
 
 static EncodedJSValue JSC_HOST_CALL callPromise(ExecState* exec)
 {
-    return throwVMTypeError(exec);
+    return JSValue::encode(throwConstructorCannotBeCalledAsFunctionTypeError(exec, "Promise"));
 }
 
 ConstructType JSPromiseConstructor::getConstructData(JSCell*, ConstructData& constructData)
 {
     constructData.native.function = constructPromise;
-    return ConstructTypeHost;
+    return ConstructType::Host;
 }
 
 CallType JSPromiseConstructor::getCallData(JSCell*, CallData& callData)
@@ -128,7 +130,7 @@ CallType JSPromiseConstructor::getCallData(JSCell*, CallData& callData)
     // returns "object", we need to define [[Call]] for now.
     // https://bugs.webkit.org/show_bug.cgi?id=144093
     callData.native.function = callPromise;
-    return CallTypeHost;
+    return CallType::Host;
 }
 
 bool JSPromiseConstructor::getOwnPropertySlot(JSObject* object, ExecState* exec, PropertyName propertyName, PropertySlot& slot)

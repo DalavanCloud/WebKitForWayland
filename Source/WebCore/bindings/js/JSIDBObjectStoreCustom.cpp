@@ -45,6 +45,11 @@ using namespace JSC;
 
 namespace WebCore {
 
+void JSIDBObjectStore::visitAdditionalChildren(SlotVisitor& visitor)
+{
+    static_cast<IDBObjectStore&>(wrapped()).visitReferencedIndexes(visitor);
+}
+
 static JSValue putOrAdd(JSC::ExecState& state, bool overwrite)
 {
     JSValue thisValue = state.thisValue();
@@ -143,7 +148,7 @@ JSValue JSIDBObjectStore::createIndex(ExecState& state)
     }
 
     ExceptionCodeWithMessage ec;
-    JSValue result = toJS(&state, globalObject(), wrapped().createIndex(context, name, keyPath, unique, multiEntry, ec).get());
+    JSValue result = toJS(&state, globalObject(), wrapped().createIndex(*context, name, keyPath, unique, multiEntry, ec).get());
     setDOMException(&state, ec);
     return result;
 }

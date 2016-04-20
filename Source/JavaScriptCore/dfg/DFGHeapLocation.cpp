@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014, 2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -92,10 +92,6 @@ void printInternal(PrintStream& out, LocationKind kind)
         out.print("ButterflyLoc");
         return;
         
-    case ButterflyReadOnlyLoc:
-        out.print("ButterflyReadOnlyLoc");
-        return;
-
     case CheckTypeInfoFlagsLoc:
         out.print("CheckTypeInfoFlagsLoc");
         return;
@@ -146,6 +142,10 @@ void printInternal(PrintStream& out, LocationKind kind)
         
     case StructureLoc:
         out.print("StructureLoc");
+        return;
+
+    case RegExpObjectLastIndexLoc:
+        out.print("RegExpObjectLastIndexLoc");
         return;
     }
     

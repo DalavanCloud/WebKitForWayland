@@ -1,24 +1,29 @@
+'use strict';
 
 class CommitLog extends DataModelObject {
-    constructor(id, repository, rawData)
+    constructor(id, rawData)
     {
+        console.assert(parseInt(id) == id);
         super(id);
-        this._repository = repository;
+        this._repository = rawData.repository;
+        console.assert(this._repository instanceof Repository);
         this._rawData = rawData;
+        this._remoteId = rawData.id;
+        if (this._remoteId)
+            this.ensureNamedStaticMap('remoteId')[this._remoteId] = this;
     }
 
-    static ensureSingleton(repository, rawData)
+    updateSingleton(rawData)
     {
-        var id = repository.id() + '-' + rawData['revision'];
-        var singleton = this.findById(id);
-        if (singleton) {
-            if (rawData.authorName)
-                singleton._rawData.authorName = rawData.authorName;
-            if (rawData.message)
-                singleton._rawData.message = rawData.message;
-            return singleton;
-        }
-        return new CommitLog(id, repository, rawData);
+        super.updateSingleton(rawData);
+
+        console.assert(+this._rawData['time'] == +rawData['time']);
+        console.assert(this._rawData['revision'] == rawData['revision']);
+
+        if (rawData.authorName)
+            this._rawData.authorName = rawData.authorName;
+        if (rawData.message)
+            this._rawData.message = rawData.message;
     }
 
     repository() { return this._repository; }
@@ -39,6 +44,29 @@ class CommitLog extends DataModelObject {
     }
     title() { return this._repository.name() + ' at ' + this.label(); }
 
+    diff(previousCommit)
+    {
+        if (this == previousCommit)
+            previousCommit = null;
+
+        var repository = this._repository;
+        if (!previousCommit)
+            return {from: null, to: this.revision(), repository: repository, label: this.label(), url: this.url()};
+
+        var to = this.revision();
+        var from = previousCommit.revision();
+        var label = null;
+        if (parseInt(to) == to) { // e.g. r12345.
+            from = parseInt(from) + 1;
+            label = `r${from}-r${this.revision()}`;
+        } else if (to.length == 40) { // e.g. git hash
+            label = `${from}..${to}`;
+        } else
+            label = `${from} - ${to}`;
+
+        return {from: from, to: to, repository: repository, label: label, url: repository.urlForRevisionRange(from, to)};
+    }
+
     static fetchBetweenRevisions(repository, from, to)
     {
         var params = [];
@@ -57,8 +85,11 @@ class CommitLog extends DataModelObject {
             return new Promise(function (resolve) { resolve(cachedLogs); });
 
         var self = this;
-        return getJSONWithStatus(url).then(function (data) {
-            var commits = data['commits'].map(function (rawData) { return CommitLog.ensureSingleton(repository, rawData); });
+        return RemoteAPI.getJSONWithStatus(url).then(function (data) {
+            var commits = data['commits'].map(function (rawData) {
+                rawData.repository = repository;
+                return CommitLog.ensureSingleton(rawData.id, rawData);
+            });
             self._cacheCommitLogs(repository, from, to, commits);
             return commits;
         });
@@ -84,3 +115,6 @@ class CommitLog extends DataModelObject {
         this._caches[repository.id()][from + '|' + to] = logs;
     }
 }
+
+if (typeof module != 'undefined')
+    module.exports.CommitLog = CommitLog;

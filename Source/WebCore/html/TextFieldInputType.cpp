@@ -42,6 +42,7 @@
 #include "HTMLInputElement.h"
 #include "HTMLNames.h"
 #include "KeyboardEvent.h"
+#include "LocalizedStrings.h"
 #include "NodeRenderStyle.h"
 #include "Page.h"
 #include "PlatformKeyboardEvent.h"
@@ -399,6 +400,20 @@ static String limitLength(const String& string, int maxLength)
     return string.left(newLength);
 }
 
+static String autoFillButtonTypeToAccessibilityLabel(AutoFillButtonType autoFillButtonType)
+{
+    switch (autoFillButtonType) {
+    case AutoFillButtonType::Contacts:
+        return AXAutoFillContactsLabel();
+    case AutoFillButtonType::Credentials:
+        return AXAutoFillCredentialsLabel();
+    default:
+    case AutoFillButtonType::None:
+        ASSERT_NOT_REACHED();
+        return AtomicString();
+    }
+}
+    
 static AtomicString autoFillButtonTypeToAutoFillButtonPseudoClassName(AutoFillButtonType autoFillButtonType)
 {
     AtomicString pseudoClassName;
@@ -430,7 +445,7 @@ static bool isAutoFillButtonTypeChanged(const AtomicString& attribute, AutoFillB
 
 String TextFieldInputType::sanitizeValue(const String& proposedValue) const
 {
-    return limitLength(proposedValue.removeCharacters(isASCIILineBreak), HTMLInputElement::maximumLength);
+    return limitLength(proposedValue.removeCharacters(isASCIILineBreak), HTMLInputElement::maxEffectiveLength);
 }
 
 void TextFieldInputType::handleBeforeTextInsertedEvent(BeforeTextInsertedEvent* event)
@@ -460,7 +475,7 @@ void TextFieldInputType::handleBeforeTextInsertedEvent(BeforeTextInsertedEvent* 
 
     // Selected characters will be removed by the next text event.
     unsigned baseLength = oldLength - selectionLength;
-    unsigned maxLength = static_cast<unsigned>(isTextType() ? element().maxLength() : HTMLInputElement::maximumLength); // maxLength can never be negative.
+    unsigned maxLength = isTextType() ? element().effectiveMaxLength() : HTMLInputElement::maxEffectiveLength;
     unsigned appendableLength = maxLength > baseLength ? maxLength - baseLength : 0;
 
     // Truncate the inserted text to avoid violating the maxLength and other constraints.
@@ -494,11 +509,8 @@ void TextFieldInputType::updatePlaceholderText()
         return;
     }
     if (!m_placeholder) {
-        m_placeholder = HTMLDivElement::create(element().document());
-        m_placeholder->setPseudo(AtomicString("-webkit-input-placeholder", AtomicString::ConstructFromLiteral));
-        m_placeholder->setInlineStyleProperty(CSSPropertyDisplay, element().isPlaceholderVisible() ? CSSValueBlock : CSSValueNone, true);
-        element().userAgentShadowRoot()->insertBefore(*m_placeholder, m_container ? m_container.get() : innerTextElement(), ASSERT_NO_EXCEPTION);
-        
+        m_placeholder = TextControlPlaceholderElement::create(element().document());
+        element().userAgentShadowRoot()->insertBefore(*m_placeholder, m_container ? m_container.get() : innerTextElement(), ASSERT_NO_EXCEPTION);        
     }
     m_placeholder->setInnerText(placeholderText, ASSERT_NO_EXCEPTION);
 }
@@ -651,6 +663,8 @@ void TextFieldInputType::createAutoFillButton(AutoFillButtonType autoFillButtonT
 
     m_autoFillButton = AutoFillButtonElement::create(element().document(), *this);
     m_autoFillButton->setPseudo(autoFillButtonTypeToAutoFillButtonPseudoClassName(autoFillButtonType));
+    m_autoFillButton->setAttribute(roleAttr, "button");
+    m_autoFillButton->setAttribute(aria_labelAttr, autoFillButtonTypeToAccessibilityLabel(autoFillButtonType));
     m_container->appendChild(*m_autoFillButton, IGNORE_EXCEPTION);
 }
 
@@ -665,9 +679,10 @@ void TextFieldInputType::updateAutoFillButton()
 
         const AtomicString& attribute = m_autoFillButton->fastGetAttribute(pseudoAttr);
         bool shouldUpdateAutoFillButtonType = isAutoFillButtonTypeChanged(attribute, element().autoFillButtonType());
-        if (shouldUpdateAutoFillButtonType)
+        if (shouldUpdateAutoFillButtonType) {
             m_autoFillButton->setPseudo(autoFillButtonTypeToAutoFillButtonPseudoClassName(element().autoFillButtonType()));
-
+            m_autoFillButton->setAttribute(aria_labelAttr, autoFillButtonTypeToAccessibilityLabel(element().autoFillButtonType()));
+        }
         m_autoFillButton->setInlineStyleProperty(CSSPropertyDisplay, CSSValueBlock, true);
         return;
     }

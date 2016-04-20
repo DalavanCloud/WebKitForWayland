@@ -28,8 +28,9 @@
 
 #if ENABLE(INDEXED_DATABASE)
 
+#include "IDBDatabase.h"
 #include "IDBKeyRangeData.h"
-#include "IDBOpenDBRequestImpl.h"
+#include "IDBOpenDBRequest.h"
 #include "IDBRequestData.h"
 #include "IDBResultData.h"
 #include "Logging.h"
@@ -76,7 +77,7 @@ void IDBConnectionToServer::didDeleteDatabase(const IDBResultData& resultData)
 
 void IDBConnectionToServer::openDatabase(IDBOpenDBRequest& request)
 {
-    LOG(IndexedDB, "IDBConnectionToServer::openDatabase - %s", request.databaseIdentifier().debugString().utf8().data());
+    LOG(IndexedDB, "IDBConnectionToServer::openDatabase - %s (%" PRIu64 ")", request.databaseIdentifier().debugString().utf8().data(), request.version());
 
     ASSERT(!m_openDBRequestMap.contains(request.resourceIdentifier()));
     m_openDBRequestMap.set(request.resourceIdentifier(), &request);
@@ -170,12 +171,12 @@ void IDBConnectionToServer::didDeleteIndex(const IDBResultData& resultData)
     completeOperation(resultData);
 }
 
-void IDBConnectionToServer::putOrAdd(TransactionOperation& operation, RefPtr<IDBKey>& key, RefPtr<SerializedScriptValue>& value, const IndexedDB::ObjectStoreOverwriteMode overwriteMode)
+void IDBConnectionToServer::putOrAdd(TransactionOperation& operation, IDBKey* key, const IDBValue& value, const IndexedDB::ObjectStoreOverwriteMode overwriteMode)
 {
     LOG(IndexedDB, "IDBConnectionToServer::putOrAdd");
 
     saveOperation(operation);
-    m_delegate->putOrAdd(IDBRequestData(operation), key.get(), *value, overwriteMode);
+    m_delegate->putOrAdd(IDBRequestData(operation), key, value, overwriteMode);
 }
 
 void IDBConnectionToServer::didPutOrAdd(const IDBResultData& resultData)

@@ -31,18 +31,24 @@ WebInspector.MemoryTimelineOverviewGraph = class MemoryTimelineOverviewGraph ext
 
         this.element.classList.add("memory");
 
+        console.assert(timeline instanceof WebInspector.MemoryTimeline);
+
         this._memoryTimeline = timeline;
         this._memoryTimeline.addEventListener(WebInspector.Timeline.Event.RecordAdded, this._memoryTimelineRecordAdded, this);
+        this._memoryTimeline.addEventListener(WebInspector.MemoryTimeline.Event.MemoryPressureEventAdded, this._memoryTimelineMemoryPressureEventAdded, this)
 
         this._didInitializeCategories = false;
 
         let size = new WebInspector.Size(0, this.height);
         this._chart = new WebInspector.StackedLineChart(size);
-
         this.element.appendChild(this._chart.element);
 
         this._legendElement = this.element.appendChild(document.createElement("div"));
         this._legendElement.classList.add("legend");
+
+        this._memoryPressureMarkersContainerElement = this.element.appendChild(document.createElement("div"));
+        this._memoryPressureMarkersContainerElement.classList.add("memory-pressure-markers-container");
+        this._memoryPressureMarkerElements = [];
 
         this.reset();
     }
@@ -59,14 +65,21 @@ WebInspector.MemoryTimelineOverviewGraph = class MemoryTimelineOverviewGraph ext
         super.reset();
 
         this._maxSize = 0;
+        this._cachedMaxSize = undefined;
 
         this._updateLegend();
         this._chart.clear();
         this._chart.needsLayout();
+
+        this._memoryPressureMarkersContainerElement.removeChildren();
+        this._memoryPressureMarkerElements = [];
     }
 
     layout()
     {
+        if (!this.visible)
+            return;
+
         this._updateLegend();
         this._chart.clear();
 
@@ -85,10 +98,6 @@ WebInspector.MemoryTimelineOverviewGraph = class MemoryTimelineOverviewGraph ext
         let graphCurrentTime = this.currentTime;
         let visibleEndTime = Math.min(this.endTime, this.currentTime);
 
-        let visibleRecords = this._visibleRecords(graphStartTime, visibleEndTime);
-        if (!visibleRecords.length)
-            return;
-
         let secondsPerPixel = this.timelineOverview.secondsPerPixel;
         let maxCapacity = this._maxSize * 1.05; // Add 5% for padding.
 
@@ -100,6 +109,33 @@ WebInspector.MemoryTimelineOverviewGraph = class MemoryTimelineOverviewGraph ext
         function yScale(size) {
             return height - ((size / maxCapacity) * height);
         }
+
+        let visibleMemoryPressureEventMarkers = this._visibleMemoryPressureEvents(graphStartTime, visibleEndTime);
+
+        // Reuse existing marker elements.
+        for (let i = 0; i < visibleMemoryPressureEventMarkers.length; ++i) {
+            let markerElement = this._memoryPressureMarkerElements[i];
+            if (!markerElement) {
+                markerElement = this._memoryPressureMarkersContainerElement.appendChild(document.createElement("div"));
+                markerElement.classList.add("memory-pressure-event");
+                this._memoryPressureMarkerElements[i] = markerElement;
+            }
+
+            let memoryPressureEvent = visibleMemoryPressureEventMarkers[i];
+            markerElement.style.left = xScale(memoryPressureEvent.timestamp) + "px";
+        }
+
+        // Remove excess marker elements.
+        let excess = this._memoryPressureMarkerElements.length - visibleMemoryPressureEventMarkers.length;
+        if (excess) {
+            let elementsToRemove = this._memoryPressureMarkerElements.splice(visibleMemoryPressureEventMarkers.length);
+            for (let element of elementsToRemove)
+                element.remove();
+        }
+
+        let visibleRecords = this._visibleRecords(graphStartTime, visibleEndTime);
+        if (!visibleRecords.length)
+            return;
 
         function pointSetForRecord(record) {
             let size = 0;
@@ -133,6 +169,11 @@ WebInspector.MemoryTimelineOverviewGraph = class MemoryTimelineOverviewGraph ext
 
     _updateLegend()
     {
+        if (this._cachedMaxSize === this._maxSize)
+            return;
+
+        this._cachedMaxSize = this._maxSize;
+
         if (!this._maxSize) {
             this._legendElement.hidden = true;
             this._legendElement.textContent = "";
@@ -140,6 +181,17 @@ WebInspector.MemoryTimelineOverviewGraph = class MemoryTimelineOverviewGraph ext
             this._legendElement.hidden = false;
             this._legendElement.textContent = WebInspector.UIString("Maximum Size: %s").format(Number.bytesToString(this._maxSize));
         }
+    }
+
+    _visibleMemoryPressureEvents(startTime, endTime)
+    {
+        let events = this._memoryTimeline.memoryPressureEvents;
+        if (!events.length)
+            return [];
+
+        let lowerIndex = events.lowerBound(startTime, (time, event) => time - event.timestamp);
+        let upperIndex = events.upperBound(endTime, (time, event) => time - event.timestamp);
+        return events.slice(lowerIndex, upperIndex);
     }
 
     _visibleRecords(startTime, endTime)
@@ -172,6 +224,11 @@ WebInspector.MemoryTimelineOverviewGraph = class MemoryTimelineOverviewGraph ext
             this._chart.initializeSections(types);
         }
 
+        this.needsLayout();
+    }
+
+    _memoryTimelineMemoryPressureEventAdded(event)
+    {
         this.needsLayout();
     }
 };

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,9 +26,35 @@
 #ifndef BAssert_h
 #define BAssert_h
 
+#include "BPlatform.h"
+
+#if defined(NDEBUG) && BOS(DARWIN)
+
+#if BCPU(X86_64) || BCPU(X86)
+#define BBreakpointTrap()  __asm__ volatile ("int3")
+#elif BCPU(ARM_THUMB2)
+#define BBreakpointTrap()  __asm__ volatile ("bkpt #0")
+#elif BCPU(ARM64)
+#define BBreakpointTrap()  __asm__ volatile ("brk #0")
+#else
+#error "Unsupported CPU".
+#endif
+
+// Crash with a SIGTRAP i.e EXC_BREAKPOINT.
+// We are not using __builtin_trap because it is only guaranteed to abort, but not necessarily
+// trigger a SIGTRAP. Instead, we use inline asm to ensure that we trigger the SIGTRAP.
+#define BCRASH() do { \
+        BBreakpointTrap(); \
+        __builtin_unreachable(); \
+    } while (false)
+
+#else // not defined(NDEBUG) && BOS(DARWIN)
+
 #define BCRASH() do { \
     *(int*)0xbbadbeef = 0; \
 } while (0);
+
+#endif // defined(NDEBUG) && BOS(DARWIN)
 
 #define BASSERT_IMPL(x) do { \
     if (!(x)) \
@@ -36,6 +62,9 @@
 } while (0);
 
 #define RELEASE_BASSERT(x) BASSERT_IMPL(x)
+
+// FIXME: Implement logging: <https://webkit.org/b/155992>
+#define RELEASE_BASSERT_WITH_MESSAGE(x, f, ...) BASSERT_IMPL(x)
 
 #define UNUSED(x) (void)x
 

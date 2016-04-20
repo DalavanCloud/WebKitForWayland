@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2009 Alex Milowski (alex@milowski.com). All rights reserved.
  * Copyright (C) 2010 François Sausset (sausset@gmail.com). All rights reserved.
+ * Copyright (C) 2016 Igalia S.L.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -39,23 +40,39 @@ public:
     RenderMathMLFraction(MathMLInlineContainerElement&, Ref<RenderStyle>&&);
 
     MathMLInlineContainerElement& element() { return static_cast<MathMLInlineContainerElement&>(nodeForNonAnonymous()); }
-    float lineThickness() const { return m_lineThickness; }
+    float relativeLineThickness() const { return m_defaultLineThickness ? m_lineThickness / m_defaultLineThickness : LayoutUnit(0); }
+
+    void layoutBlock(bool relayoutChildren, LayoutUnit pageLogicalHeight = 0) final;
+    void paintChildren(PaintInfo& forSelf, const LayoutPoint&, PaintInfo& forChild, bool usePrintRect) final;
+
+protected:
+    void computePreferredLogicalWidths() final;
 
 private:
-    virtual bool isRenderMathMLFraction() const override { return true; }
-    virtual const char* renderName() const override { return "RenderMathMLFraction"; }
+    bool isRenderMathMLFraction() const final { return true; }
+    const char* renderName() const final { return "RenderMathMLFraction"; }
 
-    virtual void addChild(RenderObject* child, RenderObject* beforeChild) override;
-    virtual void updateFromElement() override;
-    virtual Optional<int> firstLineBaseline() const override;
-    virtual void paint(PaintInfo&, const LayoutPoint&) override;
-    virtual RenderMathMLOperator* unembellishedOperator() override;
-    virtual void layout() override;
-    virtual void styleDidChange(StyleDifference, const RenderStyle* oldStyle) override;
-
-    void fixChildStyle(RenderObject*);
+    void updateFromElement() final;
+    Optional<int> firstLineBaseline() const final;
+    void paint(PaintInfo&, const LayoutPoint&) final;
+    RenderMathMLOperator* unembellishedOperator() final;
+    void styleDidChange(StyleDifference, const RenderStyle* oldStyle) final;
     
+    bool isValid() const;
+    RenderBox& numerator() const;
+    RenderBox& denominator() const;
+    enum FractionAlignment {
+        FractionAlignmentCenter,
+        FractionAlignmentLeft,
+        FractionAlignmentRight
+    };
+    FractionAlignment parseAlignmentAttribute(const String& value);
+    LayoutUnit horizontalOffset(RenderBox&, FractionAlignment);
+
+    LayoutUnit m_defaultLineThickness;
     LayoutUnit m_lineThickness;
+    FractionAlignment m_numeratorAlign;
+    FractionAlignment m_denominatorAlign;
 };
 
 } // namespace WebCore

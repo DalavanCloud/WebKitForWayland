@@ -30,6 +30,7 @@
 #include "CodeSpecializationKind.h"
 #include "ExceptionHelpers.h"
 #include "JSStackInlines.h"
+#include "SlowPathReturnType.h"
 #include "StackAlignment.h"
 #include "Symbol.h"
 #include "VM.h"
@@ -99,18 +100,19 @@ inline void tryCachePutToScopeGlobal(
         return;
 
     if (resolveType == UnresolvedProperty || resolveType == UnresolvedPropertyWithVarInjectionChecks) {
-        if (JSGlobalLexicalEnvironment* globalLexicalEnvironment = jsDynamicCast<JSGlobalLexicalEnvironment*>(scope)) {
+        if (scope->isGlobalObject()) {
+            ResolveType newResolveType = resolveType == UnresolvedProperty ? GlobalProperty : GlobalPropertyWithVarInjectionChecks;
+            resolveType = newResolveType;
+            getPutInfo = GetPutInfo(getPutInfo.resolveMode(), newResolveType, getPutInfo.initializationMode());
+            pc[4].u.operand = getPutInfo.operand();
+        } else if (scope->isGlobalLexicalEnvironment()) {
+            JSGlobalLexicalEnvironment* globalLexicalEnvironment = jsCast<JSGlobalLexicalEnvironment*>(scope);
             ResolveType newResolveType = resolveType == UnresolvedProperty ? GlobalLexicalVar : GlobalLexicalVarWithVarInjectionChecks;
             pc[4].u.operand = GetPutInfo(getPutInfo.resolveMode(), newResolveType, getPutInfo.initializationMode()).operand();
             SymbolTableEntry entry = globalLexicalEnvironment->symbolTable()->get(ident.impl());
             ASSERT(!entry.isNull());
             pc[5].u.watchpointSet = entry.watchpointSet();
             pc[6].u.pointer = static_cast<void*>(globalLexicalEnvironment->variableAt(entry.scopeOffset()).slot());
-        } else if (jsDynamicCast<JSGlobalObject*>(scope)) {
-            ResolveType newResolveType = resolveType == UnresolvedProperty ? GlobalProperty : GlobalPropertyWithVarInjectionChecks;
-            resolveType = newResolveType;
-            getPutInfo = GetPutInfo(getPutInfo.resolveMode(), newResolveType, getPutInfo.initializationMode());
-            pc[4].u.operand = getPutInfo.operand();
         }
     }
     
@@ -141,17 +143,18 @@ inline void tryCacheGetFromScopeGlobal(
     ResolveType resolveType = getPutInfo.resolveType();
 
     if (resolveType == UnresolvedProperty || resolveType == UnresolvedPropertyWithVarInjectionChecks) {
-        if (JSGlobalLexicalEnvironment* globalLexicalEnvironment = jsDynamicCast<JSGlobalLexicalEnvironment*>(scope)) {
+        if (scope->isGlobalObject()) {
+            ResolveType newResolveType = resolveType == UnresolvedProperty ? GlobalProperty : GlobalPropertyWithVarInjectionChecks;
+            resolveType = newResolveType; // Allow below caching mechanism to kick in.
+            pc[4].u.operand = GetPutInfo(getPutInfo.resolveMode(), newResolveType, getPutInfo.initializationMode()).operand();
+        } else if (scope->isGlobalLexicalEnvironment()) {
+            JSGlobalLexicalEnvironment* globalLexicalEnvironment = jsCast<JSGlobalLexicalEnvironment*>(scope);
             ResolveType newResolveType = resolveType == UnresolvedProperty ? GlobalLexicalVar : GlobalLexicalVarWithVarInjectionChecks;
             pc[4].u.operand = GetPutInfo(getPutInfo.resolveMode(), newResolveType, getPutInfo.initializationMode()).operand();
             SymbolTableEntry entry = globalLexicalEnvironment->symbolTable()->get(ident.impl());
             ASSERT(!entry.isNull());
             pc[5].u.watchpointSet = entry.watchpointSet();
             pc[6].u.pointer = static_cast<void*>(globalLexicalEnvironment->variableAt(entry.scopeOffset()).slot());
-        } else if (jsDynamicCast<JSGlobalObject*>(scope)) {
-            ResolveType newResolveType = resolveType == UnresolvedProperty ? GlobalProperty : GlobalPropertyWithVarInjectionChecks;
-            resolveType = newResolveType; // Allow below caching mechanism to kick in.
-            pc[4].u.operand = GetPutInfo(getPutInfo.resolveMode(), newResolveType, getPutInfo.initializationMode()).operand();
         }
     }
 
@@ -175,57 +178,6 @@ inline void tryCacheGetFromScopeGlobal(
 class ExecState;
 struct Instruction;
 
-#if USE(JSVALUE64)
-// According to C++ rules, a type used for the return signature of function with C linkage (i.e.
-// 'extern "C"') needs to be POD; hence putting any constructors into it could cause either compiler
-// warnings, or worse, a change in the ABI used to return these types.
-struct SlowPathReturnType {
-    void* a;
-    void* b;
-};
-
-inline SlowPathReturnType encodeResult(void* a, void* b)
-{
-    SlowPathReturnType result;
-    result.a = a;
-    result.b = b;
-    return result;
-}
-
-inline void decodeResult(SlowPathReturnType result, void*& a, void*& b)
-{
-    a = result.a;
-    b = result.b;
-}
-
-#else // USE(JSVALUE32_64)
-typedef int64_t SlowPathReturnType;
-
-typedef union {
-    struct {
-        void* a;
-        void* b;
-    } pair;
-    int64_t i;
-} SlowPathReturnTypeEncoding;
-
-inline SlowPathReturnType encodeResult(void* a, void* b)
-{
-    SlowPathReturnTypeEncoding u;
-    u.pair.a = a;
-    u.pair.b = b;
-    return u.i;
-}
-
-inline void decodeResult(SlowPathReturnType result, void*& a, void*& b)
-{
-    SlowPathReturnTypeEncoding u;
-    u.i = result;
-    a = u.pair.a;
-    b = u.pair.b;
-}
-#endif // USE(JSVALUE32_64)
-    
 #define SLOW_PATH
     
 #define SLOW_PATH_DECL(name) \
@@ -238,7 +190,7 @@ SLOW_PATH_HIDDEN_DECL(slow_path_call_arityCheck);
 SLOW_PATH_HIDDEN_DECL(slow_path_construct_arityCheck);
 SLOW_PATH_HIDDEN_DECL(slow_path_create_direct_arguments);
 SLOW_PATH_HIDDEN_DECL(slow_path_create_scoped_arguments);
-SLOW_PATH_HIDDEN_DECL(slow_path_create_out_of_band_arguments);
+SLOW_PATH_HIDDEN_DECL(slow_path_create_cloned_arguments);
 SLOW_PATH_HIDDEN_DECL(slow_path_create_this);
 SLOW_PATH_HIDDEN_DECL(slow_path_enter);
 SLOW_PATH_HIDDEN_DECL(slow_path_get_callee);

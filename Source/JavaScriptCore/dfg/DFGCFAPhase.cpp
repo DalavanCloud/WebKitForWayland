@@ -148,7 +148,7 @@ private:
         if (m_verbose) {
             dataLog("      head vars: ", block->valuesAtHead, "\n");
             if (m_graph.m_form == SSA)
-                dataLog("      head regs: ", mapDump(block->ssa->valuesAtHead), "\n");
+                dataLog("      head regs: ", nodeValuePairListDump(block->ssa->valuesAtHead), "\n");
         }
         for (unsigned i = 0; i < block->size(); ++i) {
             if (m_verbose) {
@@ -204,7 +204,6 @@ private:
 
 bool performCFA(Graph& graph)
 {
-    SamplingRegion samplingRegion("DFG CFA Phase");
     return runPhase<CFAPhase>(graph);
 }
 

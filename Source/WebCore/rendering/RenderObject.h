@@ -388,6 +388,7 @@ public:
     virtual bool isRenderMathMLRadicalOperator() const { return false; }
     virtual bool isRenderMathMLRow() const { return false; }
     virtual bool isRenderMathMLMath() const { return false; }
+    virtual bool isRenderMathMLMenclose() const { return false; }
     virtual bool isRenderMathMLFenced() const { return false; }
     virtual bool isRenderMathMLFraction() const { return false; }
     virtual bool isRenderMathMLRoot() const { return false; }
@@ -413,6 +414,7 @@ public:
     virtual bool isSVGShape() const { return false; }
     virtual bool isSVGText() const { return false; }
     virtual bool isSVGTextPath() const { return false; }
+    virtual bool isSVGTSpan() const { return false; }
     virtual bool isSVGInline() const { return false; }
     virtual bool isSVGInlineText() const { return false; }
     virtual bool isSVGImage() const { return false; }
@@ -814,7 +816,7 @@ public:
     virtual int previousOffsetForBackwardDeletion(int current) const;
     virtual int nextOffset(int current) const;
 
-    virtual void imageChanged(CachedImage*, const IntRect* = nullptr) override;
+    void imageChanged(CachedImage*, const IntRect* = nullptr) override;
     virtual void imageChanged(WrappedImagePtr, const IntRect* = nullptr) { }
 
     SelectionSubtreeRoot& selectionRoot() const;
@@ -836,7 +838,7 @@ public:
     bool shouldUseTransformFromContainer(const RenderObject* container) const;
     void getTransformFromContainer(const RenderObject* container, const LayoutSize& offsetInContainer, TransformationMatrix&) const;
     
-    virtual void addFocusRingRects(Vector<IntRect>&, const LayoutPoint& /* additionalOffset */, const RenderLayerModelObject* /* paintContainer */ = nullptr) { };
+    virtual void addFocusRingRects(Vector<LayoutRect>&, const LayoutPoint& /* additionalOffset */, const RenderLayerModelObject* /* paintContainer */ = nullptr) { };
 
     LayoutRect absoluteOutlineBounds() const
     {
@@ -1149,6 +1151,11 @@ inline bool RenderObject::backgroundIsKnownToBeObscured(const LayoutPoint& paint
     }
     return m_bitfields.boxDecorationState() == HasBoxDecorationsAndBackgroundIsKnownToBeObscured;
 }
+
+#if ENABLE(TREE_DEBUGGING)
+void printRenderTreeForLiveDocuments();
+void printLayerTreeForLiveDocuments();
+#endif
 
 } // namespace WebCore
 

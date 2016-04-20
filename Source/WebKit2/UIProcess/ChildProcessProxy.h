@@ -68,7 +68,7 @@ public:
     };
     State state() const;
 
-    PlatformProcessIdentifier processIdentifier() const { return m_processLauncher->processIdentifier(); }
+    pid_t processIdentifier() const { return m_processLauncher->processIdentifier(); }
 
     bool canSendMessage() const { return state() != State::Terminated;}
     bool sendMessage(std::unique_ptr<IPC::MessageEncoder>, unsigned messageSendFlags);
@@ -77,7 +77,7 @@ public:
 
 protected:
     // ProcessLauncher::Client
-    virtual void didFinishLaunching(ProcessLauncher*, IPC::Connection::Identifier) override;
+    void didFinishLaunching(ProcessLauncher*, IPC::Connection::Identifier) override;
 
     bool dispatchMessage(IPC::Connection&, IPC::MessageDecoder&);
     bool dispatchSyncMessage(IPC::Connection&, IPC::MessageDecoder&, std::unique_ptr<IPC::MessageEncoder>&);

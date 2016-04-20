@@ -54,7 +54,7 @@ public:
     virtual void close();
     virtual void targetClosed();
 
-    unsigned identifier() const { return m_identifier; }
+    Optional<unsigned> targetIdentifier() const;
     NSString *connectionIdentifier() const;
     NSString *destination() const;
 
@@ -63,8 +63,8 @@ public:
     void clearQueue() { m_queue.clear(); }
 
     // FrontendChannel overrides.
-    virtual ConnectionType connectionType() const override { return ConnectionType::Remote; }
-    virtual bool sendMessageToFrontend(const String&) override;
+    ConnectionType connectionType() const override { return ConnectionType::Remote; }
+    bool sendMessageToFrontend(const String&) override;
 
 private:
     void dispatchAsyncOnTarget(void (^block)());
@@ -86,7 +86,6 @@ private:
     Lock m_queueMutex;
 
     RemoteControllableTarget* m_target { nullptr };
-    unsigned m_identifier { 0 };
     RetainPtr<NSString> m_connectionIdentifier;
     RetainPtr<NSString> m_destination;
     bool m_connected { false };

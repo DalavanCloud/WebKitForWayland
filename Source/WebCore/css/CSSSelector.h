@@ -162,6 +162,9 @@ namespace WebCore {
 #if ENABLE(SHADOW_DOM)
             PseudoClassHost,
 #endif
+#if ENABLE(CUSTOM_ELEMENTS)
+            PseudoClassDefined,
+#endif
         };
 
         enum PseudoElementType {
@@ -181,6 +184,9 @@ namespace WebCore {
             PseudoElementScrollbarTrack,
             PseudoElementScrollbarTrackPiece,
             PseudoElementSelection,
+#if ENABLE(SHADOW_DOM)
+            PseudoElementSlotted,
+#endif
             PseudoElementUserAgentCustom,
             PseudoElementWebKitCustom,
         };

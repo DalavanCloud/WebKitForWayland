@@ -86,7 +86,7 @@ public:
     void drawTiledImage(Image&, const FloatRect& destination, const FloatPoint& source, const FloatSize& tileSize, const FloatSize& spacing, const ImagePaintingOptions&);
     void drawTiledImage(Image&, const FloatRect& destination, const FloatRect& source, const FloatSize& tileScaleFactor, Image::TileRule hRule, Image::TileRule vRule, const ImagePaintingOptions&);
 #if USE(CG) || USE(CAIRO)
-    void drawNativeImage(PassNativeImagePtr, const FloatSize& selfSize, const FloatRect& destRect, const FloatRect& srcRect, CompositeOperator, BlendMode, ImageOrientation);
+    void drawNativeImage(const NativeImagePtr&, const FloatSize& selfSize, const FloatRect& destRect, const FloatRect& srcRect, CompositeOperator, BlendMode, ImageOrientation);
 #endif
     void drawPattern(Image&, const FloatRect& srcRect, const AffineTransform&, const FloatPoint& phase, const FloatSize& spacing, CompositeOperator, const FloatRect& destRect, BlendMode = BlendModeNormal);
 
@@ -98,7 +98,7 @@ public:
     void drawPath(const Path&);
 
     void drawFocusRing(const Path&, int width, int offset, const Color&);
-    void drawFocusRing(const Vector<IntRect>&, int width, int offset, const Color&);
+    void drawFocusRing(const Vector<FloatRect>&, int width, int offset, const Color&);
 
     void save();
     void restore();

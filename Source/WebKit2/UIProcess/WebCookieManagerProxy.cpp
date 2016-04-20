@@ -83,11 +83,6 @@ void WebCookieManagerProxy::processDidClose(NetworkProcessProxy*)
     invalidateCallbackMap(m_httpCookieAcceptPolicyCallbacks, CallbackBase::Error::ProcessExited);
 }
 
-bool WebCookieManagerProxy::shouldTerminate(WebProcessProxy*) const
-{
-    return true;
-}
-
 void WebCookieManagerProxy::refWebContextSupplement()
 {
     API::Object::ref();
@@ -131,6 +126,11 @@ void WebCookieManagerProxy::deleteAllCookies()
 void WebCookieManagerProxy::deleteAllCookiesModifiedSince(std::chrono::system_clock::time_point time)
 {
     processPool()->sendToNetworkingProcessRelaunchingIfNecessary(Messages::WebCookieManager::DeleteAllCookiesModifiedSince(time));
+}
+
+void WebCookieManagerProxy::addCookie(const WebCore::Cookie& cookie, const String& hostname)
+{
+    processPool()->sendToNetworkingProcessRelaunchingIfNecessary(Messages::WebCookieManager::AddCookie(cookie, hostname));
 }
 
 void WebCookieManagerProxy::startObservingCookieChanges()

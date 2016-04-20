@@ -20,9 +20,6 @@
 #ifndef TextureMapperLayer_h
 #define TextureMapperLayer_h
 
-#if USE(TEXTURE_MAPPER)
-
-#include <limits>
 #include "FilterOperations.h"
 #include "FloatRect.h"
 #include "GraphicsLayerTransform.h"
@@ -52,7 +49,7 @@ public:
         , m_effectTarget(0)
         , m_contentsLayer(0)
         , m_currentOpacity(1)
-        , m_centerZ(std::numeric_limits<float>::lowest())
+        , m_centerZ(0)
         , m_textureMapper(0)
         , m_fixedToViewport(false)
         , m_id(0)
@@ -170,9 +167,9 @@ private:
     void computePatternTransformIfNeeded();
 
     // TextureMapperAnimation::Client
-    virtual void setAnimatedTransform(const TransformationMatrix&) override;
-    virtual void setAnimatedOpacity(float) override;
-    virtual void setAnimatedFilters(const FilterOperations&) override;
+    void setAnimatedTransform(const TransformationMatrix&) override;
+    void setAnimatedOpacity(float) override;
+    void setAnimatedFilters(const FilterOperations&) override;
 
     bool isVisible() const;
     enum ContentsLayerCount {
@@ -264,6 +261,5 @@ private:
 };
 
 }
-#endif
 
 #endif // TextureMapperLayer_h

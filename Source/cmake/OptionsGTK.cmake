@@ -1,8 +1,8 @@
 include(GNUInstallDirs)
 
 set(PROJECT_VERSION_MAJOR 2)
-set(PROJECT_VERSION_MINOR 11)
-set(PROJECT_VERSION_MICRO 5)
+set(PROJECT_VERSION_MINOR 13)
+set(PROJECT_VERSION_MICRO 0)
 set(PROJECT_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_MICRO})
 set(WEBKITGTK_API_VERSION 4.0)
 
@@ -15,8 +15,8 @@ endif ()
 
 # Libtool library version, not to be confused with API version.
 # See http://www.gnu.org/software/libtool/manual/html_node/Libtool-versioning.html
-CALCULATE_LIBRARY_VERSIONS_FROM_LIBTOOL_TRIPLE(WEBKIT2 50 2 13)
-CALCULATE_LIBRARY_VERSIONS_FROM_LIBTOOL_TRIPLE(JAVASCRIPTCORE 21 4 3)
+CALCULATE_LIBRARY_VERSIONS_FROM_LIBTOOL_TRIPLE(WEBKIT2 51 0 14)
+CALCULATE_LIBRARY_VERSIONS_FROM_LIBTOOL_TRIPLE(JAVASCRIPTCORE 22 0 4)
 
 # These are shared variables, but we special case their definition so that we can use the
 # CMAKE_INSTALL_* variables that are populated by the GNUInstallDirs macro.
@@ -33,6 +33,7 @@ set(INTROSPECTION_INSTALL_TYPELIBDIR "${LIB_INSTALL_DIR}/girepository-1.0")
 find_package(Cairo 1.10.2 REQUIRED)
 find_package(Fontconfig 2.8.0 REQUIRED)
 find_package(Freetype2 2.4.2 REQUIRED)
+find_package(GnuTLS 3.0.0 REQUIRED)
 find_package(GTK3 3.6.0 REQUIRED)
 find_package(GDK3 3.6.0 REQUIRED)
 find_package(HarfBuzz 0.9.2 REQUIRED)
@@ -54,6 +55,8 @@ find_package(OpenGL)
 find_package(OpenGLES2)
 
 WEBKIT_OPTION_BEGIN()
+
+set(USE_WOFF2 ON)
 
 # Set the default value for ENABLE_GLES2 automatically.
 # We are not enabling or disabling automatically a feature here, because
@@ -164,7 +167,6 @@ WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_MEDIA_CONTROLS_SCRIPT PRIVATE ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_MHTML PRIVATE ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_NOTIFICATIONS PRIVATE ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_PUBLIC_SUFFIX_LIST PRIVATE ON)
-WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_REQUEST_ANIMATION_FRAME PRIVATE ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_SMOOTH_SCROLLING PRIVATE ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_USERSELECT_ALL PRIVATE ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_USER_MESSAGE_HANDLERS PRIVATE ON)
@@ -261,10 +263,10 @@ if (ENABLE_INTROSPECTION)
     endif ()
 endif ()
 
-if (ENABLE_MEDIA_STREAM)
+if (ENABLE_MEDIA_STREAM OR ENABLE_WEB_RTC)
     find_package(OpenWebRTC)
     if (NOT OPENWEBRTC_FOUND)
-        message(FATAL_ERROR "OpenWebRTC is needed for ENABLE_MEDIA_STREAM.")
+        message(FATAL_ERROR "OpenWebRTC is needed for ENABLE_MEDIA_STREAM and ENABLE_WEB_RTC.")
     endif ()
     SET_AND_EXPOSE_TO_BUILD(USE_OPENWEBRTC TRUE)
 endif ()
@@ -322,13 +324,6 @@ if (ENABLE_SPELLCHECK)
     find_package(Enchant)
     if (NOT PC_ENCHANT_FOUND)
         message(FATAL_ERROR "Enchant is needed for ENABLE_SPELLCHECK")
-    endif ()
-endif ()
-
-if (ENABLE_SUBTLE_CRYPTO)
-    find_package(GnuTLS 3.0.0)
-    if (NOT GNUTLS_FOUND)
-        message(FATAL_ERROR "GnuTLS is needed for ENABLE_SUBTLE_CRYPTO")
     endif ()
 endif ()
 
@@ -423,10 +418,15 @@ if (USE_LIBHYPHEN)
     endif ()
 endif ()
 
-# Override the cached variables, gtk-doc and gobject-introspection do not really work when cross-building or when building on Mac.
-if (CMAKE_CROSSCOMPILING OR APPLE)
+# Override the cached variables, gtk-doc and gobject-introspection do not really work when cross-building.
+if (CMAKE_CROSSCOMPILING)
     set(ENABLE_GTKDOC OFF)
     set(ENABLE_INTROSPECTION OFF)
+endif ()
+
+# Override the cached variable, gtk-doc does not really work when building on Mac.
+if (APPLE)
+    set(ENABLE_GTKDOC OFF)
 endif ()
 
 set(DERIVED_SOURCES_GOBJECT_DOM_BINDINGS_DIR ${DERIVED_SOURCES_DIR}/webkitdom)

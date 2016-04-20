@@ -37,7 +37,7 @@ class Reverb;
     
 class ConvolverNode : public AudioNode {
 public:
-    static Ref<ConvolverNode> create(AudioContext* context, float sampleRate)
+    static Ref<ConvolverNode> create(AudioContext& context, float sampleRate)
     {
         return adoptRef(*new ConvolverNode(context, sampleRate));
     }
@@ -45,10 +45,10 @@ public:
     virtual ~ConvolverNode();
     
     // AudioNode
-    virtual void process(size_t framesToProcess) override;
-    virtual void reset() override;
-    virtual void initialize() override;
-    virtual void uninitialize() override;
+    void process(size_t framesToProcess) override;
+    void reset() override;
+    void initialize() override;
+    void uninitialize() override;
 
     // Impulse responses
     void setBuffer(AudioBuffer*, ExceptionCode&);
@@ -58,10 +58,10 @@ public:
     void setNormalize(bool normalize) { m_normalize = normalize; }
 
 private:
-    ConvolverNode(AudioContext*, float sampleRate);
+    ConvolverNode(AudioContext&, float sampleRate);
 
-    virtual double tailTime() const override;
-    virtual double latencyTime() const override;
+    double tailTime() const override;
+    double latencyTime() const override;
 
     std::unique_ptr<Reverb> m_reverb;
     RefPtr<AudioBuffer> m_buffer;

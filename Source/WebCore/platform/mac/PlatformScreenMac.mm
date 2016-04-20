@@ -42,35 +42,6 @@ static PlatformDisplayID displayIDFromScreen(NSScreen *screen)
     return (PlatformDisplayID)[[[screen deviceDescription] objectForKey:@"NSScreenNumber"] intValue];
 }
 
-static NSScreen *screenForDisplayID(PlatformDisplayID displayID)
-{
-    for (NSScreen *screen in [NSScreen screens]) {
-        if (displayIDFromScreen(screen) == displayID)
-            return screen;
-    }
-    return nil;
-}
-
-int screenDepth(Widget*)
-{
-    return NSBitsPerPixelFromDepth([[NSScreen deepestScreen] depth]);
-}
-
-int screenDepthPerComponent(Widget*)
-{
-    return NSBitsPerSampleFromDepth([[NSScreen deepestScreen] depth]);
-}
-
-bool screenIsMonochrome(Widget*)
-{
-    return CGDisplayUsesForceToGray();
-}
-
-bool screenHasInvertedColors()
-{
-    return CGDisplayUsesInvertedPolarity();
-}
-
 // These functions scale between screen and page coordinates because JavaScript/DOM operations
 // assume that the screen and the page share the same coordinate system.
 
@@ -78,7 +49,7 @@ static PlatformDisplayID displayFromWidget(Widget* widget)
 {
     if (!widget)
         return 0;
-    
+
     FrameView* view = widget->root();
     if (!view)
         return 0;
@@ -91,13 +62,41 @@ static NSScreen *screenForWidget(Widget* widget, NSWindow *window)
     // Widget is in an NSWindow, use its screen.
     if (window)
         return screenForWindow(window);
-    
+
     // Didn't get an NSWindow; probably WebKit2. Try using the Widget's display ID.
     if (NSScreen *screen = screenForDisplayID(displayFromWidget(widget)))
         return screen;
-    
+
     // Widget's window is offscreen, or no screens. Fall back to the first screen if available.
     return screenForWindow(nil);
+}
+
+int screenDepth(Widget* widget)
+{
+    NSWindow *window = widget ? [widget->platformWidget() window] : nil;
+    NSScreen *screen = screenForWidget(widget, window);
+    return NSBitsPerPixelFromDepth(screen.depth);
+}
+
+int screenDepthPerComponent(Widget* widget)
+{
+    NSWindow *window = widget ? [widget->platformWidget() window] : nil;
+    NSScreen *screen = screenForWidget(widget, window);
+    return NSBitsPerSampleFromDepth(screen.depth);
+}
+
+bool screenIsMonochrome(Widget*)
+{
+    // At the moment this is a system-wide accessibility setting,
+    // so we don't need to check the screen we're using.
+    return CGDisplayUsesForceToGray();
+}
+
+bool screenHasInvertedColors()
+{
+    // At the moment this is a system-wide accessibility setting,
+    // so we don't need to check the screen we're using.
+    return CGDisplayUsesInvertedPolarity();
 }
 
 FloatRect screenRect(Widget* widget)
@@ -119,12 +118,26 @@ NSScreen *screenForWindow(NSWindow *window)
     NSScreen *screen = [window screen]; // nil if the window is off-screen
     if (screen)
         return screen;
-    
+
     NSArray *screens = [NSScreen screens];
     if ([screens count] > 0)
         return [screens objectAtIndex:0]; // screen containing the menubar
-    
+
     return nil;
+}
+
+NSScreen *screenForDisplayID(PlatformDisplayID displayID)
+{
+    for (NSScreen *screen in [NSScreen screens]) {
+        if (displayIDFromScreen(screen) == displayID)
+            return screen;
+    }
+    return nil;
+}
+
+bool screenSupportsExtendedColor()
+{
+    return false; // FIXME: Update this to detect extended color screens.
 }
 
 FloatRect toUserSpace(const NSRect& rect, NSWindow *destination)

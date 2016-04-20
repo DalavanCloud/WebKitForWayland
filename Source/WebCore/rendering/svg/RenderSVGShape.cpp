@@ -54,7 +54,7 @@ public:
     {
     }
 
-    virtual void strokeStyle(GraphicsContext* context) override
+    void strokeStyle(GraphicsContext* context) override
     {
         SVGRenderSupport::applyStrokeStyleToContext(context, m_renderer.style(), m_renderer);
     }
@@ -326,9 +326,9 @@ void RenderSVGShape::paint(PaintInfo& paintInfo, const LayoutPoint&)
 
 // This method is called from inside paintOutline() since we call paintOutline()
 // while transformed to our coord system, return local coords
-void RenderSVGShape::addFocusRingRects(Vector<IntRect>& rects, const LayoutPoint&, const RenderLayerModelObject*)
+void RenderSVGShape::addFocusRingRects(Vector<LayoutRect>& rects, const LayoutPoint&, const RenderLayerModelObject*)
 {
-    IntRect rect = enclosingIntRect(repaintRectInLocalCoordinates());
+    LayoutRect rect = LayoutRect(repaintRectInLocalCoordinates());
     if (!rect.isEmpty())
         rects.append(rect);
 }
@@ -482,7 +482,7 @@ void RenderSVGShape::processMarkerPositions()
 
     ASSERT(m_path);
 
-    SVGMarkerData markerData(m_markerPositions);
+    SVGMarkerData markerData(m_markerPositions, SVGResourcesCache::cachedResourcesForRenderer(*this)->markerReverseStart());
     m_path->apply([&markerData](const PathElement& pathElement) {
         SVGMarkerData::updateFromPathElement(markerData, pathElement);
     });

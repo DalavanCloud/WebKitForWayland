@@ -24,6 +24,7 @@ if ("${AR_VERSION}" MATCHES "^GNU ar")
 endif ()
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+define_property(TARGET PROPERTY FOLDER INHERITED BRIEF_DOCS "folder" FULL_DOCS "IDE folder name")
 
 if (CMAKE_COMPILER_IS_GNUCXX OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -fno-exceptions -fno-strict-aliasing")
@@ -123,11 +124,6 @@ endif ()
 
 if (UNIX AND NOT APPLE AND NOT (PORT STREQUAL "WPE") AND NOT ENABLED_COMPILER_SANITIZERS)
     set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined ${CMAKE_SHARED_LINKER_FLAGS}")
-endif ()
-
-if (USE_LLVM_DISASSEMBLER)
-    find_package(LLVM REQUIRED)
-    SET_AND_EXPOSE_TO_BUILD(HAVE_LLVM TRUE)
 endif ()
 
 # Enable the usage of OpenMP.

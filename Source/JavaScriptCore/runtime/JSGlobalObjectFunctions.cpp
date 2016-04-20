@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 1999-2002 Harri Porten (porten@kde.org)
  *  Copyright (C) 2001 Peter Kelly (pmk@post.com)
- *  Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2012 Apple Inc. All rights reserved.
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2012, 2016 Apple Inc. All rights reserved.
  *  Copyright (C) 2007 Cameron Zwarich (cwzwarich@uwaterloo.ca)
  *  Copyright (C) 2007 Maks Orlovich
  *
@@ -574,6 +574,8 @@ EncodedJSValue JSC_HOST_CALL globalFuncEval(ExecState* exec)
     }
 
     String s = x.toString(exec)->value(exec);
+    if (exec->hadException())
+        return JSValue::encode(jsUndefined());
 
     if (s.is8Bit()) {
         LiteralParser<LChar> preparser(exec, s.characters8(), s.length(), NonStrictJSON);
@@ -587,7 +589,7 @@ EncodedJSValue JSC_HOST_CALL globalFuncEval(ExecState* exec)
 
     JSGlobalObject* calleeGlobalObject = exec->callee()->globalObject();
     VariableEnvironment emptyTDZVariables; // Indirect eval does not have access to the lexical scope.
-    EvalExecutable* eval = EvalExecutable::create(exec, makeSource(s), false, ThisTDZMode::CheckIfNeeded, DerivedContextType::None, false, &emptyTDZVariables);
+    EvalExecutable* eval = EvalExecutable::create(exec, makeSource(s), false, ThisTDZMode::CheckIfNeeded, DerivedContextType::None, false, EvalContextType::None, &emptyTDZVariables);
     if (!eval)
         return JSValue::encode(jsUndefined());
 
@@ -782,8 +784,9 @@ EncodedJSValue JSC_HOST_CALL globalFuncThrowTypeError(ExecState* exec)
 
 class GlobalFuncProtoGetterFunctor {
 public:
-    GlobalFuncProtoGetterFunctor(JSObject* thisObject)
-        : m_hasSkippedFirstFrame(false)
+    GlobalFuncProtoGetterFunctor(ExecState* exec, JSObject* thisObject)
+        : m_exec(exec)
+        , m_hasSkippedFirstFrame(false)
         , m_thisObject(thisObject)
         , m_result(JSValue::encode(jsUndefined()))
     {
@@ -791,7 +794,7 @@ public:
 
     EncodedJSValue result() { return m_result; }
 
-    StackVisitor::Status operator()(StackVisitor& visitor)
+    StackVisitor::Status operator()(StackVisitor& visitor) const
     {
         if (!m_hasSkippedFirstFrame) {
             m_hasSkippedFirstFrame = true;
@@ -799,15 +802,16 @@ public:
         }
 
         if (m_thisObject->allowsAccessFrom(visitor->callFrame()))
-            m_result = JSValue::encode(m_thisObject->prototype());
+            m_result = JSValue::encode(m_thisObject->getPrototype(m_exec->vm(), m_exec));
 
         return StackVisitor::Done;
     }
 
 private:
-    bool m_hasSkippedFirstFrame;
+    ExecState* m_exec;
+    mutable bool m_hasSkippedFirstFrame;
     JSObject* m_thisObject;
-    EncodedJSValue m_result;
+    mutable EncodedJSValue m_result;
 };
 
 EncodedJSValue JSC_HOST_CALL globalFuncProtoGetter(ExecState* exec)
@@ -817,10 +821,17 @@ EncodedJSValue JSC_HOST_CALL globalFuncProtoGetter(ExecState* exec)
 
     JSObject* thisObject = jsDynamicCast<JSObject*>(exec->thisValue().toThis(exec, NotStrictMode));
 
-    if (!thisObject)
-        return JSValue::encode(exec->thisValue().synthesizePrototype(exec));
+    if (!thisObject) {
+        JSObject* prototype = exec->thisValue().synthesizePrototype(exec);
+        if (UNLIKELY(!prototype))
+            return JSValue::encode(JSValue());
+        return JSValue::encode(prototype);
+    }
 
-    GlobalFuncProtoGetterFunctor functor(thisObject);
+    GlobalFuncProtoGetterFunctor functor(exec, thisObject);
+    // This can throw but it's just unneeded extra work to check for it. The return
+    // value from this function is only used as the return value from a host call.
+    // Therefore, the return value is only used if there wasn't an exception.
     exec->iterate(functor);
     return functor.result();
 }
@@ -836,7 +847,7 @@ public:
 
     bool allowsAccess() const { return m_allowsAccess; }
 
-    StackVisitor::Status operator()(StackVisitor& visitor)
+    StackVisitor::Status operator()(StackVisitor& visitor) const
     {
         if (!m_hasSkippedFirstFrame) {
             m_hasSkippedFirstFrame = true;
@@ -848,8 +859,8 @@ public:
     }
 
 private:
-    bool m_hasSkippedFirstFrame;
-    bool m_allowsAccess;
+    mutable bool m_hasSkippedFirstFrame;
+    mutable bool m_allowsAccess;
     JSObject* m_thisObject;
 };
 
@@ -880,14 +891,9 @@ EncodedJSValue JSC_HOST_CALL globalFuncProtoSetter(ExecState* exec)
     if (!value.isObject() && !value.isNull())
         return JSValue::encode(jsUndefined());
 
-    if (thisObject->prototype() == value)
-        return JSValue::encode(jsUndefined());
-
-    if (!thisObject->isExtensible())
-        return throwVMError(exec, createTypeError(exec, StrictModeReadonlyPropertyWriteError));
-
-    if (!thisObject->setPrototypeWithCycleCheck(exec, value))
-        exec->vm().throwException(exec, createError(exec, ASCIILiteral("cyclic __proto__ value")));
+    VM& vm = exec->vm();
+    bool shouldThrowIfCantSet = true;
+    thisObject->setPrototype(vm, exec, value, shouldThrowIfCantSet);
     return JSValue::encode(jsUndefined());
 }
     

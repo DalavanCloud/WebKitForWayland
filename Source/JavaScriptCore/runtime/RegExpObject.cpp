@@ -1,6 +1,6 @@
 /*
  *  Copyright (C) 1999-2000 Harri Porten (porten@kde.org)
- *  Copyright (C) 2003, 2007, 2008, 2012 Apple Inc. All Rights Reserved.
+ *  Copyright (C) 2003, 2007, 2008, 2012, 2016 Apple Inc. All Rights Reserved.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -32,6 +32,7 @@
 #include "JSCInlines.h"
 #include "RegExpConstructor.h"
 #include "RegExpMatchesArray.h"
+#include "RegExpObjectInlines.h"
 #include "RegExpPrototype.h"
 #include <wtf/text/StringBuilder.h>
 
@@ -103,13 +104,6 @@ void RegExpObject::getGenericPropertyNames(JSObject* object, ExecState* exec, Pr
     Base::getGenericPropertyNames(object, exec, propertyNames, mode);
 }
 
-static bool reject(ExecState* exec, bool throwException, const char* message)
-{
-    if (throwException)
-        throwTypeError(exec, ASCIILiteral(message));
-    return false;
-}
-
 bool RegExpObject::defineOwnProperty(JSObject* object, ExecState* exec, PropertyName propertyName, const PropertyDescriptor& descriptor, bool shouldThrow)
 {
     if (propertyName == exec->propertyNames().lastIndex) {
@@ -119,7 +113,7 @@ bool RegExpObject::defineOwnProperty(JSObject* object, ExecState* exec, Property
         if (descriptor.enumerablePresent() && descriptor.enumerable())
             return reject(exec, shouldThrow, "Attempting to change enumerable attribute of unconfigurable property.");
         if (descriptor.isAccessorDescriptor())
-            return reject(exec, shouldThrow, "Attempting to change access mechanism for an unconfigurable property.");
+            return reject(exec, shouldThrow, UnconfigurablePropertyChangeAccessMechanismError);
         if (!regExp->m_lastIndexIsWritable) {
             if (descriptor.writablePresent() && descriptor.writable())
                 return reject(exec, shouldThrow, "Attempting to change writable attribute of unconfigurable property.");
@@ -127,75 +121,114 @@ bool RegExpObject::defineOwnProperty(JSObject* object, ExecState* exec, Property
                 return reject(exec, shouldThrow, "Attempting to change value of a readonly property.");
             return true;
         }
-        if (descriptor.writablePresent() && !descriptor.writable())
-            regExp->m_lastIndexIsWritable = false;
         if (descriptor.value())
             regExp->setLastIndex(exec, descriptor.value(), false);
+        if (descriptor.writablePresent() && !descriptor.writable())
+            regExp->m_lastIndexIsWritable = false;
         return true;
     }
 
     return Base::defineOwnProperty(object, exec, propertyName, descriptor, shouldThrow);
 }
 
-static void regExpObjectSetLastIndexStrict(ExecState* exec, EncodedJSValue thisValue, EncodedJSValue value)
+static bool regExpObjectSetLastIndexStrict(ExecState* exec, EncodedJSValue thisValue, EncodedJSValue value)
 {
-    asRegExpObject(JSValue::decode(thisValue))->setLastIndex(exec, JSValue::decode(value), true);
+    return asRegExpObject(JSValue::decode(thisValue))->setLastIndex(exec, JSValue::decode(value), true);
 }
 
-static void regExpObjectSetLastIndexNonStrict(ExecState* exec, EncodedJSValue thisValue, EncodedJSValue value)
+static bool regExpObjectSetLastIndexNonStrict(ExecState* exec, EncodedJSValue thisValue, EncodedJSValue value)
 {
-    asRegExpObject(JSValue::decode(thisValue))->setLastIndex(exec, JSValue::decode(value), false);
+    return asRegExpObject(JSValue::decode(thisValue))->setLastIndex(exec, JSValue::decode(value), false);
 }
 
-void RegExpObject::put(JSCell* cell, ExecState* exec, PropertyName propertyName, JSValue value, PutPropertySlot& slot)
+bool RegExpObject::put(JSCell* cell, ExecState* exec, PropertyName propertyName, JSValue value, PutPropertySlot& slot)
 {
+    RegExpObject* thisObject = jsCast<RegExpObject*>(cell);
+
+    if (UNLIKELY(isThisValueAltered(slot, thisObject)))
+        return ordinarySetSlow(exec, thisObject, propertyName, value, slot.thisValue(), slot.isStrictMode());
+
     if (propertyName == exec->propertyNames().lastIndex) {
-        asRegExpObject(cell)->setLastIndex(exec, value, slot.isStrictMode());
+        bool result = asRegExpObject(cell)->setLastIndex(exec, value, slot.isStrictMode());
         slot.setCustomValue(asRegExpObject(cell), slot.isStrictMode()
             ? regExpObjectSetLastIndexStrict
             : regExpObjectSetLastIndexNonStrict);
-        return;
+        return result;
     }
-    Base::put(cell, exec, propertyName, value, slot);
+    return Base::put(cell, exec, propertyName, value, slot);
 }
 
-JSValue RegExpObject::exec(ExecState* exec, JSString* string)
+JSValue RegExpObject::exec(ExecState* exec, JSGlobalObject* globalObject, JSString* string)
 {
-    if (MatchResult result = match(exec, string))
-        return createRegExpMatchesArray(exec, string, regExp(), result);
-    return jsNull();
+    return execInline(exec, globalObject, string);
 }
 
 // Shared implementation used by test and exec.
-MatchResult RegExpObject::match(ExecState* exec, JSString* string)
+MatchResult RegExpObject::match(ExecState* exec, JSGlobalObject* globalObject, JSString* string)
+{
+    return matchInline(exec, globalObject, string);
+}
+
+JSValue RegExpObject::matchGlobal(ExecState* exec, JSGlobalObject* globalObject, JSString* string)
 {
     RegExp* regExp = this->regExp();
-    RegExpConstructor* regExpConstructor = exec->lexicalGlobalObject()->regExpConstructor();
-    String input = string->value(exec);
-    VM& vm = exec->vm();
-    if (!regExp->global())
-        return regExpConstructor->performMatch(vm, regExp, string, input, 0);
 
-    JSValue jsLastIndex = getLastIndex();
-    unsigned lastIndex;
-    if (LIKELY(jsLastIndex.isUInt32())) {
-        lastIndex = jsLastIndex.asUInt32();
-        if (lastIndex > input.length()) {
-            setLastIndex(exec, 0);
-            return MatchResult::failed();
+    ASSERT(regExp->global());
+
+    VM* vm = &globalObject->vm();
+
+    setLastIndex(exec, 0);
+    if (exec->hadException())
+        return jsUndefined();
+
+    String s = string->value(exec);
+    RegExpConstructor* regExpConstructor = globalObject->regExpConstructor();
+    MatchResult result = regExpConstructor->performMatch(*vm, regExp, string, s, 0);
+
+    // return array of matches
+    MarkedArgumentBuffer list;
+    // We defend ourselves from crazy.
+    const size_t maximumReasonableMatchSize = 1000000000;
+
+    if (regExp->unicode()) {
+        unsigned stringLength = s.length();
+        while (result) {
+            if (list.size() > maximumReasonableMatchSize) {
+                throwOutOfMemoryError(exec);
+                return jsUndefined();
+            }
+
+            size_t end = result.end;
+            size_t length = end - result.start;
+            list.append(jsSubstring(exec, s, result.start, length));
+            if (!length)
+                end = advanceStringUnicode(s, stringLength, end);
+            result = regExpConstructor->performMatch(*vm, regExp, string, s, end);
         }
     } else {
-        double doubleLastIndex = jsLastIndex.toInteger(exec);
-        if (doubleLastIndex < 0 || doubleLastIndex > input.length()) {
-            setLastIndex(exec, 0);
-            return MatchResult::failed();
+        while (result) {
+            if (list.size() > maximumReasonableMatchSize) {
+                throwOutOfMemoryError(exec);
+                return jsUndefined();
+            }
+
+            size_t end = result.end;
+            size_t length = end - result.start;
+            list.append(jsSubstring(exec, s, result.start, length));
+            if (!length)
+                ++end;
+            result = regExpConstructor->performMatch(*vm, regExp, string, s, end);
         }
-        lastIndex = static_cast<unsigned>(doubleLastIndex);
     }
 
-    MatchResult result = regExpConstructor->performMatch(vm, regExp, string, input, lastIndex);
-    setLastIndex(exec, result.end);
-    return result;
+    if (list.isEmpty()) {
+        // if there are no matches at all, it's important to return
+        // Null instead of an empty array, because this matches
+        // other browsers and because Null is a false value.
+        return jsNull();
+    }
+
+    return constructArray(exec, static_cast<ArrayAllocationProfile*>(0), list);
 }
 
 } // namespace JSC

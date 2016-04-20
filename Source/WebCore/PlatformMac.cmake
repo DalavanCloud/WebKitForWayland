@@ -10,6 +10,7 @@ endif ()
 link_directories(../../WebKitLibraries)
 
 find_library(ACCELERATE_LIBRARY accelerate)
+find_library(AVFOUNDATION_LIBRARY AVFoundation)
 find_library(AUDIOTOOLBOX_LIBRARY AudioToolbox)
 find_library(AUDIOUNIT_LIBRARY AudioUnit)
 find_library(CARBON_LIBRARY Carbon)
@@ -31,6 +32,7 @@ list(APPEND WebCore_LIBRARIES
     ${ACCELERATE_LIBRARY}
     ${AUDIOTOOLBOX_LIBRARY}
     ${AUDIOUNIT_LIBRARY}
+    ${AVFOUNDATION_LIBRARY}
     ${CARBON_LIBRARY}
     ${COCOA_LIBRARY}
     ${COREAUDIO_LIBRARY}
@@ -49,6 +51,7 @@ list(APPEND WebCore_LIBRARIES
 )
 
 add_definitions(-iframework ${QUARTZ_LIBRARY}/Frameworks)
+add_definitions(-iframework ${AVFOUNDATION_LIBRARY}/Versions/Current/Frameworks)
 
 find_library(DATADETECTORSCORE_FRAMEWORK DataDetectorsCore HINTS /System/Library/PrivateFrameworks)
 if (NOT DATADETECTORSCORE_FRAMEWORK-NOTFOUND)
@@ -103,6 +106,7 @@ list(APPEND WebCore_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/platform/graphics/ca/cocoa"
     "${WEBCORE_DIR}/platform/graphics/cocoa"
     "${WEBCORE_DIR}/platform/graphics/cg"
+    "${WEBCORE_DIR}/platform/graphics/cv"
     "${WEBCORE_DIR}/platform/graphics/opentype"
     "${WEBCORE_DIR}/platform/graphics/opengl"
     "${WEBCORE_DIR}/platform/graphics/mac"
@@ -140,7 +144,7 @@ add_custom_command(
     COMMAND ${PERL_EXECUTABLE} ${WEBCORE_DIR}/platform/text/mac/make-charset-table.pl ${WEBCORE_DIR}/platform/text/mac/character-sets.txt ${WEBCORE_DIR}/platform/text/mac/mac-encodings.txt kTextEncoding > ${DERIVED_SOURCES_WEBCORE_DIR}/CharsetData.cpp
     VERBATIM)
 
-list(APPEND WebCore_SOURCES
+list(APPEND WebCore_DERIVED_SOURCES
     ${DERIVED_SOURCES_WEBCORE_DIR}/CharsetData.cpp
 )
 
@@ -217,7 +221,6 @@ list(APPEND WebCore_SOURCES
     crypto/mac/CryptoAlgorithmRSASSA_PKCS1_v1_5Mac.cpp
     crypto/mac/CryptoAlgorithmRSA_OAEPMac.cpp
     crypto/mac/CryptoAlgorithmRegistryMac.cpp
-    crypto/mac/CryptoDigestMac.cpp
     crypto/mac/CryptoKeyMac.cpp
     crypto/mac/CryptoKeyRSAMac.cpp
     crypto/mac/SerializedCryptoKeyWrapMac.mm
@@ -296,6 +299,7 @@ list(APPEND WebCore_SOURCES
     page/scrolling/mac/ScrollingTreeStickyNode.mm
 
     platform/LocalizedStrings.cpp
+    platform/RuntimeApplicationChecks.mm
     platform/ScrollableArea.cpp
     platform/VNodeTracker.cpp
 
@@ -322,9 +326,11 @@ list(APPEND WebCore_SOURCES
     platform/cf/URLCF.cpp
 
     platform/cocoa/ContentFilterUnblockHandlerCocoa.mm
+    platform/cocoa/CoreVideoSoftLink.cpp
     platform/cocoa/DisplaySleepDisablerCocoa.cpp
     platform/cocoa/KeyEventCocoa.mm
     platform/cocoa/LocalizedStringsCocoa.mm
+    platform/cocoa/MIMETypeRegistryCocoa.mm
     platform/cocoa/MachSendRight.cpp
     platform/cocoa/MemoryPressureHandlerCocoa.mm
     platform/cocoa/NetworkExtensionContentFilter.mm
@@ -337,6 +343,8 @@ list(APPEND WebCore_SOURCES
     platform/cocoa/ThemeCocoa.cpp
     platform/cocoa/VNodeTrackerCocoa.cpp
     platform/cocoa/WebCoreNSErrorExtras.mm
+
+    platform/crypto/commoncrypto/CryptoDigestCommonCrypto.cpp
 
     platform/graphics/DisplayRefreshMonitor.cpp
     platform/graphics/DisplayRefreshMonitorManager.cpp
@@ -397,7 +405,7 @@ list(APPEND WebCore_SOURCES
     platform/graphics/cg/ImageBufferCG.cpp
     platform/graphics/cg/ImageBufferDataCG.cpp
     platform/graphics/cg/ImageCG.cpp
-    platform/graphics/cg/ImageSourceCG.cpp
+    platform/graphics/cg/ImageDecoderCG.cpp
     platform/graphics/cg/ImageSourceCGMac.mm
     platform/graphics/cg/IntPointCG.cpp
     platform/graphics/cg/IntRectCG.cpp
@@ -416,6 +424,10 @@ list(APPEND WebCore_SOURCES
     platform/graphics/cocoa/IOSurfacePoolCocoa.mm
     platform/graphics/cocoa/WebActionDisablingCALayerDelegate.mm
     platform/graphics/cocoa/WebCoreCALayerExtras.mm
+
+    platform/graphics/cv/PixelBufferConformerCV.cpp
+    platform/graphics/cv/TextureCacheCV.mm
+    platform/graphics/cv/VideoTextureCopierCV.cpp
 
     platform/graphics/mac/ColorMac.mm
     platform/graphics/mac/ComplexTextController.cpp
@@ -463,7 +475,6 @@ list(APPEND WebCore_SOURCES
     platform/mac/Language.mm
     platform/mac/LocalCurrentGraphicsContext.mm
     platform/mac/LoggingMac.mm
-    platform/mac/MIMETypeRegistryMac.mm
     platform/mac/NSScrollerImpDetails.mm
     platform/mac/PasteboardMac.mm
     platform/mac/PlatformClockCA.cpp
@@ -477,6 +488,7 @@ list(APPEND WebCore_SOURCES
     platform/mac/SSLKeyGeneratorMac.cpp
     platform/mac/ScrollAnimatorMac.mm
     platform/mac/ScrollViewMac.mm
+    platform/mac/ScrollableAreaMac.mm
     platform/mac/ScrollbarThemeMac.mm
     platform/mac/SerializedPlatformRepresentationMac.mm
     platform/mac/SharedBufferMac.mm
@@ -523,8 +535,10 @@ list(APPEND WebCore_SOURCES
 
     platform/network/cocoa/CredentialCocoa.mm
     platform/network/cocoa/ProtectionSpaceCocoa.mm
+    platform/network/cocoa/ResourceLoadTiming.mm
     platform/network/cocoa/ResourceRequestCocoa.mm
     platform/network/cocoa/ResourceResponseCocoa.mm
+    platform/network/cocoa/WebCoreNSURLSession.mm
 
     platform/network/mac/AuthenticationMac.mm
     platform/network/mac/BlobDataFileReferenceMac.mm
@@ -585,7 +599,9 @@ set(WebCore_FORWARDING_HEADERS_DIRECTORIES
     Modules/notifications
     Modules/webdatabase
 
-    Modules/indexeddb/legacy
+    Modules/indexeddb/client
+    Modules/indexeddb/shared
+    Modules/indexeddb/server
 
     bindings/generic
     bindings/js
@@ -630,6 +646,7 @@ set(WebCore_FORWARDING_HEADERS_DIRECTORIES
     platform/graphics/cocoa
     platform/graphics/cg
     platform/graphics/filters
+    platform/graphics/opentype
     platform/graphics/mac
     platform/graphics/transforms
 
@@ -791,7 +808,6 @@ set(ObjC_Bindings_IDL_FILES
     fileapi/File.idl
     fileapi/FileList.idl
 
-    html/DOMSettableTokenList.idl
     html/DOMTokenList.idl
     html/HTMLAnchorElement.idl
     html/HTMLAppletElement.idl
@@ -828,6 +844,7 @@ set(ObjC_Bindings_IDL_FILES
     html/HTMLMapElement.idl
     html/HTMLMarqueeElement.idl
     html/HTMLMenuElement.idl
+    html/HTMLMediaElement.idl
     html/HTMLMetaElement.idl
     html/HTMLModElement.idl
     html/HTMLOListElement.idl
@@ -851,10 +868,11 @@ set(ObjC_Bindings_IDL_FILES
     html/HTMLTextAreaElement.idl
     html/HTMLTitleElement.idl
     html/HTMLUListElement.idl
+    html/HTMLVideoElement.idl
+    html/MediaError.idl
+    html/TimeRanges.idl
     html/ValidityState.idl
-
     page/AbstractView.idl
-    page/DOMSecurityPolicy.idl
 
     xml/XPathExpression.idl
     xml/XPathNSResolver.idl
@@ -896,7 +914,7 @@ set(ObjC_BINDINGS_NO_MM
     XPathNSResolver
 )
 
-GENERATE_BINDINGS(WebCore_SOURCES
+GENERATE_BINDINGS(WebCore_DERIVED_SOURCES
     "${ObjC_Bindings_IDL_FILES}"
     "${WEBCORE_DIR}"
     "${IDL_INCLUDES}"
@@ -905,3 +923,15 @@ GENERATE_BINDINGS(WebCore_SOURCES
     ${IDL_ATTRIBUTES_FILE}
     ${SUPPLEMENTAL_DEPENDENCY_FILE}
     ${ADDITIONAL_BINDINGS_DEPENDENCIES})
+
+set(WebCoreTestSupport_LIBRARY_TYPE SHARED)
+list(APPEND WebCoreTestSupport_LIBRARIES PRIVATE WebCore)
+list(APPEND WebCoreTestSupport_SOURCES
+    bindings/js/JSMockContentFilterSettingsCustom.cpp
+
+    testing/Internals.mm
+    testing/MockContentFilter.cpp
+    testing/MockContentFilterSettings.cpp
+)
+
+set(CMAKE_SHARED_LINKER_FLAGS ${CMAKE_SHARED_LINKER_FLAGS} "-compatibility_version 1 -current_version ${WEBKIT_MAC_VERSION}")

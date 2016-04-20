@@ -55,7 +55,6 @@
 
 #if USE(OPENGL_ES_2)
 #include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
 #else
 #include "OpenGLShims.h"
 #endif
@@ -70,9 +69,10 @@ using namespace std;
 
 namespace WebCore {
 
-ImageBufferData::ImageBufferData(const IntSize& size)
+ImageBufferData::ImageBufferData(const IntSize& size, RenderingMode renderingMode)
     : m_platformContext(0)
     , m_size(size)
+    , m_renderingMode(renderingMode)
 #if ENABLE(ACCELERATED_2D_CANVAS)
 #if USE(COORDINATED_GRAPHICS_THREADED)
     , m_platformLayerProxy(adoptRef(new TextureMapperPlatformLayerProxy))
@@ -82,6 +82,28 @@ ImageBufferData::ImageBufferData(const IntSize& size)
     , m_texture(0)
 #endif
 {
+}
+
+ImageBufferData::~ImageBufferData()
+{
+    if (m_renderingMode != Accelerated)
+        return;
+
+#if ENABLE(ACCELERATED_2D_CANVAS)
+    GLContext* previousActiveContext = GLContext::getCurrent();
+    GLContext::sharingContext()->makeContextCurrent();
+
+    if (m_texture)
+        glDeleteTextures(1, &m_texture);
+
+#if USE(COORDINATED_GRAPHICS_THREADED)
+    if (m_compositorTexture)
+        glDeleteTextures(1, &m_compositorTexture);
+#endif
+
+    if (previousActiveContext)
+        previousActiveContext->makeContextCurrent();
+#endif
 }
 
 #if ENABLE(ACCELERATED_2D_CANVAS)
@@ -131,6 +153,7 @@ void ImageBufferData::swapBuffersIfNeeded()
     cairo_set_operator(m_compositorCr.get(), CAIRO_OPERATOR_SOURCE);
     cairo_paint(m_compositorCr.get());
     cairo_surface_flush(m_compositorSurface.get());
+    glFlush();
 
     m_bufferChanged = false;
     if (previousActiveContext)
@@ -177,7 +200,7 @@ void ImageBufferData::createCairoGLSurface()
 #endif
 
 ImageBuffer::ImageBuffer(const FloatSize& size, float /* resolutionScale */, ColorSpace, RenderingMode renderingMode, bool& success)
-    : m_data(IntSize(size))
+    : m_data(IntSize(size), renderingMode)
     , m_size(size)
     , m_logicalSize(size)
 {
@@ -190,21 +213,18 @@ ImageBuffer::ImageBuffer(const FloatSize& size, float /* resolutionScale */, Col
     LockHolder locker(m_data.m_platformLayerProxy->lock());
 #endif
 
-    if (renderingMode == Accelerated) {
+    if (m_data.m_renderingMode == Accelerated) {
         m_data.createCairoGLSurface();
         if (!m_data.m_surface || cairo_surface_status(m_data.m_surface.get()) != CAIRO_STATUS_SUCCESS)
-            renderingMode = Unaccelerated; // If allocation fails, fall back to non-accelerated path.
+            m_data.m_renderingMode = Unaccelerated; // If allocation fails, fall back to non-accelerated path.
 #if USE(COORDINATED_GRAPHICS_THREADED)
-        else {
+        else
             m_data.m_platformLayerProxy->pushNextBuffer(std::make_unique<TextureMapperPlatformLayerBuffer>(m_data.m_texture, m_size, TextureMapperGL::ShouldBlend));
-            m_data.m_platformLayerProxy->requestUpdate();
-        }
 #endif
-
     }
-    if (renderingMode == Unaccelerated)
+    if (m_data.m_renderingMode == Unaccelerated)
 #else
-    ASSERT_UNUSED(renderingMode, renderingMode != Accelerated);
+    ASSERT(m_data.m_renderingMode != Accelerated);
 #endif
         m_data.m_surface = adoptRef(cairo_image_surface_create(CAIRO_FORMAT_ARGB32, size.width(), size.height()));
 
@@ -238,7 +258,7 @@ RefPtr<Image> ImageBuffer::copyImage(BackingStoreCopy copyBehavior, ScaleBehavio
         return BitmapImage::create(copyCairoImageSurface(m_data.m_surface.get()));
 
     // BitmapImage will release the passed in surface on destruction
-    return BitmapImage::create(m_data.m_surface);
+    return BitmapImage::create(RefPtr<cairo_surface_t>(m_data.m_surface));
 }
 
 BackingStoreCopy ImageBuffer::fastCopyImageMode()
@@ -289,7 +309,7 @@ void ImageBuffer::platformTransformColorSpace(const Vector<int>& lookUpTable)
     cairo_surface_mark_dirty_rectangle(m_data.m_surface.get(), 0, 0, m_size.width(), m_size.height());
 }
 
-PassRefPtr<cairo_surface_t> copySurfaceToImageAndAdjustRect(cairo_surface_t* surface, IntRect& rect)
+RefPtr<cairo_surface_t> copySurfaceToImageAndAdjustRect(cairo_surface_t* surface, IntRect& rect)
 {
     cairo_surface_type_t surfaceType = cairo_surface_get_type(surface);
 
@@ -304,7 +324,7 @@ PassRefPtr<cairo_surface_t> copySurfaceToImageAndAdjustRect(cairo_surface_t* sur
 }
 
 template <Multiply multiplied>
-PassRefPtr<Uint8ClampedArray> getImageData(const IntRect& rect, const ImageBufferData& data, const IntSize& size)
+RefPtr<Uint8ClampedArray> getImageData(const IntRect& rect, const ImageBufferData& data, const IntSize& size)
 {
     RefPtr<Uint8ClampedArray> result = Uint8ClampedArray::createUninitialized(rect.width() * rect.height() * 4);
 
@@ -380,12 +400,12 @@ PassRefPtr<Uint8ClampedArray> getImageData(const IntRect& rect, const ImageBuffe
     return result.release();
 }
 
-PassRefPtr<Uint8ClampedArray> ImageBuffer::getUnmultipliedImageData(const IntRect& rect, CoordinateSystem) const
+RefPtr<Uint8ClampedArray> ImageBuffer::getUnmultipliedImageData(const IntRect& rect, CoordinateSystem) const
 {
     return getImageData<Unmultiplied>(rect, m_data, m_size);
 }
 
-PassRefPtr<Uint8ClampedArray> ImageBuffer::getPremultipliedImageData(const IntRect& rect, CoordinateSystem) const
+RefPtr<Uint8ClampedArray> ImageBuffer::getPremultipliedImageData(const IntRect& rect, CoordinateSystem) const
 {
     return getImageData<Premultiplied>(rect, m_data, m_size);
 }

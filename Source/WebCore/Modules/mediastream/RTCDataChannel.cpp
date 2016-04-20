@@ -24,7 +24,7 @@
 
 #include "config.h"
 
-#if ENABLE(MEDIA_STREAM)
+#if ENABLE(WEB_RTC)
 
 #include "RTCDataChannel.h"
 
@@ -281,8 +281,7 @@ void RTCDataChannel::didReceiveRawData(const char* data, size_t dataLength)
     }
 
     if (m_binaryType == BinaryTypeArrayBuffer) {
-        RefPtr<ArrayBuffer> buffer = ArrayBuffer::create(data, dataLength);
-        scheduleDispatchEvent(MessageEvent::create(buffer.release()));
+        scheduleDispatchEvent(MessageEvent::create(ArrayBuffer::create(data, dataLength)));
         return;
     }
     ASSERT_NOT_REACHED();
@@ -326,4 +325,4 @@ void RTCDataChannel::scheduledEventTimerFired()
 
 } // namespace WebCore
 
-#endif // ENABLE(MEDIA_STREAM)
+#endif // ENABLE(WEB_RTC)

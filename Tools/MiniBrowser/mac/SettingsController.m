@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -39,6 +39,7 @@ static NSString * const ResourceUsageOverlayVisiblePreferenceKey = @"ResourceUsa
 static NSString * const IncrementalRenderingSuppressedPreferenceKey = @"IncrementalRenderingSuppressed";
 static NSString * const AcceleratedDrawingEnabledPreferenceKey = @"AcceleratedDrawingEnabled";
 static NSString * const DisplayListDrawingEnabledPreferenceKey = @"DisplayListDrawingEnabled";
+static NSString * const ResourceLoadStatisticsEnabledPreferenceKey = @"ResourceLoadStatisticsEnabled";
 
 static NSString * const NonFastScrollableRegionOverlayVisiblePreferenceKey = @"NonFastScrollableRegionOverlayVisible";
 static NSString * const WheelEventHandlerRegionOverlayVisiblePreferenceKey = @"WheelEventHandlerRegionOverlayVisible";
@@ -112,6 +113,7 @@ typedef NS_ENUM(NSInteger, DebugOverylayMenuItemTag) {
     [self _addItemWithTitle:@"Suppress Incremental Rendering in New Windows" action:@selector(toggleIncrementalRenderingSuppressed:) indented:NO];
     [self _addItemWithTitle:@"Enable Accelerated Drawing" action:@selector(toggleAcceleratedDrawingEnabled:) indented:NO];
     [self _addItemWithTitle:@"Enable Display List Drawing" action:@selector(toggleDisplayListDrawingEnabled:) indented:NO];
+    [self _addItemWithTitle:@"Enable Resource Load Statistics" action:@selector(toggleResourceLoadStatisticsEnabled:) indented:NO];
 
     [self _addHeaderWithTitle:@"WebKit2-only Settings"];
 
@@ -162,6 +164,8 @@ typedef NS_ENUM(NSInteger, DebugOverylayMenuItemTag) {
         [menuItem setState:[self acceleratedDrawingEnabled] ? NSOnState : NSOffState];
     else if (action == @selector(toggleDisplayListDrawingEnabled:))
         [menuItem setState:[self displayListDrawingEnabled] ? NSOnState : NSOffState];
+    else if (action == @selector(toggleResourceLoadStatisticsEnabled:))
+        [menuItem setState:[self resourceLoadStatisticsEnabled] ? NSOnState : NSOffState];
     else if (action == @selector(toggleShowTiledScrollingIndicator:))
         [menuItem setState:[self tiledScrollingIndicatorVisible] ? NSOnState : NSOffState];
     else if (action == @selector(toggleShowResourceUsageOverlay:))
@@ -314,6 +318,16 @@ typedef NS_ENUM(NSInteger, DebugOverylayMenuItemTag) {
 - (BOOL)resourceUsageOverlayVisible
 {
     return [[NSUserDefaults standardUserDefaults] boolForKey:ResourceUsageOverlayVisiblePreferenceKey];
+}
+
+- (void)toggleResourceLoadStatisticsEnabled:(id)sender
+{
+    [self _toggleBooleanDefault:ResourceLoadStatisticsEnabledPreferenceKey];
+}
+
+- (BOOL)resourceLoadStatisticsEnabled
+{
+    return [[NSUserDefaults standardUserDefaults] boolForKey:ResourceLoadStatisticsEnabledPreferenceKey];
 }
 
 - (void)toggleEnableSubPixelCSSOMMetrics:(id)sender

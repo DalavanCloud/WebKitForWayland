@@ -22,6 +22,7 @@
 #ifndef RuleFeature_h
 #define RuleFeature_h
 
+#include "CSSSelector.h"
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
@@ -29,7 +30,6 @@
 
 namespace WebCore {
 
-class CSSSelector;
 class RuleData;
 class StyleRule;
 
@@ -52,12 +52,20 @@ struct RuleFeatureSet {
     void collectFeatures(const RuleData&);
 
     HashSet<AtomicStringImpl*> idsInRules;
+    HashSet<AtomicStringImpl*> idsMatchingAncestorsInRules;
     HashSet<AtomicStringImpl*> classesInRules;
     HashSet<AtomicStringImpl*> attributeCanonicalLocalNamesInRules;
     HashSet<AtomicStringImpl*> attributeLocalNamesInRules;
     Vector<RuleFeature> siblingRules;
     Vector<RuleFeature> uncommonAttributeRules;
     HashMap<AtomicStringImpl*, std::unique_ptr<Vector<RuleFeature>>> ancestorClassRules;
+
+    struct AttributeRules {
+        using SelectorKey = std::pair<AtomicStringImpl*, std::pair<AtomicStringImpl*, unsigned>>;
+        HashMap<SelectorKey, const CSSSelector*> selectors;
+        Vector<RuleFeature> features;
+    };
+    HashMap<AtomicStringImpl*, std::unique_ptr<AttributeRules>> ancestorAttributeRulesForHTML;
     bool usesFirstLineRules { false };
     bool usesFirstLetterRules { false };
 
@@ -65,6 +73,7 @@ private:
     struct SelectorFeatures {
         bool hasSiblingSelector { false };
         Vector<AtomicStringImpl*> classesMatchingAncestors;
+        Vector<const CSSSelector*> attributeSelectorsMatchingAncestors;
     };
     void recursivelyCollectFeaturesFromSelector(SelectorFeatures&, const CSSSelector&, bool matchesAncestor = false);
 };

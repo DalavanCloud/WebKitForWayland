@@ -421,7 +421,7 @@ void RenderDeprecatedFlexibleBox::layoutHorizontalBox(bool relayoutChildren)
             LayoutSize& childLayoutDelta = childLayoutDeltas[childIndex++];
             
             // Compute the child's vertical margins.
-            child->computeAndSetBlockDirectionMargins(this);
+            child->computeAndSetBlockDirectionMargins(*this);
 
             child->markForPaginationRelayoutIfNeeded();
             
@@ -733,7 +733,7 @@ void RenderDeprecatedFlexibleBox::layoutVerticalBox(bool relayoutChildren)
             }
 
             // Compute the child's vertical margins.
-            child->computeAndSetBlockDirectionMargins(this);
+            child->computeAndSetBlockDirectionMargins(*this);
 
             // Add in the child's marginTop to our height.
             setHeight(height() + child->marginTop());
@@ -996,10 +996,10 @@ void RenderDeprecatedFlexibleBox::applyLineClamp(FlexBoxIterator& iterator, bool
         LayoutUnit totalWidth;
         InlineBox* anchorBox = lastLine->lastChild();
         if (anchorBox && anchorBox->renderer().style().isLink())
-            totalWidth = anchorBox->logicalWidth() + font.width(constructTextRun(this, font, ellipsisAndSpace, 2, style()));
+            totalWidth = anchorBox->logicalWidth() + font.width(constructTextRun(ellipsisAndSpace, 2, style()));
         else {
             anchorBox = nullptr;
-            totalWidth = font.width(constructTextRun(this, font, &horizontalEllipsis, 1, style()));
+            totalWidth = font.width(constructTextRun(&horizontalEllipsis, 1, style()));
         }
 
         // See if this width can be accommodated on the last visible line
@@ -1014,13 +1014,13 @@ void RenderDeprecatedFlexibleBox::applyLineClamp(FlexBoxIterator& iterator, bool
         if (!leftToRight)
             continue;
 
-        LayoutUnit blockRightEdge = destBlock.logicalRightOffsetForLine(lastVisibleLine->y(), false);
+        LayoutUnit blockRightEdge = destBlock.logicalRightOffsetForLine(lastVisibleLine->y(), DoNotIndentText);
         if (!lastVisibleLine->lineCanAccommodateEllipsis(leftToRight, blockRightEdge, lastVisibleLine->x() + lastVisibleLine->logicalWidth(), totalWidth))
             continue;
 
         // Let the truncation code kick in.
         // FIXME: the text alignment should be recomputed after the width changes due to truncation.
-        LayoutUnit blockLeftEdge = destBlock.logicalLeftOffsetForLine(lastVisibleLine->y(), false);
+        LayoutUnit blockLeftEdge = destBlock.logicalLeftOffsetForLine(lastVisibleLine->y(), DoNotIndentText);
         lastVisibleLine->placeEllipsis(anchorBox ? ellipsisAndSpaceStr : ellipsisStr, leftToRight, blockLeftEdge, blockRightEdge, totalWidth, anchorBox);
         destBlock.setHasMarkupTruncation(true);
     }

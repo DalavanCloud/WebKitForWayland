@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -44,6 +44,7 @@ inline CapabilityLevel canCompile(Node* node)
     
     switch (node->op()) {
     case JSConstant:
+    case LazyJSConstant:
     case GetLocal:
     case SetLocal:
     case PutStack:
@@ -68,10 +69,10 @@ inline CapabilityLevel canCompile(Node* node)
     case ArrayifyToStructure:
     case PutStructure:
     case GetButterfly:
-    case GetButterflyReadOnly:
     case NewObject:
     case NewArray:
     case NewArrayBuffer:
+    case NewTypedArray:
     case GetByOffset:
     case GetGetterSetterByOffset:
     case GetGetter:
@@ -96,6 +97,9 @@ inline CapabilityLevel canCompile(Node* node)
     case ArithPow:
     case ArithRandom:
     case ArithRound:
+    case ArithFloor:
+    case ArithCeil:
+    case ArithTrunc:
     case ArithSqrt:
     case ArithLog:
     case ArithFRound:
@@ -108,8 +112,8 @@ inline CapabilityLevel canCompile(Node* node)
     case ExtractOSREntryLocal:
     case LoopHint:
     case SkipScope:
+    case GetGlobalObject:
     case CreateActivation:
-    case NewArrowFunction:
     case NewFunction:
     case NewGeneratorFunction:
     case GetClosureVar:
@@ -127,6 +131,7 @@ inline CapabilityLevel canCompile(Node* node)
     case CheckIdent:
     case CheckWatchdogTimer:
     case StringCharCodeAt:
+    case StringFromCharCode:
     case AllocatePropertyStorage:
     case ReallocatePropertyStorage:
     case GetTypedArrayByteOffset:
@@ -156,10 +161,12 @@ inline CapabilityLevel canCompile(Node* node)
     case GetScope:
     case GetCallee:
     case GetArgumentCount:
+    case CallObjectConstructor:
     case ToString:
     case CallStringConstructor:
     case MakeRope:
     case NewArrayWithSize:
+    case TryGetById:
     case GetById:
     case GetByIdFlush:
     case ToThis:
@@ -169,6 +176,9 @@ inline CapabilityLevel canCompile(Node* node)
     case Throw:
     case ThrowReferenceError:
     case Unreachable:
+    case IsArrayObject:
+    case IsJSArray:
+    case IsArrayConstructor:
     case IsUndefined:
     case IsBoolean:
     case IsNumber:
@@ -216,6 +226,16 @@ inline CapabilityLevel canCompile(Node* node)
     case PutSetterByVal:
     case CopyRest:
     case GetRestLength:
+    case RegExpExec:
+    case RegExpTest:
+    case NewRegexp:
+    case StringReplace:
+    case GetRegExpObjectLastIndex:
+    case SetRegExpObjectLastIndex:
+    case RecordRegExpCachedResult:
+    case SetFunctionName:
+    case LogShadowChickenPrologue:
+    case LogShadowChickenTail:
         // These are OK.
         break;
 
@@ -335,6 +355,8 @@ inline CapabilityLevel canCompile(Node* node)
             break;
         if (node->isBinaryUseKind(StringIdentUse))
             break;
+        if (node->isBinaryUseKind(StringUse))
+            break;
         if (node->isBinaryUseKind(SymbolUse))
             break;
         if (node->isBinaryUseKind(ObjectUse))
@@ -358,6 +380,8 @@ inline CapabilityLevel canCompile(Node* node)
         if (node->isBinaryUseKind(DoubleRepUse))
             break;
         if (node->isBinaryUseKind(StringIdentUse))
+            break;
+        if (node->isBinaryUseKind(StringUse))
             break;
         if (node->isBinaryUseKind(ObjectUse, UntypedUse))
             break;
@@ -448,12 +472,14 @@ CapabilityLevel canCompile(Graph& graph)
                 case FunctionUse:
                 case ObjectOrOtherUse:
                 case StringUse:
+                case StringOrOtherUse:
                 case KnownStringUse:
                 case KnownPrimitiveUse:
                 case StringObjectUse:
                 case StringOrStringObjectUse:
                 case SymbolUse:
                 case FinalObjectUse:
+                case RegExpObjectUse:
                 case NotCellUse:
                 case OtherUse:
                 case MiscUse:

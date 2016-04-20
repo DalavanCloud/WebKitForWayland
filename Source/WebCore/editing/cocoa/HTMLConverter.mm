@@ -1219,6 +1219,8 @@ NSDictionary *HTMLConverter::computedAttributesForElement(Element& element)
         String textAlign = _caches->propertyValueForNode(coreBlockElement, CSSPropertyTextAlign);
         if (textAlign.length()) {
             // WebKit can return -khtml-left, -khtml-right, -khtml-center
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
             if (textAlign.endsWith("left"))
                 [paragraphStyle setAlignment:NSTextAlignmentLeft];
             else if (textAlign.endsWith("right"))
@@ -1227,6 +1229,7 @@ NSDictionary *HTMLConverter::computedAttributesForElement(Element& element)
                 [paragraphStyle setAlignment:NSTextAlignmentCenter];
             else if (textAlign.endsWith("justify"))
                 [paragraphStyle setAlignment:NSTextAlignmentJustified];
+#pragma clang diagnostic pop
         }
 
         String direction = _caches->propertyValueForNode(coreBlockElement, CSSPropertyDirection);
@@ -1408,7 +1411,7 @@ BOOL HTMLConverter::_addAttachmentForElement(Element& element, NSURL *url, BOOL 
         if (usePlaceholder && resource && mimeType == "text/html")
             notFound = YES;
         if (resource && !notFound) {
-            fileWrapper = [[[NSFileWrapper alloc] initRegularFileWithContents:resource->data()->createNSData().get()] autorelease];
+            fileWrapper = [[[NSFileWrapper alloc] initRegularFileWithContents:resource->data().createNSData().get()] autorelease];
             [fileWrapper setPreferredFilename:suggestedFilenameWithMIMEType(url, mimeType)];
         }
     }
@@ -2072,7 +2075,10 @@ void HTMLConverter::_addMarkersToList(NSTextList *list, NSRange range)
 #if PLATFORM(IOS)
                     tab = [[PlatformNSTextTab alloc] initWithTextAlignment:NSTextAlignmentNatural location:listLocation options:@{ }];
 #else
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
                     tab = [[PlatformNSTextTab alloc] initWithTextAlignment:NSNaturalTextAlignment location:listLocation options:@{ }];
+#pragma clang diagnostic pop
 #endif
                     [newStyle addTabStop:tab];
                     [tab release];
@@ -2433,7 +2439,7 @@ static NSFileWrapper *fileWrapperForURL(DocumentLoader *dataSource, NSURL *URL)
 
     RefPtr<ArchiveResource> resource = dataSource->subresource(URL);
     if (resource) {
-        NSFileWrapper *wrapper = [[[NSFileWrapper alloc] initRegularFileWithContents:resource->data()->createNSData().get()] autorelease];
+        NSFileWrapper *wrapper = [[[NSFileWrapper alloc] initRegularFileWithContents:resource->data().createNSData().get()] autorelease];
         NSString *filename = resource->response().suggestedFilename();
         if (!filename || ![filename length])
             filename = suggestedFilenameWithMIMEType(resource->url(), resource->mimeType());

@@ -107,7 +107,7 @@ bool initializeGStreamerAndRegisterWebKitElements()
 
     registerWebKitGStreamerElements();
 
-    GRefPtr<GstElementFactory> srcFactory = gst_element_factory_find("webkitwebsrc");
+    GRefPtr<GstElementFactory> srcFactory = adoptGRef(gst_element_factory_find("webkitwebsrc"));
     if (!srcFactory) {
         GST_DEBUG_CATEGORY_INIT(webkit_media_player_debug, "webkitmediaplayer", 0, "WebKit media player");
         gst_element_register(0, "webkitwebsrc", GST_RANK_PRIMARY + 100, WEBKIT_TYPE_WEB_SRC);
@@ -121,7 +121,7 @@ bool MediaPlayerPrivateGStreamer::isAvailable()
     if (!initializeGStreamerAndRegisterWebKitElements())
         return false;
 
-    GRefPtr<GstElementFactory> factory = gst_element_factory_find("playbin");
+    GRefPtr<GstElementFactory> factory = adoptGRef(gst_element_factory_find("playbin"));
     return factory;
 }
 
@@ -375,19 +375,26 @@ float MediaPlayerPrivateGStreamer::playbackPosition() const
 
     gst_query_unref(query);
 
-#if PLATFORM(BCM_NEXUS)
-// implement getting pts time from broadcom decoder directly for seek functionality
+#if PLATFORM(BCM_NEXUS) || USE(FUSION_SINK)
+    // implement getting pts time from broadcom decoder directly for seek functionality
     gint64 currentPts = -1;
+#if PLATFORM(BCM_NEXUS)
     GstElement* videoDec = findVideoDecoder(m_pipeline.get());
-    if (videoDec) {
-        g_object_get(videoDec, "video_pts", &currentPts, NULL);
-    }
-    if (currentPts > 0) {
+    const char* videoPtsPropertyName = "video_pts";
+#elif USE(FUSION_SINK)
+    GstElement* videoDec = nullptr;
+    g_object_get(m_pipeline.get(), "video-sink", &videoDec, nullptr);
+    const char* videoPtsPropertyName = "video-pts";
+#endif
+
+    if (videoDec)
+        g_object_get(videoDec, videoPtsPropertyName, &currentPts, nullptr);
+
+    if (currentPts)
         result = (static_cast<double>(currentPts * GST_MSECOND) / 45) / GST_SECOND;
-    }
-    if (result == 0 && m_seekTime != 0) {
+
+    if (!result && m_seekTime)
         result = m_seekTime;
-    }
 #endif
 
     LOG_MEDIA_MESSAGE("Position %" GST_TIME_FORMAT, GST_TIME_ARGS(position));
@@ -441,7 +448,6 @@ bool MediaPlayerPrivateGStreamer::changePipelineState(GstState newState)
 
 void MediaPlayerPrivateGStreamer::prepareToPlay()
 {
-    m_preload = MediaPlayer::Auto;
     if (m_delayingLoad) {
         m_delayingLoad = false;
         commitLoad();
@@ -458,7 +464,6 @@ void MediaPlayerPrivateGStreamer::play()
     if (changePipelineState(GST_STATE_PLAYING)) {
         m_isEndReached = false;
         m_delayingLoad = false;
-        m_preload = MediaPlayer::Auto;
         setDownloadBuffering();
         LOG_MEDIA_MESSAGE("Play");
     } else {
@@ -1100,6 +1105,7 @@ void MediaPlayerPrivateGStreamer::handleMessage(GstMessage* message)
         break;
     }
     case GST_MESSAGE_BUFFERING:
+        LOG_MEDIA_MESSAGE("Message %s received from element %s", GST_MESSAGE_TYPE_NAME(message), GST_MESSAGE_SRC_NAME(message));
         processBufferingStats(message);
         break;
     case GST_MESSAGE_DURATION_CHANGED:
@@ -1167,6 +1173,10 @@ void MediaPlayerPrivateGStreamer::handleMessage(GstMessage* message)
                 GstClockTime time;
                 gst_structure_get(structure, "uri", G_TYPE_STRING, &uri.outPtr(), "fragment-download-time", GST_TYPE_CLOCK_TIME, &time, nullptr);
                 INFO_MEDIA_MESSAGE("Fragment %s download time %" GST_TIME_FORMAT, uri.get(), GST_TIME_ARGS(time));
+            } else if (gst_structure_has_name(structure, "GstCacheDownloadComplete")) {
+                m_downloadFinished = true;
+                m_buffering = false;
+                updateStates();
             }
         }
         break;
@@ -1537,6 +1547,7 @@ void MediaPlayerPrivateGStreamer::updateStates()
                     m_readyState = MediaPlayer::HaveEnoughData;
                     m_networkState = m_downloadFinished ? MediaPlayer::Idle : MediaPlayer::Loading;
                 } else {
+                    LOG_MEDIA_MESSAGE("[Buffering] Stream still downloading.");
                     m_readyState = MediaPlayer::HaveCurrentData;
                     m_networkState = MediaPlayer::Loading;
                 }
@@ -2119,6 +2130,7 @@ void MediaPlayerPrivateGStreamer::createGSTPlayBin()
     g_signal_connect_swapped(m_pipeline.get(), "notify::source", G_CALLBACK(sourceChangedCallback), this);
     g_signal_connect_swapped(m_pipeline.get(), "video-changed", G_CALLBACK(videoChangedCallback), this);
     g_signal_connect_swapped(m_pipeline.get(), "audio-changed", G_CALLBACK(audioChangedCallback), this);
+
 #if ENABLE(VIDEO_TRACK)
     if (webkitGstCheckVersion(1, 1, 2)) {
         g_signal_connect_swapped(m_pipeline.get(), "text-changed", G_CALLBACK(textChangedCallback), this);
@@ -2150,7 +2162,17 @@ void MediaPlayerPrivateGStreamer::createGSTPlayBin()
     if (videoSinkPad)
         g_signal_connect_swapped(videoSinkPad.get(), "notify::caps", G_CALLBACK(videoSinkCapsChangedCallback), this);
 #endif
+
+#if USE(WESTEROS_SINK) && USE(HOLE_PUNCH_GSTREAMER)
+    GstElementFactory *westerosfactory = gst_element_factory_find("westerossink");
+    GstElement* sinkElement = gst_element_factory_create(westerosfactory,"WesterosVideoSink");
+    g_object_set(m_pipeline.get(), "video-sink", sinkElement, nullptr);
+    g_object_set(G_OBJECT(sinkElement),"zorder",0.0f,nullptr);
+#endif
+
+#if !USE(WESTEROS_SINK)
     g_object_set(m_pipeline.get(), "audio-sink", createAudioSink(), nullptr);
+#endif
     configurePlaySink();
 
     // On 1.4.2 and newer we use the audio-filter property instead.

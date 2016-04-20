@@ -2861,7 +2861,7 @@ begin
       nameKind = :auto
     end
     envs = []
-    while vm =~ /([a-zA-Z0-9_]+)=([a-zA-Z0-9_:.]+):/
+    while vm =~ /([a-zA-Z0-9_]+)=([a-zA-Z0-9_:.\/-]+):/
       envs << [$1, $2]
       vm = $~.post_match
     end
@@ -2930,7 +2930,7 @@ begin
    [["raytrace"], "raytrace", 2, true, false, 32],
    [["richards"], "richards", 2, true, false, 32],
    [["splay"], "splay", 2, true, false, 32],
-   [["regexp"], "regexp", 2, false, false, 16],
+   [["regexp"], "regexp", 2, true, false, 16],
    [["pdfjs"], "pdfjs", 2, false, false, 4],
    [["mandreel"], "mandreel", 2, false, false, 4],
    [["gbemu-part1", "gbemu-part2"], "gbemu", 2, false, false, 4],
@@ -2971,7 +2971,7 @@ begin
   }
   
   ASMBENCH = BenchmarkSuite.new("AsmBench", :geometricMean, 0)
-  if JSBENCH_PATH
+  if ASMBENCH_PATH
     Dir.foreach(ASMBENCH_PATH) {
       | filename |
       if filename =~ /\.js$/

@@ -43,7 +43,7 @@
 #include <wtf/text/TextPosition.h>
 
 #if ENABLE(CSS_GRID_LAYOUT)
-#include "GridCoordinate.h"
+#include "GridArea.h"
 #endif
 
 namespace WebCore {
@@ -166,13 +166,13 @@ public:
     enum FillPositionFlag { InvalidFillPosition = 0, AmbiguousFillPosition = 1, XFillPosition = 2, YFillPosition = 4 };
     enum FillPositionParsingMode { ResolveValuesAsPercent = 0, ResolveValuesAsKeyword = 1 };
     RefPtr<CSSPrimitiveValue> parseFillPositionComponent(CSSParserValueList&, unsigned& cumulativeFlags, FillPositionFlag& individualFlag, FillPositionParsingMode = ResolveValuesAsPercent);
-    RefPtr<CSSValue> parsePositionX(CSSParserValueList&);
-    RefPtr<CSSValue> parsePositionY(CSSParserValueList&);
-    void parse2ValuesFillPosition(CSSParserValueList&, RefPtr<CSSValue>&, RefPtr<CSSValue>&);
+    RefPtr<CSSPrimitiveValue> parsePositionX(CSSParserValueList&);
+    RefPtr<CSSPrimitiveValue> parsePositionY(CSSParserValueList&);
+    void parse2ValuesFillPosition(CSSParserValueList&, RefPtr<CSSPrimitiveValue>&, RefPtr<CSSPrimitiveValue>&);
     bool isPotentialPositionValue(CSSParserValue&);
-    void parseFillPosition(CSSParserValueList&, RefPtr<CSSValue>&, RefPtr<CSSValue>&);
-    void parse3ValuesFillPosition(CSSParserValueList&, RefPtr<CSSValue>&, RefPtr<CSSValue>&, RefPtr<CSSPrimitiveValue>&&, RefPtr<CSSPrimitiveValue>&&);
-    void parse4ValuesFillPosition(CSSParserValueList&, RefPtr<CSSValue>&, RefPtr<CSSValue>&, RefPtr<CSSPrimitiveValue>&&, RefPtr<CSSPrimitiveValue>&&);
+    void parseFillPosition(CSSParserValueList&, RefPtr<CSSPrimitiveValue>&, RefPtr<CSSPrimitiveValue>&);
+    void parse3ValuesFillPosition(CSSParserValueList&, RefPtr<CSSPrimitiveValue>&, RefPtr<CSSPrimitiveValue>&, RefPtr<CSSPrimitiveValue>&&, RefPtr<CSSPrimitiveValue>&&);
+    void parse4ValuesFillPosition(CSSParserValueList&, RefPtr<CSSPrimitiveValue>&, RefPtr<CSSPrimitiveValue>&, RefPtr<CSSPrimitiveValue>&&, RefPtr<CSSPrimitiveValue>&&);
 
     void parseFillRepeat(RefPtr<CSSValue>&, RefPtr<CSSValue>&);
     RefPtr<CSSValue> parseFillSize(CSSPropertyID, bool &allowComma);
@@ -197,7 +197,7 @@ public:
 #endif
     static Vector<double> parseKeyframeSelector(const String&);
 
-    bool parseTransformOriginShorthand(RefPtr<CSSValue>&, RefPtr<CSSValue>&, RefPtr<CSSValue>&);
+    bool parseTransformOriginShorthand(RefPtr<CSSPrimitiveValue>&, RefPtr<CSSPrimitiveValue>&, RefPtr<CSSValue>&);
     bool parseCubicBezierTimingFunctionValue(CSSParserValueList& args, double& result);
     bool parseAnimationProperty(CSSPropertyID, RefPtr<CSSValue>&, AnimationParseContext&);
     bool parseTransitionShorthand(CSSPropertyID, bool important);
@@ -210,16 +210,18 @@ public:
 #if ENABLE(CSS_GRID_LAYOUT)
     RefPtr<CSSValue> parseGridPosition();
     bool parseGridItemPositionShorthand(CSSPropertyID, bool important);
-    bool parseGridTemplateRowsAndAreas(PassRefPtr<CSSValue>, bool important);
+    RefPtr<CSSValue> parseGridTemplateColumns();
+    bool parseGridTemplateRowsAndAreasAndColumns(bool important);
     bool parseGridTemplateShorthand(bool important);
     bool parseGridShorthand(bool important);
     bool parseGridAreaShorthand(bool important);
     bool parseGridGapShorthand(bool important);
     bool parseSingleGridAreaLonghand(RefPtr<CSSValue>&);
     RefPtr<CSSValue> parseGridTrackList();
-    bool parseGridTrackRepeatFunction(CSSValueList&);
-    RefPtr<CSSValue> parseGridTrackSize(CSSParserValueList& inputList);
-    RefPtr<CSSPrimitiveValue> parseGridBreadth(CSSParserValue&);
+    bool parseGridTrackRepeatFunction(CSSValueList&, bool& isAutoRepeat);
+    enum TrackSizeRestriction { FixedSizeOnly, AllowAll };
+    RefPtr<CSSValue> parseGridTrackSize(CSSParserValueList& inputList, TrackSizeRestriction = AllowAll);
+    RefPtr<CSSPrimitiveValue> parseGridBreadth(CSSParserValue&, TrackSizeRestriction = AllowAll);
     bool parseGridTemplateAreasRow(NamedGridAreaMap&, const unsigned, unsigned&);
     RefPtr<CSSValue> parseGridTemplateAreas();
     bool parseGridLineNames(CSSParserValueList&, CSSValueList&, CSSGridLineNamesValue* = nullptr);
@@ -324,8 +326,8 @@ public:
 
     RefPtr<CSSValueList> parseTransform();
     RefPtr<CSSValue> parseTransformValue(CSSParserValue&);
-    bool parseTransformOrigin(CSSPropertyID propId, CSSPropertyID& propId1, CSSPropertyID& propId2, CSSPropertyID& propId3, RefPtr<CSSValue>&, RefPtr<CSSValue>&, RefPtr<CSSValue>&);
-    bool parsePerspectiveOrigin(CSSPropertyID propId, CSSPropertyID& propId1, CSSPropertyID& propId2,  RefPtr<CSSValue>&, RefPtr<CSSValue>&);
+    bool parseTransformOrigin(CSSPropertyID propId, CSSPropertyID& propId1, CSSPropertyID& propId2, CSSPropertyID& propId3, RefPtr<CSSPrimitiveValue>&, RefPtr<CSSPrimitiveValue>&, RefPtr<CSSValue>&);
+    bool parsePerspectiveOrigin(CSSPropertyID propId, CSSPropertyID& propId1, CSSPropertyID& propId2,  RefPtr<CSSPrimitiveValue>&, RefPtr<CSSPrimitiveValue>&);
 
     bool parseTextEmphasisStyle(bool important);
     bool parseTextEmphasisPosition(bool important);

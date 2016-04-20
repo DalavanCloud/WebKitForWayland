@@ -29,6 +29,9 @@
 #include "GraphicsContext.h"
 #include "IntRect.h"
 #include <CoreGraphics/CoreGraphics.h>
+#include <runtime/JSCInlines.h>
+#include <runtime/TypedArrayInlines.h>
+#include <runtime/Uint8ClampedArray.h>
 #include <wtf/Assertions.h>
 
 #if USE(ACCELERATE)
@@ -61,7 +64,6 @@ static void unpremultiplyBufferData(const vImage_Buffer& src, const vImage_Buffe
     vImagePermuteChannels_ARGB8888(&dest, &dest, map, kvImageNoFlags);
 }
 
-#if !PLATFORM(IOS_SIMULATOR)
 static void premultiplyBufferData(const vImage_Buffer& src, const vImage_Buffer& dest)
 {
     ASSERT(src.data);
@@ -74,7 +76,6 @@ static void premultiplyBufferData(const vImage_Buffer& src, const vImage_Buffer&
     const uint8_t map[4] = { 2, 1, 0, 3 };
     vImagePermuteChannels_ARGB8888(&dest, &dest, map, kvImageNoFlags);
 }
-#endif // !PLATFORM(IOS_SIMULATOR)
 #endif // USE_ARGB32 || USE(IOSURFACE_CANVAS_BACKING_STORE)
 
 #if !PLATFORM(IOS_SIMULATOR)
@@ -409,7 +410,7 @@ void ImageBufferData::putData(Uint8ClampedArray*& source, const IntSize& sourceS
             dest.data = destRows;
 
 #if USE_ARGB32
-            unpremultiplyBufferData(src, dest);
+            premultiplyBufferData(src, dest);
 #else
             if (resolutionScale != 1) {
                 affineWarpBufferData(src, dest, resolutionScale);

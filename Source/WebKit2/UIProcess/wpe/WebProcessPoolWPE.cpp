@@ -89,6 +89,12 @@ WTF::String WebProcessPool::legacyPlatformDefaultApplicationCacheDirectory()
     return WebCore::filenameToString(cacheDirectory.get());
 }
 
+WTF::String WebProcessPool::legacyPlatformDefaultMediaCacheDirectory()
+{
+    GUniquePtr<gchar> cacheDirectory(g_build_filename(g_get_user_cache_dir(), "wpe", "mediacache", nullptr));
+    return WebCore::filenameToString(cacheDirectory.get());
+}
+
 void WebProcessPool::platformInitialize()
 {
 }
@@ -98,11 +104,6 @@ void WebProcessPool::platformInitializeWebProcess(WebProcessCreationParameters& 
 #if ENABLE(INSPECTOR_SERVER)
     initInspectorServer();
 #endif
-
-    if (!parameters.urlSchemesRegisteredAsLocal.contains("resource")) {
-        WebCore::SchemeRegistry::registerURLSchemeAsLocal("resource");
-        parameters.urlSchemesRegisteredAsLocal.append("resource");
-    }
 
     parameters.memoryCacheDisabled = m_memoryCacheDisabled || cacheModel() == CacheModelDocumentViewer;
 }

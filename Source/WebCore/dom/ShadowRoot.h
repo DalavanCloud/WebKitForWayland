@@ -62,6 +62,8 @@ public:
 
     virtual ~ShadowRoot();
 
+    using TreeScope::rootNode;
+
     StyleResolver& styleResolver();
     AuthorStyleSheets& authorStyleSheets();
     
@@ -81,7 +83,7 @@ public:
 
     Type type() const { return m_type; }
 
-    virtual void removeAllEventListeners() override;
+    void removeAllEventListeners() override;
 
 #if ENABLE(SHADOW_DOM) || ENABLE(DETAILS_ELEMENT)
     HTMLSlotElement* findAssignedSlot(const Node&);
@@ -89,8 +91,11 @@ public:
     void addSlotElementByName(const AtomicString&, HTMLSlotElement&);
     void removeSlotElementByName(const AtomicString&, HTMLSlotElement&);
 
-    void invalidateSlotAssignments();
-    void invalidateDefaultSlotAssignments();
+    void didRemoveAllChildrenOfShadowHost();
+    void didChangeDefaultSlot();
+    void hostChildElementDidChange(const Element&);
+    void hostChildElementDidChangeSlotAttribute(const AtomicString& oldValue, const AtomicString& newValue);
+    void innerSlotDidChange(const AtomicString&);
 
     const Vector<Node*>* assignedNodesForSlot(const HTMLSlotElement&);
 #endif
@@ -106,9 +111,9 @@ protected:
     bool isOrphan() const { return !m_host; }
 
 private:
-    virtual bool childTypeAllowed(NodeType) const override;
+    bool childTypeAllowed(NodeType) const override;
 
-    virtual Ref<Node> cloneNodeInternal(Document&, CloningOperation) override;
+    Ref<Node> cloneNodeInternal(Document&, CloningOperation) override;
 
     bool m_resetStyleInheritance { false };
     Type m_type { Type::UserAgent };

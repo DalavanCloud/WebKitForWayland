@@ -63,8 +63,6 @@ RenderTable::RenderTable(Element& element, Ref<RenderStyle>&& style)
     , m_columnLogicalWidthChanged(false)
     , m_columnRenderersValid(false)
     , m_hasCellColspanThatDeterminesTableWidth(false)
-    , m_hSpacing(0)
-    , m_vSpacing(0)
     , m_borderStart(0)
     , m_borderEnd(0)
     , m_columnOffsetTop(-1)
@@ -87,8 +85,6 @@ RenderTable::RenderTable(Document& document, Ref<RenderStyle>&& style)
     , m_columnLogicalWidthChanged(false)
     , m_columnRenderersValid(false)
     , m_hasCellColspanThatDeterminesTableWidth(false)
-    , m_hSpacing(0)
-    , m_vSpacing(0)
     , m_borderStart(0)
     , m_borderEnd(0)
 {
@@ -276,10 +272,10 @@ void RenderTable::updateLogicalWidth()
         setMarginEnd(computedValues.m_margins.m_end);
     }
 
-    RenderBlock* cb = containingBlock();
+    RenderBlock& cb = *containingBlock();
 
     LayoutUnit availableLogicalWidth = containingBlockLogicalWidthForContent();
-    bool hasPerpendicularContainingBlock = cb->style().isHorizontalWritingMode() != style().isHorizontalWritingMode();
+    bool hasPerpendicularContainingBlock = cb.style().isHorizontalWritingMode() != style().isHorizontalWritingMode();
     LayoutUnit containerWidthInInlineDirection = hasPerpendicularContainingBlock ? perpendicularContainingBlockLogicalHeight() : availableLogicalWidth;
 
     Length styleLogicalWidth = style().logicalWidth();
@@ -293,7 +289,7 @@ void RenderTable::updateLogicalWidth()
 
         // Subtract out our margins to get the available content width.
         LayoutUnit availableContentLogicalWidth = std::max<LayoutUnit>(0, containerWidthInInlineDirection - marginTotal);
-        if (shrinkToAvoidFloats() && cb->containsFloats() && !hasPerpendicularContainingBlock) {
+        if (shrinkToAvoidFloats() && cb.containsFloats() && !hasPerpendicularContainingBlock) {
             // FIXME: Work with regions someday.
             availableContentLogicalWidth = shrinkLogicalWidthToAvoidFloats(marginStart, marginEnd, cb, 0);
         }
@@ -325,10 +321,10 @@ void RenderTable::updateLogicalWidth()
     setMarginEnd(0);
     if (!hasPerpendicularContainingBlock) {
         LayoutUnit containerLogicalWidthForAutoMargins = availableLogicalWidth;
-        if (avoidsFloats() && cb->containsFloats())
+        if (avoidsFloats() && cb.containsFloats())
             containerLogicalWidthForAutoMargins = containingBlockAvailableLineWidthInRegion(0); // FIXME: Work with regions someday.
         ComputedMarginValues marginValues;
-        bool hasInvertedDirection =  cb->style().isLeftToRightDirection() == style().isLeftToRightDirection();
+        bool hasInvertedDirection =  cb.style().isLeftToRightDirection() == style().isLeftToRightDirection();
         computeInlineDirectionMargins(cb, containerLogicalWidthForAutoMargins, logicalWidth(),
             hasInvertedDirection ? marginValues.m_start : marginValues.m_end,
             hasInvertedDirection ? marginValues.m_end : marginValues.m_start);
@@ -928,7 +924,7 @@ LayoutUnit RenderTable::offsetLeftForColumn(const RenderTableCol& column) const
     unsigned columnIndex = effectiveIndexOfColumn(column);
     if (columnIndex >= numEffCols())
         return 0;
-    return m_columnPos[columnIndex] + LayoutUnit(m_hSpacing) + borderLeft();
+    return m_columnPos[columnIndex] + m_hSpacing + borderLeft();
 }
 
 LayoutUnit RenderTable::offsetWidthForColumn(const RenderTableCol& column) const
@@ -1121,7 +1117,7 @@ LayoutUnit RenderTable::calcBorderStart() const
                 borderWidth = std::max(borderWidth, firstRowAdjoiningBorder.width());
         }
     }
-    return floorToInt((borderWidth + (style().isLeftToRightDirection() ? 0 : 1)) / 2);
+    return CollapsedBorderValue::adjustedCollapsedBorderWidth(borderWidth, document().deviceScaleFactor(), !style().isLeftToRightDirection());
 }
 
 LayoutUnit RenderTable::calcBorderEnd() const
@@ -1176,7 +1172,7 @@ LayoutUnit RenderTable::calcBorderEnd() const
                 borderWidth = std::max(borderWidth, firstRowAdjoiningBorder.width());
         }
     }
-    return floorToInt((borderWidth + (style().isLeftToRightDirection() ? 1 : 0)) / 2);
+    return CollapsedBorderValue::adjustedCollapsedBorderWidth(borderWidth, document().deviceScaleFactor(), style().isLeftToRightDirection());
 }
 
 void RenderTable::recalcBordersInRowDirection()
@@ -1217,8 +1213,10 @@ LayoutUnit RenderTable::outerBorderBefore() const
     const BorderValue& tb = style().borderBefore();
     if (tb.style() == BHIDDEN)
         return 0;
-    if (tb.style() > BHIDDEN)
-        borderWidth = floorToInt(std::max<LayoutUnit>(borderWidth, tb.width() / 2));
+    if (tb.style() > BHIDDEN) {
+        LayoutUnit collapsedBorderWidth = std::max<LayoutUnit>(borderWidth, tb.width() / 2);
+        borderWidth = floorToDevicePixel(collapsedBorderWidth, document().deviceScaleFactor());
+    }
     return borderWidth;
 }
 
@@ -1236,8 +1234,11 @@ LayoutUnit RenderTable::outerBorderAfter() const
     const BorderValue& tb = style().borderAfter();
     if (tb.style() == BHIDDEN)
         return 0;
-    if (tb.style() > BHIDDEN)
-        borderWidth = floorToInt(std::max<LayoutUnit>(borderWidth, (tb.width() + 1) / 2));
+    if (tb.style() > BHIDDEN) {
+        float deviceScaleFactor = document().deviceScaleFactor();
+        LayoutUnit collapsedBorderWidth = std::max<LayoutUnit>(borderWidth, (tb.width() + (1 / deviceScaleFactor)) / 2);
+        borderWidth = floorToDevicePixel(collapsedBorderWidth, deviceScaleFactor);
+    }
     return borderWidth;
 }
 
@@ -1252,7 +1253,7 @@ LayoutUnit RenderTable::outerBorderStart() const
     if (tb.style() == BHIDDEN)
         return 0;
     if (tb.style() > BHIDDEN)
-        borderWidth = floorToInt((tb.width() + (style().isLeftToRightDirection() ? 0 : 1)) / 2);
+        return CollapsedBorderValue::adjustedCollapsedBorderWidth(tb.width(), document().deviceScaleFactor(), !style().isLeftToRightDirection());
 
     bool allHidden = true;
     for (RenderTableSection* section = topSection(); section; section = sectionBelow(section)) {
@@ -1279,7 +1280,7 @@ LayoutUnit RenderTable::outerBorderEnd() const
     if (tb.style() == BHIDDEN)
         return 0;
     if (tb.style() > BHIDDEN)
-        borderWidth = floorToInt((tb.width() + (style().isLeftToRightDirection() ? 1 : 0)) / 2);
+        return CollapsedBorderValue::adjustedCollapsedBorderWidth(tb.width(), document().deviceScaleFactor(), style().isLeftToRightDirection());
 
     bool allHidden = true;
     for (RenderTableSection* section = topSection(); section; section = sectionBelow(section)) {

@@ -69,6 +69,7 @@ public:
 #if ENABLE(SVG_FONTS)
         SVGFontResource,
 #endif
+        MediaResource,
         RawResource,
         SVGDocumentResource
 #if ENABLE(XSLT)
@@ -147,8 +148,6 @@ public:
     unsigned encodedSize() const { return m_encodedSize; }
     unsigned decodedSize() const { return m_decodedSize; }
     unsigned overheadSize() const;
-
-    virtual bool decodedDataIsPurgeable() const { return false; }
     
     bool isLoaded() const { return !m_loading; } // FIXME. Method name is inaccurate. Loading might not have started yet.
 
@@ -161,8 +160,8 @@ public:
     bool areAllClientsXMLHttpRequests() const;
 
     bool isImage() const { return type() == ImageResource; }
-    // FIXME: CachedRawResource could be either a main resource or a raw XHR resource.
-    bool isMainOrRawResource() const { return type() == MainResource || type() == RawResource; }
+    // FIXME: CachedRawResource could be a main resource, an audio/video resource, or a raw XHR/icon resource.
+    bool isMainOrMediaOrRawResource() const { return type() == MainResource || type() == MediaResource || type() == RawResource; }
     bool ignoreForRequestCount() const
     {
         return type() == MainResource
@@ -196,6 +195,7 @@ public:
 
     virtual void redirectReceived(ResourceRequest&, const ResourceResponse&);
     virtual void responseReceived(const ResourceResponse&);
+    virtual bool shouldCacheResponse(const ResourceResponse&) { return true; }
     void setResponse(const ResourceResponse& response) { m_response = response; }
     const ResourceResponse& response() const { return m_response; }
     // This is the same as response() except after HTTP redirect to data: URL.

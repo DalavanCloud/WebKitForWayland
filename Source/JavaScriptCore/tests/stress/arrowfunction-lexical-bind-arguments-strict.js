@@ -8,21 +8,6 @@ var testCase = function (actual, expected, message) {
 var txtMsg = 'Error: arguments is not lexically binded inside of the arrow function in strict mode';
 var text_value = 'function_global_scope';
 
-var arr = (error) =>  {
-  if (error)
-      return arguments;
-  else
-      return 'no-error';
-};
-
-noInline(arr);
-
-for (let i=0; i<10000; i++) {
-    let value = arr(true);
-    let isArray = typeof value === 'array';
-    testCase(isArray, false, txtMsg + "#1");
-}
-
 function afFactory0() {
     return a => arguments;
 }
@@ -146,3 +131,39 @@ function test() {
 }
 
 test();
+
+var testValue = 'test-value';
+
+function f_args () {
+    if (true) {
+        let someValue = '';
+        if (true) {
+            let anotherValue = 'value';
+            return () => () => () => arguments[0];
+        }
+    }
+
+    return () => 'no-value';
+}
+
+for (var i = 0; i < 10000; i++) {
+    let v = f_args(testValue, 'anotherValue')()()();
+    testCase(v, testValue);
+}
+
+function f_args_eval () {
+    if (true) {
+        let someValue = '';
+        if (true) {
+            let anotherValue = 'value';
+            return () => () => () => eval('arguments[0]');
+        }
+    }
+
+    return () => 'no-value';
+}
+
+for (var i = 0; i < 10000; i++) {
+    let v = f_args_eval(testValue, 'anotherValue')()()();
+    testCase(v, testValue);
+}

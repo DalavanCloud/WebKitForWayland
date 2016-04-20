@@ -49,6 +49,9 @@ namespace JSC {
 
 JIT::CodeRef JIT::privateCompileCTINativeCall(VM* vm, NativeFunction func)
 {
+    // FIXME: This should be able to log ShadowChicken prologue packets.
+    // https://bugs.webkit.org/show_bug.cgi?id=155689
+    
     Call nativeCall;
 
     emitFunctionPrologue();
@@ -233,6 +236,8 @@ void JIT::emit_op_instanceof(Instruction* currentInstruction)
     move(TrustedImm32(1), regT0);
     Label loop(this);
 
+    addSlowCase(branch8(Equal, Address(regT2, JSCell::typeInfoTypeOffset()), TrustedImm32(ProxyObjectType)));
+
     // Load the prototype of the cell in regT2.  If this is equal to regT1 - WIN!
     // Otherwise, check if we've hit null - if we have then drop out of the loop, if not go again.
     loadPtr(Address(regT2, JSCell::structureIDOffset()), regT2);
@@ -262,6 +267,7 @@ void JIT::emitSlow_op_instanceof(Instruction* currentInstruction, Vector<SlowCas
 
     linkSlowCaseIfNotJSCell(iter, value);
     linkSlowCaseIfNotJSCell(iter, proto);
+    linkSlowCase(iter);
     linkSlowCase(iter);
 
     emitLoad(value, regT1, regT0);
@@ -390,6 +396,15 @@ void JIT::emitSlow_op_to_primitive(Instruction* currentInstruction, Vector<SlowC
 
     JITSlowPathCall slowPathCall(this, currentInstruction, slow_path_to_primitive);
     slowPathCall.call();
+}
+
+void JIT::emit_op_set_function_name(Instruction* currentInstruction)
+{
+    int func = currentInstruction[1].u.operand;
+    int name = currentInstruction[2].u.operand;
+    emitLoadPayload(func, regT1);
+    emitLoad(name, regT3, regT2);
+    callOperation(operationSetFunctionName, regT1, regT3, regT2);
 }
 
 void JIT::emit_op_strcat(Instruction* currentInstruction)
@@ -970,6 +985,7 @@ void JIT::emit_op_create_this(Instruction* currentInstruction)
     RegisterID scratchReg = regT3;
 
     emitLoadPayload(callee, calleeReg);
+    addSlowCase(branch8(NotEqual, Address(calleeReg, JSCell::typeInfoTypeOffset()), TrustedImm32(JSFunctionType)));
     loadPtr(Address(calleeReg, JSFunction::offsetOfRareData()), rareDataReg);
     addSlowCase(branchTestPtr(Zero, rareDataReg));
     loadPtr(Address(rareDataReg, FunctionRareData::offsetOfObjectAllocationProfile() + ObjectAllocationProfile::offsetOfAllocator()), allocatorReg);
@@ -987,6 +1003,7 @@ void JIT::emit_op_create_this(Instruction* currentInstruction)
 
 void JIT::emitSlow_op_create_this(Instruction* currentInstruction, Vector<SlowCaseEntry>::iterator& iter)
 {
+    linkSlowCase(iter); // Callee::m_type != JSFunctionType.
     linkSlowCase(iter); // doesn't have rare data
     linkSlowCase(iter); // doesn't have an allocation profile
     linkSlowCase(iter); // allocation failed
@@ -1191,7 +1208,6 @@ void JIT::emit_op_get_direct_pname(Instruction* currentInstruction)
     // Otherwise it's out of line
     outOfLineAccess.link(this);
     loadPtr(Address(regT0, JSObject::butterflyOffset()), regT0);
-    addSlowCase(branchIfNotToSpace(regT0));
     sub32(Address(regT1, JSPropertyNameEnumerator::cachedInlineCapacityOffset()), regT2);
     neg32(regT2);
     int32_t offsetOfFirstProperty = static_cast<int32_t>(offsetInButterfly(firstOutOfLineOffset)) * sizeof(EncodedJSValue);
@@ -1207,7 +1223,6 @@ void JIT::emitSlow_op_get_direct_pname(Instruction* currentInstruction, Vector<S
 {
     int base = currentInstruction[2].u.operand;
     linkSlowCaseIfNotJSCell(iter, base);
-    linkSlowCase(iter);
     linkSlowCase(iter);
 
     JITSlowPathCall slowPathCall(this, currentInstruction, slow_path_get_direct_pname);

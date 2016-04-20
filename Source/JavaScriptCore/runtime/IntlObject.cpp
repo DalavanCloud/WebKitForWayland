@@ -114,14 +114,6 @@ Structure* IntlObject::createStructure(VM& vm, JSGlobalObject* globalObject, JSV
     return Structure::create(vm, globalObject, prototype, TypeInfo(ObjectType, StructureFlags), info());
 }
 
-String defaultLocale()
-{
-    // 6.2.4 DefaultLocale ()
-    String locale = uloc_getDefault();
-    convertICULocaleToBCP47LanguageTag(locale);
-    return locale;
-}
-
 void convertICULocaleToBCP47LanguageTag(String& locale)
 {
     locale.replace('_', '-');
@@ -207,6 +199,44 @@ String intlStringOption(ExecState& state, JSValue options, PropertyName property
 
         // e. Return value.
         return stringValue;
+    }
+
+    // 6. Else return fallback.
+    return fallback;
+}
+
+unsigned intlNumberOption(ExecState& state, JSValue options, PropertyName property, unsigned minimum, unsigned maximum, unsigned fallback)
+{
+    // 9.2.9 GetNumberOption (options, property, minimum, maximum, fallback) (ECMA-402 2.0)
+    // 1. Let opts be ToObject(options).
+    JSObject* opts = options.toObject(&state);
+
+    // 2. ReturnIfAbrupt(opts).
+    if (state.hadException())
+        return 0;
+
+    // 3. Let value be Get(opts, property).
+    JSValue value = opts->get(&state, property);
+
+    // 4. ReturnIfAbrupt(value).
+    if (state.hadException())
+        return 0;
+
+    // 5. If value is not undefined, then
+    if (!value.isUndefined()) {
+        // a. Let value be ToNumber(value).
+        double doubleValue = value.toNumber(&state);
+        // b. ReturnIfAbrupt(value).
+        if (state.hadException())
+            return 0;
+        // 1. If value is NaN or less than minimum or greater than maximum, throw a RangeError exception.
+        if (!(doubleValue >= minimum && doubleValue <= maximum)) {
+            state.vm().throwException(&state, createRangeError(&state, *property.publicName() + " is out of range"));
+            return 0;
+        }
+
+        // c. Return floor(value).
+        return static_cast<unsigned>(doubleValue);
     }
 
     // 6. Else return fallback.
@@ -612,6 +642,19 @@ String bestAvailableLocale(const HashSet<String>& availableLocales, const String
     return String();
 }
 
+String defaultLocale(ExecState& state)
+{
+    // 6.2.4 DefaultLocale ()
+    if (auto defaultLanguage = state.callee()->globalObject()->globalObjectMethodTable()->defaultLanguage) {
+        String locale = defaultLanguage();
+        if (!locale.isEmpty())
+            return canonicalizeLanguageTag(locale);
+    }
+    String locale = uloc_getDefault();
+    convertICULocaleToBCP47LanguageTag(locale);
+    return locale;
+}
+
 String removeUnicodeLocaleExtension(const String& locale)
 {
     Vector<String> parts;
@@ -634,7 +677,7 @@ String removeUnicodeLocaleExtension(const String& locale)
     return builder.toString();
 }
 
-static MatcherResult lookupMatcher(const HashSet<String>& availableLocales, const Vector<String>& requestedLocales)
+static MatcherResult lookupMatcher(ExecState& state, const HashSet<String>& availableLocales, const Vector<String>& requestedLocales)
 {
     // 9.2.3 LookupMatcher (availableLocales, requestedLocales) (ECMA-402 2.0)
     String locale;
@@ -671,25 +714,25 @@ static MatcherResult lookupMatcher(const HashSet<String>& availableLocales, cons
             result.extensionIndex = extensionIndex;
         }
     } else
-        result.locale = defaultLocale();
+        result.locale = defaultLocale(state);
     return result;
 }
 
-static MatcherResult bestFitMatcher(const HashSet<String>& availableLocales, const Vector<String>& requestedLocales)
+static MatcherResult bestFitMatcher(ExecState& state, const HashSet<String>& availableLocales, const Vector<String>& requestedLocales)
 {
     // 9.2.4 BestFitMatcher (availableLocales, requestedLocales) (ECMA-402 2.0)
     // FIXME: Implement something better than lookup.
-    return lookupMatcher(availableLocales, requestedLocales);
+    return lookupMatcher(state, availableLocales, requestedLocales);
 }
 
-HashMap<String, String> resolveLocale(const HashSet<String>& availableLocales, const Vector<String>& requestedLocales, const HashMap<String, String>& options, const char* const relevantExtensionKeys[], size_t relevantExtensionKeyCount, Vector<String> (*localeData)(const String&, size_t))
+HashMap<String, String> resolveLocale(ExecState& state, const HashSet<String>& availableLocales, const Vector<String>& requestedLocales, const HashMap<String, String>& options, const char* const relevantExtensionKeys[], size_t relevantExtensionKeyCount, Vector<String> (*localeData)(const String&, size_t))
 {
     // 9.2.5 ResolveLocale (availableLocales, requestedLocales, options, relevantExtensionKeys, localeData) (ECMA-402 2.0)
     // 1. Let matcher be the value of options.[[localeMatcher]].
     const String& matcher = options.get(ASCIILiteral("localeMatcher"));
 
     // 2. If matcher is "lookup", then
-    MatcherResult (*matcherOperation)(const HashSet<String>&, const Vector<String>&);
+    MatcherResult (*matcherOperation)(ExecState&, const HashSet<String>&, const Vector<String>&);
     if (matcher == "lookup") {
         // a. Let MatcherOperation be the abstract operation LookupMatcher.
         matcherOperation = lookupMatcher;
@@ -699,7 +742,7 @@ HashMap<String, String> resolveLocale(const HashSet<String>& availableLocales, c
     }
 
     // 4. Let r be MatcherOperation(availableLocales, requestedLocales).
-    MatcherResult matcherResult = matcherOperation(availableLocales, requestedLocales);
+    MatcherResult matcherResult = matcherOperation(state, availableLocales, requestedLocales);
 
     // 5. Let foundLocale be the value of r.[[locale]].
     String foundLocale = matcherResult.locale;
@@ -901,6 +944,8 @@ JSValue supportedLocales(ExecState& state, const HashSet<String>& availableLocal
     // 7. Let keys be subset.[[OwnPropertyKeys]]().
     PropertyNameArray keys(&state, PropertyNameMode::Strings);
     supportedLocales->getOwnPropertyNames(supportedLocales, &state, keys, EnumerationMode());
+    if (state.hadException())
+        return jsUndefined();
 
     PropertyDescriptor desc;
     desc.setConfigurable(false);
@@ -924,27 +969,25 @@ JSValue supportedLocales(ExecState& state, const HashSet<String>& availableLocal
     return supportedLocales;
 }
 
-Vector<String> getNumberingSystemsForLocale(const String& locale)
+Vector<String> numberingSystemsForLocale(const String& locale)
 {
     static NeverDestroyed<Vector<String>> cachedNumberingSystems;
     Vector<String>& availableNumberingSystems = cachedNumberingSystems.get();
     if (availableNumberingSystems.isEmpty()) {
-        UErrorCode status(U_ZERO_ERROR);
+        UErrorCode status = U_ZERO_ERROR;
         UEnumeration* numberingSystemNames = unumsys_openAvailableNames(&status);
         ASSERT(U_SUCCESS(status));
-        status = U_ZERO_ERROR;
 
         int32_t resultLength;
         // Numbering system names are always ASCII, so use char[].
         while (const char* result = uenum_next(numberingSystemNames, &resultLength, &status)) {
             ASSERT(U_SUCCESS(status));
-            status = U_ZERO_ERROR;
             availableNumberingSystems.append(String(result, resultLength));
         }
         uenum_close(numberingSystemNames);
     }
 
-    UErrorCode status(U_ZERO_ERROR);
+    UErrorCode status = U_ZERO_ERROR;
     UNumberingSystem* defaultSystem = unumsys_open(locale.utf8().data(), &status);
     ASSERT(U_SUCCESS(status));
     String defaultSystemName(unumsys_getName(defaultSystem));

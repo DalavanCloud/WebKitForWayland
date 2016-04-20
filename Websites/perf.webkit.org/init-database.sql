@@ -1,33 +1,34 @@
-DROP TABLE run_iterations CASCADE;
-DROP TABLE test_runs CASCADE;
-DROP TABLE test_configurations CASCADE;
-DROP TYPE test_configuration_type CASCADE;
-DROP TABLE aggregators CASCADE;
-DROP TABLE builds CASCADE;
-DROP TABLE committers CASCADE;
-DROP TABLE commits CASCADE;
-DROP TABLE build_commits CASCADE;
-DROP TABLE build_slaves CASCADE;
-DROP TABLE builders CASCADE;
-DROP TABLE repositories CASCADE;
-DROP TABLE platforms CASCADE;
-DROP TABLE test_metrics CASCADE;
-DROP TABLE tests CASCADE;
-DROP TABLE reports CASCADE;
-DROP TABLE tracker_repositories CASCADE;
-DROP TABLE bug_trackers CASCADE;
-DROP TABLE analysis_tasks CASCADE;
-DROP TABLE analysis_strategies CASCADE;
-DROP TYPE analysis_task_result_type CASCADE;
-DROP TABLE build_triggerables CASCADE;
-DROP TABLE triggerable_configurations CASCADE;
-DROP TABLE triggerable_repositories CASCADE;
-DROP TABLE bugs CASCADE;
-DROP TABLE analysis_test_groups CASCADE;
-DROP TABLE root_sets CASCADE;
-DROP TABLE roots CASCADE;
-DROP TABLE build_requests CASCADE;
-DROP TYPE build_request_status_type CASCADE;
+DROP TABLE IF EXISTS run_iterations CASCADE;
+DROP TABLE IF EXISTS test_runs CASCADE;
+DROP TABLE IF EXISTS test_configurations CASCADE;
+DROP TYPE IF EXISTS test_configuration_type CASCADE;
+DROP TABLE IF EXISTS aggregators CASCADE;
+DROP TABLE IF EXISTS builds CASCADE;
+DROP TABLE IF EXISTS committers CASCADE;
+DROP TABLE IF EXISTS commits CASCADE;
+DROP TABLE IF EXISTS build_commits CASCADE;
+DROP TABLE IF EXISTS build_slaves CASCADE;
+DROP TABLE IF EXISTS builders CASCADE;
+DROP TABLE IF EXISTS repositories CASCADE;
+DROP TABLE IF EXISTS platforms CASCADE;
+DROP TABLE IF EXISTS test_metrics CASCADE;
+DROP TABLE IF EXISTS tests CASCADE;
+DROP TABLE IF EXISTS reports CASCADE;
+DROP TABLE IF EXISTS tracker_repositories CASCADE;
+DROP TABLE IF EXISTS bug_trackers CASCADE;
+DROP TABLE IF EXISTS task_commits CASCADE;
+DROP TABLE IF EXISTS analysis_tasks CASCADE;
+DROP TABLE IF EXISTS analysis_strategies CASCADE;
+DROP TYPE IF EXISTS analysis_task_result_type CASCADE;
+DROP TABLE IF EXISTS build_triggerables CASCADE;
+DROP TABLE IF EXISTS triggerable_configurations CASCADE;
+DROP TABLE IF EXISTS triggerable_repositories CASCADE;
+DROP TABLE IF EXISTS bugs CASCADE;
+DROP TABLE IF EXISTS analysis_test_groups CASCADE;
+DROP TABLE IF EXISTS root_sets CASCADE;
+DROP TABLE IF EXISTS roots CASCADE;
+DROP TABLE IF EXISTS build_requests CASCADE;
+DROP TYPE IF EXISTS build_request_status_type CASCADE;
 
 
 CREATE TABLE platforms (
@@ -202,6 +203,12 @@ CREATE TABLE analysis_tasks (
     CONSTRAINT analysis_task_should_not_be_associated_with_single_run
         CHECK ((task_start_run IS NULL AND task_end_run IS NULL) OR (task_start_run IS NOT NULL AND task_end_run IS NOT NULL)));
 
+CREATE TABLE task_commits (
+    taskcommit_task integer NOT NULL REFERENCES analysis_tasks ON DELETE CASCADE,
+    taskcommit_commit integer NOT NULL REFERENCES commits ON DELETE CASCADE,
+    taskcommit_is_fix boolean NOT NULL,
+    CONSTRAINT task_commit_must_be_unique UNIQUE(taskcommit_task, taskcommit_commit));
+
 CREATE TABLE bugs (
     bug_id serial PRIMARY KEY,
     bug_task integer REFERENCES analysis_tasks NOT NULL,
@@ -229,6 +236,7 @@ CREATE TABLE analysis_test_groups (
     testgroup_name varchar(256),
     testgroup_author varchar(256),
     testgroup_created_at timestamp NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
+    testgroup_hidden boolean NOT NULL DEFAULT FALSE,
     CONSTRAINT testgroup_name_must_be_unique_for_each_task UNIQUE(testgroup_task, testgroup_name));
 CREATE INDEX testgroup_task_index ON analysis_test_groups(testgroup_task);
 
@@ -239,7 +247,7 @@ CREATE TABLE roots (
     root_set integer REFERENCES root_sets NOT NULL,
     root_commit integer REFERENCES commits NOT NULL);
 
-CREATE TYPE build_request_status_type as ENUM ('pending', 'scheduled', 'running', 'failed', 'completed');
+CREATE TYPE build_request_status_type as ENUM ('pending', 'scheduled', 'running', 'failed', 'completed', 'canceled');
 CREATE TABLE build_requests (
     request_id serial PRIMARY KEY,
     request_triggerable integer REFERENCES build_triggerables NOT NULL,

@@ -37,6 +37,7 @@
 #include <WebCore/Document.h>
 #include <WebCore/DragImage.h>
 #include <WebCore/Element.h>
+#include <WebCore/Event.h>
 #include <WebCore/Font.h>
 #include <WebCore/FontCascade.h>
 #include <WebCore/Frame.h>
@@ -441,7 +442,7 @@ HRESULT DOMNode::dispatchEvent(_In_opt_ IDOMEvent* evt, _Out_ BOOL* result)
         return hr;
 
     WebCore::ExceptionCode ec = 0;
-    *result = m_node->dispatchEvent(domEvent->coreEvent(), ec) ? TRUE : FALSE;
+    *result = m_node->dispatchEventForBindings(domEvent->coreEvent(), ec) ? TRUE : FALSE;
     return ec ? E_FAIL : S_OK;
 }
 
@@ -938,7 +939,7 @@ HRESULT DOMWindow::dispatchEvent(_In_opt_ IDOMEvent* evt, _Out_ BOOL* result)
         return hr;
 
     WebCore::ExceptionCode ec = 0;
-    *result = m_window->dispatchEvent(domEvent->coreEvent(), ec) ? TRUE : FALSE;
+    *result = m_window->dispatchEventForBindings(domEvent->coreEvent(), ec) ? TRUE : FALSE;
     return ec ? E_FAIL : S_OK;
 }
 
@@ -1335,7 +1336,7 @@ HRESULT DOMElement::style(_COM_Outptr_opt_ IDOMCSSStyleDeclaration** result)
     if (!m_element)
         return E_FAIL;
 
-    WebCore::CSSStyleDeclaration* style = m_element->style();
+    WebCore::CSSStyleDeclaration* style = m_element->cssomStyle();
     if (!style)
         return E_FAIL;
 

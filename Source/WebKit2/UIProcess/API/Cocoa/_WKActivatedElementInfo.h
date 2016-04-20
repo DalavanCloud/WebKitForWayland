@@ -36,6 +36,7 @@
 typedef NS_ENUM(NSInteger, _WKActivatedElementType) {
     _WKActivatedElementTypeLink,
     _WKActivatedElementTypeImage,
+    _WKActivatedElementTypeAttachment WK_ENUM_AVAILABLE(WK_MAC_TBA, WK_IOS_TBA),
 } WK_ENUM_AVAILABLE(10_10, 8_0);
 
 WK_CLASS_AVAILABLE(10_10, 8_0)
@@ -45,6 +46,7 @@ WK_CLASS_AVAILABLE(10_10, 8_0)
 @property (nonatomic, readonly) NSString *title;
 @property (nonatomic, readonly) _WKActivatedElementType type;
 @property (nonatomic, readonly) CGRect boundingRect;
+@property (nonatomic, readonly) NSString *ID WK_AVAILABLE(WK_MAC_TBA, WK_IOS_TBA);
 #if TARGET_OS_IPHONE
 @property (nonatomic, readonly, copy) UIImage *image;
 #else

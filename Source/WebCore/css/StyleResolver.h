@@ -36,6 +36,7 @@
 #include "ScrollTypes.h"
 #include "SelectorChecker.h"
 #include "StyleInheritedData.h"
+#include "StyleRelations.h"
 #include "ViewportStyleResolver.h"
 #include <bitset>
 #include <memory>
@@ -123,6 +124,16 @@ public:
     RenderScrollbar* scrollbar;
 };
 
+struct ElementStyle {
+    ElementStyle(Ref<RenderStyle>&& renderStyle, std::unique_ptr<Style::Relations> relations = { })
+        : renderStyle(WTFMove(renderStyle))
+        , relations(WTFMove(relations))
+    { }
+
+    Ref<RenderStyle> renderStyle;
+    std::unique_ptr<Style::Relations> relations;
+};
+
 // This class selects a RenderStyle for a given element based on a collection of stylesheets.
 class StyleResolver {
     WTF_MAKE_NONCOPYABLE(StyleResolver); WTF_MAKE_FAST_ALLOCATED;
@@ -130,7 +141,7 @@ public:
     StyleResolver(Document&);
     ~StyleResolver();
 
-    Ref<RenderStyle> styleForElement(Element&, RenderStyle* parentStyle, RuleMatchingBehavior = MatchAllRules, const RenderRegion* regionForStyling = nullptr, const SelectorFilter* = nullptr);
+    ElementStyle styleForElement(Element&, RenderStyle* parentStyle, RuleMatchingBehavior = MatchAllRules, const RenderRegion* regionForStyling = nullptr, const SelectorFilter* = nullptr);
 
     void keyframeStylesForAnimation(Element&, const RenderStyle*, KeyframeList&);
 
@@ -152,6 +163,8 @@ public:
     const DocumentRuleSets& ruleSets() const { return m_ruleSets; }
 
     const MediaQueryEvaluator& mediaQueryEvaluator() const { return *m_medium; }
+
+    void setOverrideDocumentElementStyle(RenderStyle* style) { m_overrideDocumentElementStyle = style; }
 
 private:
     Ref<RenderStyle> styleForKeyframe(const RenderStyle*, const StyleKeyframe*, KeyframeValue&);
@@ -185,8 +198,8 @@ public:
     bool useSVGZoomRules();
     bool useSVGZoomRulesForLength();
 
-    static bool colorFromPrimitiveValueIsDerivedFromElement(CSSPrimitiveValue&);
-    Color colorFromPrimitiveValue(CSSPrimitiveValue&, bool forVisitedLink = false) const;
+    static bool colorFromPrimitiveValueIsDerivedFromElement(const CSSPrimitiveValue&);
+    Color colorFromPrimitiveValue(const CSSPrimitiveValue&, bool forVisitedLink = false) const;
 
     bool hasSelectorForId(const AtomicString&) const;
     bool hasSelectorForClass(const AtomicString&) const;
@@ -211,7 +224,7 @@ public:
 
     void clearCachedPropertiesAffectedByViewportUnits();
 
-    bool createFilterOperations(CSSValue& inValue, FilterOperations& outOperations);
+    bool createFilterOperations(const CSSValue& inValue, FilterOperations& outOperations);
     void loadPendingSVGDocuments();
 
     void loadPendingResources();
@@ -348,7 +361,7 @@ public:
     class State {
     public:
         State() { }
-        State(Element&, RenderStyle* parentStyle, const RenderRegion* regionForStyling = nullptr, const SelectorFilter* = nullptr);
+        State(Element&, RenderStyle* parentStyle, RenderStyle* documentElementStyle = nullptr, const RenderRegion* regionForStyling = nullptr, const SelectorFilter* = nullptr);
 
     public:
         void clear();
@@ -512,6 +525,8 @@ private:
     Document& m_document;
 
     bool m_matchAuthorAndUserStyles;
+
+    RefPtr<RenderStyle> m_overrideDocumentElementStyle;
 
     Vector<std::unique_ptr<MediaQueryResult>> m_viewportDependentMediaQueryResults;
 

@@ -58,7 +58,7 @@
 }
 
 .data-grid.inline {
-    border: 1px solid hsl(0, 0%, 70%);
+    border: 0.5px solid var(--border-color);
 }
 
 .data-grid.no-header > table.header {
@@ -75,7 +75,7 @@
 
     background-color: white;
 
-    border-bottom: 1px solid hsl(0, 0%, 70%);
+    border-bottom: 0.5px solid var(--border-color);
 
     font-weight: normal;
 
@@ -86,16 +86,8 @@
     overflow: hidden;
 }
 
-body.window-inactive .data-grid th {
-    border-bottom-color: hsl(0, 0%, 85%);
-}
-
 .data-grid :matches(th, td):not(:last-child) {
-    border-right: 1px solid hsl(0, 0%, 70%);
-}
-
-body.window-inactive .data-grid :matches(th, td):not(:last-child) {
-    border-right-color: hsl(0, 0%, 85%);
+    border-right: 0.5px solid var(--border-color);
 }
 
 .data-grid th.sortable:active {
@@ -148,7 +140,8 @@ body.window-inactive .data-grid :matches(th, td):not(:last-child) {
     padding: 2px 6px;
     white-space: nowrap;
     overflow: hidden;
-    font-family: -apple-system-monospaced-numbers, sans-serif;
+    font-family: -apple-system, sans-serif;
+    font-variant-numeric: tabular-nums;
 }
 
 .data-grid:matches(:focus, .force-focus) tr.selected td:not(:last-child) {
@@ -272,7 +265,7 @@ body.window-inactive .data-grid :matches(th, td):not(:last-child) {
 }
 
 .data-grid td.error {
-    color: hsl(0, 86%, 47%);
+    color: var(--error-text-color);
 }
 
 .data-grid tr.selected td.error {
@@ -303,4 +296,5 @@ body.window-inactive .data-grid :matches(th, td):not(:last-child) {
 
 .data-grid .resizer {
     z-index: var(--z-index-resizer);
+    transform: translateX(-2.5px);
 }

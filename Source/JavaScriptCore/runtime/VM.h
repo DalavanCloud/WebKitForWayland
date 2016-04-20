@@ -29,6 +29,7 @@
 #ifndef VM_h
 #define VM_h
 
+#include "ConcurrentJITLock.h"
 #include "ControlFlowProfiler.h"
 #include "DateInstanceCache.h"
 #include "ExecutableAllocator.h"
@@ -87,6 +88,7 @@ class Exception;
 class HandleStack;
 class TypeProfiler;
 class TypeProfilerLog;
+class HeapProfiler;
 class Identifier;
 class Interpreter;
 class JSBoundSlotBaseFunction;
@@ -100,6 +102,7 @@ class RegisterAtOffsetList;
 #if ENABLE(SAMPLING_PROFILER)
 class SamplingProfiler;
 #endif
+class ShadowChicken;
 class ScriptExecutable;
 class SourceProvider;
 class SourceProviderCache;
@@ -249,6 +252,9 @@ public:
     JS_EXPORT_PRIVATE Watchdog& ensureWatchdog();
     JS_EXPORT_PRIVATE Watchdog* watchdog() { return m_watchdog.get(); }
 
+    JS_EXPORT_PRIVATE HeapProfiler* heapProfiler() const { return m_heapProfiler.get(); }
+    JS_EXPORT_PRIVATE HeapProfiler& ensureHeapProfiler();
+
 #if ENABLE(SAMPLING_PROFILER)
     JS_EXPORT_PRIVATE SamplingProfiler* samplingProfiler() { return m_samplingProfiler.get(); }
     JS_EXPORT_PRIVATE void ensureSamplingProfiler(RefPtr<Stopwatch>&&);
@@ -280,7 +286,6 @@ public:
     Strong<Structure> structureRareDataStructure;
     Strong<Structure> terminatedExecutionErrorStructure;
     Strong<Structure> stringStructure;
-    Strong<Structure> notAnObjectStructure;
     Strong<Structure> propertyNameIteratorStructure;
     Strong<Structure> propertyNameEnumeratorStructure;
     Strong<Structure> getterSetterStructure;
@@ -538,6 +543,7 @@ public:
     RefPtr<TypedArrayController> m_typedArrayController;
     RegExpCache* m_regExpCache;
     BumpPointerAllocator m_regExpAllocator;
+    ConcurrentJITLock m_regExpAllocatorLock;
 
 #if ENABLE(REGEXP_TRACING)
     typedef ListHashSet<RegExp*> RTTraceList;
@@ -550,9 +556,6 @@ public:
 
     JS_EXPORT_PRIVATE void resetDateCache();
 
-    JS_EXPORT_PRIVATE void startSampling();
-    JS_EXPORT_PRIVATE void stopSampling();
-    JS_EXPORT_PRIVATE void dumpSampleData(ExecState*);
     RegExpCache* regExpCache() { return m_regExpCache; }
 #if ENABLE(REGEXP_TRACING)
     void addRegExpToTrace(RegExp*);
@@ -575,7 +578,9 @@ public:
 
     JS_EXPORT_PRIVATE void deleteAllCode();
     JS_EXPORT_PRIVATE void deleteAllLinkedCode();
+    JS_EXPORT_PRIVATE void deleteAllRegExpCode();
 
+    WatchpointSet* ensureWatchpointSetForImpureProperty(const Identifier&);
     void registerWatchpointForImpureProperty(const Identifier&, Watchpoint*);
     
     // FIXME: Use AtomicString once it got merged with Identifier.
@@ -597,8 +602,6 @@ public:
 
     JS_EXPORT_PRIVATE void queueMicrotask(JSGlobalObject*, PassRefPtr<Microtask>);
     JS_EXPORT_PRIVATE void drainMicrotasks();
-    JS_EXPORT_PRIVATE void setShouldRewriteConstAsVar(bool shouldRewrite) { m_shouldRewriteConstAsVar = shouldRewrite; }
-    ALWAYS_INLINE bool shouldRewriteConstAsVar() { return m_shouldRewriteConstAsVar; }
 
     inline bool shouldTriggerTermination(ExecState*);
 
@@ -606,6 +609,8 @@ public:
     bool shouldBuilderPCToCodeOriginMapping() const { return m_shouldBuildPCToCodeOriginMapping; }
 
     BytecodeIntrinsicRegistry& bytecodeIntrinsicRegistry() { return *m_bytecodeIntrinsicRegistry; }
+    
+    ShadowChicken& shadowChicken() { return *m_shadowChicken; }
 
 private:
     friend class LLIntOffsetsExtractor;
@@ -657,7 +662,6 @@ private:
     Exception* m_lastException { nullptr };
     bool m_failNextNewCodeBlock { false };
     bool m_inDefineOwnProperty;
-    bool m_shouldRewriteConstAsVar { false };
     bool m_shouldBuildPCToCodeOriginMapping { false };
     std::unique_ptr<CodeCache> m_codeCache;
     LegacyProfiler* m_enabledProfiler;
@@ -672,9 +676,11 @@ private:
     Deque<std::unique_ptr<QueuedTask>> m_microtaskQueue;
     MallocPtr<EncodedJSValue> m_exceptionFuzzBuffer;
     RefPtr<Watchdog> m_watchdog;
+    std::unique_ptr<HeapProfiler> m_heapProfiler;
 #if ENABLE(SAMPLING_PROFILER)
     RefPtr<SamplingProfiler> m_samplingProfiler;
 #endif
+    std::unique_ptr<ShadowChicken> m_shadowChicken;
     std::unique_ptr<BytecodeIntrinsicRegistry> m_bytecodeIntrinsicRegistry;
 };
 

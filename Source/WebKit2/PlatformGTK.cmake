@@ -57,6 +57,8 @@ list(APPEND WebKit2_SOURCES
 
     Shared/API/c/cairo/WKImageCairo.cpp
 
+    Shared/Authentication/soup/AuthenticationManagerSoup.cpp
+
     Shared/Plugins/Netscape/x11/NetscapePluginModuleX11.cpp
 
     Shared/Plugins/unix/PluginSearchPath.cpp
@@ -92,6 +94,7 @@ list(APPEND WebKit2_SOURCES
     UIProcess/DefaultUndoController.cpp
     UIProcess/DrawingAreaProxyImpl.cpp
     UIProcess/LegacySessionStateCodingNone.cpp
+    UIProcess/WebResourceLoadStatisticsStore.cpp
 
     UIProcess/API/C/cairo/WKIconDatabaseCairo.cpp
 
@@ -274,8 +277,6 @@ list(APPEND WebKit2_SOURCES
     UIProcess/API/gtk/WebKitWindowPropertiesPrivate.h
     UIProcess/API/gtk/webkit2.h
 
-    UIProcess/Databases/gtk/DatabaseProcessProxyGtk.cpp
-
     UIProcess/InspectorServer/gtk/WebInspectorServerGtk.cpp
 
     UIProcess/InspectorServer/soup/WebSocketServerSoup.cpp
@@ -285,8 +286,6 @@ list(APPEND WebKit2_SOURCES
     UIProcess/Network/CustomProtocols/soup/CustomProtocolManagerProxySoup.cpp
     UIProcess/Network/CustomProtocols/soup/WebSoupCustomProtocolRequestManager.cpp
     UIProcess/Network/CustomProtocols/soup/WebSoupCustomProtocolRequestManagerClient.cpp
-
-    UIProcess/Network/soup/NetworkProcessProxySoup.cpp
 
     UIProcess/Plugins/gtk/PluginInfoCache.cpp
 
@@ -318,7 +317,6 @@ list(APPEND WebKit2_SOURCES
     UIProcess/gtk/WebPopupMenuProxyGtk.cpp
     UIProcess/gtk/WebPreferencesGtk.cpp
     UIProcess/gtk/WebProcessPoolGtk.cpp
-    UIProcess/gtk/WebProcessProxyGtk.cpp
 
     UIProcess/soup/WebCookieManagerProxySoup.cpp
     UIProcess/soup/WebProcessPoolSoup.cpp
@@ -463,6 +461,7 @@ set(InspectorFiles
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/External/Esprima/*.js
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Models/*.js
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Protocol/*.js
+    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Proxies/*.js
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Test/*.js
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Views/*.css
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Views/*.js
@@ -848,6 +847,7 @@ if (ENABLE_THREADED_COMPOSITOR)
         Shared/CoordinatedGraphics/CoordinatedGraphicsScene.cpp
         Shared/CoordinatedGraphics/SimpleViewportController.cpp
 
+        Shared/CoordinatedGraphics/threadedcompositor/CompositingRunLoop.cpp
         Shared/CoordinatedGraphics/threadedcompositor/ThreadSafeCoordinatedSurface.cpp
         Shared/CoordinatedGraphics/threadedcompositor/ThreadedCompositor.cpp
 
@@ -885,15 +885,23 @@ add_dependencies(webkit2gtkinjectedbundle GObjectDOMBindings)
 add_webkit2_prefix_header(webkit2gtkinjectedbundle)
 target_link_libraries(webkit2gtkinjectedbundle WebKit2)
 
-# Add ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} to LD_LIBRARY_PATH
-string(COMPARE EQUAL "$ENV{LD_LIBRARY_PATH}" "" ld_library_path_not_exist)
+# Add ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} to LD_LIBRARY_PATH or DYLD_LIBRARY_PATH
+if (APPLE)
+    set(LOADER_LIBRARY_PATH_VAR "DYLD_LIBRARY_PATH")
+    set(PREV_LOADER_LIBRARY_PATH "$ENV{DYLD_LIBRARY_PATH}")
+else ()
+    set(LOADER_LIBRARY_PATH_VAR "LD_LIBRARY_PATH")
+    set(PREV_LOADER_LIBRARY_PATH "$ENV{LD_LIBRARY_PATH}")
+endif ()
+
+string(COMPARE EQUAL "${PREV_LOADER_LIBRARY_PATH}" "" ld_library_path_not_exist)
 if (ld_library_path_does_not_exist)
     set(INTROSPECTION_ADDITIONAL_LIBRARY_PATH
         "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
     )
 else ()
     set(INTROSPECTION_ADDITIONAL_LIBRARY_PATH
-        "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}:$ENV{LD_LIBRARY_PATH}"
+        "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}:${PREV_LOADER_LIBRARY_PATH}"
     )
 endif ()
 
@@ -906,7 +914,7 @@ add_custom_command(
     DEPENDS WebKit2
     DEPENDS ${CMAKE_BINARY_DIR}/JavaScriptCore-${WEBKITGTK_API_VERSION}.gir
     COMMAND CC=${CMAKE_C_COMPILER} CFLAGS=-Wno-deprecated-declarations LDFLAGS=
-        LD_LIBRARY_PATH="${INTROSPECTION_ADDITIONAL_LIBRARY_PATH}"
+        ${LOADER_LIBRARY_PATH_VAR}="${INTROSPECTION_ADDITIONAL_LIBRARY_PATH}"
         ${INTROSPECTION_SCANNER}
         --quiet
         --warn-all
@@ -948,7 +956,7 @@ add_custom_command(
     DEPENDS ${CMAKE_BINARY_DIR}/WebKit2-${WEBKITGTK_API_VERSION}.gir
     COMMAND CC=${CMAKE_C_COMPILER} CFLAGS=-Wno-deprecated-declarations
         LDFLAGS="${INTROSPECTION_ADDITIONAL_LDFLAGS}"
-        LD_LIBRARY_PATH="${INTROSPECTION_ADDITIONAL_LIBRARY_PATH}"
+        ${LOADER_LIBRARY_PATH_VAR}="${INTROSPECTION_ADDITIONAL_LIBRARY_PATH}"
         ${INTROSPECTION_SCANNER}
         --quiet
         --warn-all

@@ -62,7 +62,7 @@ static EncodedJSValue JSC_HOST_CALL constructWithFunctionConstructor(ExecState* 
 ConstructType FunctionConstructor::getConstructData(JSCell*, ConstructData& constructData)
 {
     constructData.native.function = constructWithFunctionConstructor;
-    return ConstructTypeHost;
+    return ConstructType::Host;
 }
 
 static EncodedJSValue JSC_HOST_CALL callFunctionConstructor(ExecState* exec)
@@ -75,7 +75,7 @@ static EncodedJSValue JSC_HOST_CALL callFunctionConstructor(ExecState* exec)
 CallType FunctionConstructor::getCallData(JSCell*, CallData& callData)
 {
     callData.native.function = callFunctionConstructor;
-    return CallTypeHost;
+    return CallType::Host;
 }
 
 // ECMA 15.3.2 The Function Constructor
@@ -124,8 +124,11 @@ JSObject* constructFunctionSkippingEvalEnabledCheck(
         return exec->vm().throwException(exec, exception);
     }
 
+    Structure* subclassStructure = InternalFunction::createSubclassStructure(exec, newTarget, globalObject->functionStructure());
+    if (exec->hadException())
+        return nullptr;
 
-    return JSFunction::create(exec->vm(), function, globalObject, InternalFunction::createSubclassStructure(exec, newTarget, globalObject->functionStructure()));
+    return JSFunction::create(exec->vm(), function, globalObject, subclassStructure);
 }
 
 // ECMA 15.3.2 The Function Constructor

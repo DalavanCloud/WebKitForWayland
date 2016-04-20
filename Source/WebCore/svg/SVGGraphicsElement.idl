@@ -29,7 +29,7 @@ interface SVGGraphicsElement : SVGElement {
     readonly attribute SVGElement nearestViewportElement;
     readonly attribute SVGElement farthestViewportElement;
 
-    SVGRect   getBBox();
+    SVGRect getBBox();
     SVGMatrix getCTM();
     SVGMatrix getScreenCTM();
     [RaisesException] SVGMatrix getTransformToElement([Default=Undefined] optional SVGElement element);

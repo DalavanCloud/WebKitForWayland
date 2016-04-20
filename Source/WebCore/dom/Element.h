@@ -44,6 +44,7 @@ class DOMTokenList;
 class ElementRareData;
 class HTMLDocument;
 class IntSize;
+class KeyboardEvent;
 class Locale;
 class PlatformKeyboardEvent;
 class PlatformMouseEvent;
@@ -51,7 +52,7 @@ class PlatformWheelEvent;
 class PseudoElement;
 class RenderNamedFlowFragment;
 class RenderTreePosition;
-class ShadowRoot;
+struct ElementStyle;
 
 enum SpellcheckAttributeState {
     SpellcheckAttributeTrue,
@@ -123,7 +124,7 @@ public:
     unsigned findAttributeIndexByName(const AtomicString& name, bool shouldIgnoreAttributeCase) const { return elementData()->findAttributeIndexByName(name, shouldIgnoreAttributeCase); }
 
     void scrollIntoView(bool alignToTop = true);
-    void scrollIntoViewIfNeeded(bool centerIfNeeded = true);
+    WEBCORE_EXPORT void scrollIntoViewIfNeeded(bool centerIfNeeded = true);
     WEBCORE_EXPORT void scrollIntoViewIfNotVisible(bool centerIfNotVisible = true);
 
     void scrollByLines(int lines);
@@ -156,7 +157,7 @@ public:
 
     Ref<ClientRectList> getClientRects();
     Ref<ClientRect> getBoundingClientRect();
-    
+
     // Returns the absolute bounding box translated into client coordinates.
     WEBCORE_EXPORT IntRect clientRect() const;
     // Returns the absolute bounding box translated into screen coordinates.
@@ -179,7 +180,7 @@ public:
 
     const Vector<RefPtr<Attr>>& attrNodeList();
 
-    virtual CSSStyleDeclaration* style();
+    virtual CSSStyleDeclaration* cssomStyle();
 
     const QualifiedName& tagQName() const { return m_tagName; }
 #if ENABLE(CSS_SELECTOR_JIT)
@@ -194,11 +195,11 @@ public:
     // A fast function for checking the local name against another atomic string.
     bool hasLocalName(const AtomicString& other) const { return m_tagName.localName() == other; }
 
-    virtual const AtomicString& localName() const override final { return m_tagName.localName(); }
-    virtual const AtomicString& prefix() const override final { return m_tagName.prefix(); }
-    virtual const AtomicString& namespaceURI() const override final { return m_tagName.namespaceURI(); }
+    const AtomicString& localName() const final { return m_tagName.localName(); }
+    const AtomicString& prefix() const final { return m_tagName.prefix(); }
+    const AtomicString& namespaceURI() const final { return m_tagName.namespaceURI(); }
 
-    virtual String nodeName() const override;
+    String nodeName() const override;
 
     Ref<Element> cloneElementWithChildren(Document&);
     Ref<Element> cloneElementWithoutChildren(Document&);
@@ -266,6 +267,7 @@ public:
     virtual void setHovered(bool flag = true);
     virtual void setFocus(bool flag);
 
+    bool tabIndexSetExplicitly() const;
     virtual bool supportsFocus() const;
     virtual bool isFocusable() const;
     virtual bool isKeyboardFocusable(KeyboardEvent*) const;
@@ -273,11 +275,13 @@ public:
 
     virtual bool shouldUseInputMethod();
 
-    virtual short tabIndex() const;
+    virtual int tabIndex() const;
     void setTabIndex(int);
     virtual Element* focusDelegate();
 
-    virtual RenderStyle* computedStyle(PseudoId = NOPSEUDO) override;
+    RenderStyle* computedStyle(PseudoId = NOPSEUDO) override;
+
+    bool needsStyleInvalidation() const;
 
     // Methods for indicating the style is affected by dynamic updates (e.g., children changing, our position changing in our sibling list, etc.)
     bool styleAffectedByEmpty() const { return hasRareData() && rareDataStyleAffectedByEmpty(); }
@@ -355,6 +359,8 @@ public:
     // Use Document::registerForPrivateBrowsingStateChangedCallbacks() to subscribe to this.
     virtual void privateBrowsingStateDidChange() { }
 
+    virtual void willBecomeFullscreenElement();
+    virtual void ancestorWillEnterFullscreen() { }
     virtual void didBecomeFullscreenElement() { }
     virtual void willStopBeingFullscreenElement() { }
 
@@ -366,8 +372,8 @@ public:
 #endif
 
     bool isFinishedParsingChildren() const { return isParsingChildrenFinished(); }
-    virtual void finishParsingChildren() override;
-    virtual void beginParsingChildren() override final;
+    void finishParsingChildren() override;
+    void beginParsingChildren() final;
 
     WEBCORE_EXPORT PseudoElement* beforePseudoElement() const;
     WEBCORE_EXPORT PseudoElement* afterPseudoElement() const;
@@ -399,7 +405,7 @@ public:
     virtual bool isOutOfRange() const { return false; }
     virtual bool isFrameElementBase() const { return false; }
 
-    virtual bool canContainRangeEndPoint() const override;
+    bool canContainRangeEndPoint() const override;
 
     // Used for disabled form elements; if true, prevents mouse events from being dispatched
     // to event listeners, and prevents DOMActivate events from being sent at all.
@@ -459,6 +465,7 @@ public:
     bool dispatchWheelEvent(const PlatformWheelEvent&);
     bool dispatchKeyEvent(const PlatformKeyboardEvent&);
     void dispatchSimulatedClick(Event* underlyingEvent, SimulatedClickMouseEventOptions = SendNoEvents, SimulatedClickVisualOptions = ShowPressedLook);
+    void dispatchSimulatedClickForBindings(Event* underlyingEvent);
     void dispatchFocusInEvent(const AtomicString& eventType, RefPtr<Element>&& oldFocusedElement);
     void dispatchFocusOutEvent(const AtomicString& eventType, RefPtr<Element>&& newFocusedElement);
     virtual void dispatchFocusEvent(RefPtr<Element>&& oldFocusedElement, FocusDirection);
@@ -473,7 +480,7 @@ public:
     virtual void didAttachRenderers();
     virtual void willDetachRenderers();
     virtual void didDetachRenderers();
-    virtual RefPtr<RenderStyle> customStyleForRenderer(RenderStyle& parentStyle);
+    virtual Optional<ElementStyle> resolveCustomStyle(RenderStyle& parentStyle, RenderStyle* shadowHostStyle);
 
     LayoutRect absoluteEventHandlerBounds(bool& includesFixedPositionElements) override;
 
@@ -488,25 +495,31 @@ public:
     WEBCORE_EXPORT URL absoluteLinkURL() const;
 
 #if ENABLE(TOUCH_EVENTS)
-    virtual bool allowsDoubleTapGesture() const override;
+    bool allowsDoubleTapGesture() const override;
 #endif
 
     StyleResolver& styleResolver();
-    Ref<RenderStyle> resolveStyle(RenderStyle* parentStyle);
+    ElementStyle resolveStyle(RenderStyle* parentStyle);
+
+    bool hasDisplayContents() const;
+    void setHasDisplayContents(bool);
 
     virtual void isVisibleInViewportChanged() { }
+
+    using ContainerNode::setAttributeEventListener;
+    void setAttributeEventListener(const AtomicString& eventType, const QualifiedName& attributeName, const AtomicString& value);
 
 protected:
     Element(const QualifiedName&, Document&, ConstructionType);
 
-    virtual InsertionNotificationRequest insertedInto(ContainerNode&) override;
-    virtual void removedFrom(ContainerNode&) override;
-    virtual void childrenChanged(const ChildChange&) override;
-    virtual void removeAllEventListeners() override final;
+    InsertionNotificationRequest insertedInto(ContainerNode&) override;
+    void removedFrom(ContainerNode&) override;
+    void childrenChanged(const ChildChange&) override;
+    void removeAllEventListeners() final;
     virtual void parserDidSetAttributes();
 
     void clearTabIndexExplicitlyIfNeeded();
-    void setTabIndexExplicitly(short);
+    void setTabIndexExplicitly(int);
 
     // classAttributeChanged() exists to share code between
     // parseAttribute (called via setAttribute()) and
@@ -555,9 +568,9 @@ private:
 
     void scrollByUnits(int units, ScrollGranularity);
 
-    virtual void setPrefix(const AtomicString&, ExceptionCode&) override final;
-    virtual NodeType nodeType() const override final;
-    virtual bool childTypeAllowed(NodeType) const override final;
+    void setPrefix(const AtomicString&, ExceptionCode&) final;
+    NodeType nodeType() const final;
+    bool childTypeAllowed(NodeType) const final;
 
     void setAttributeInternal(unsigned index, const QualifiedName&, const AtomicString& value, SynchronizationOfLazyAttribute);
     void addAttributeInternal(const QualifiedName&, const AtomicString& value, SynchronizationOfLazyAttribute);
@@ -567,14 +580,14 @@ private:
     LayoutRect absoluteEventBoundsOfElementAndDescendants(bool& includesFixedPositionElements);
     
 #if ENABLE(TREE_DEBUGGING)
-    virtual void formatForDebugger(char* buffer, unsigned length) const override;
+    void formatForDebugger(char* buffer, unsigned length) const override;
 #endif
 
     void cancelFocusAppearanceUpdate();
 
     // cloneNode is private so that non-virtual cloneElementWithChildren and cloneElementWithoutChildren
     // are used instead.
-    virtual Ref<Node> cloneNodeInternal(Document&, CloningOperation) override;
+    Ref<Node> cloneNodeInternal(Document&, CloningOperation) override;
     virtual Ref<Element> cloneElementWithoutAttributesAndChildren(Document&);
 
     void removeShadowRoot();

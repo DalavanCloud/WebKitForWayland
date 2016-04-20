@@ -67,14 +67,7 @@ NetworkStorageSession& RemoteNetworkingContext::storageSession() const
 
 RetainPtr<CFDataRef> RemoteNetworkingContext::sourceApplicationAuditData() const
 {
-#if PLATFORM(IOS)
-    audit_token_t auditToken;
-    if (!NetworkProcess::singleton().parentProcessConnection()->getAuditToken(auditToken))
-        return nullptr;
-    return adoptCF(CFDataCreate(0, (const UInt8*)&auditToken, sizeof(auditToken)));
-#else
-    return nullptr;
-#endif
+    return NetworkProcess::singleton().sourceApplicationAuditData();
 }
 
 String RemoteNetworkingContext::sourceApplicationIdentifier() const
@@ -100,11 +93,14 @@ void RemoteNetworkingContext::ensurePrivateBrowsingSession(SessionID sessionID)
     else
         base = SessionTracker::getIdentifierBase();
 
-    SessionTracker::setSession(sessionID, NetworkStorageSession::createPrivateBrowsingSession(base + '.' + String::number(sessionID.sessionID()))
+    auto networkStorageSession = NetworkStorageSession::createPrivateBrowsingSession(sessionID, base + '.' + String::number(sessionID.sessionID()));
+
 #if USE(NETWORK_SESSION)
-        , std::make_unique<NetworkSession>(NetworkSession::Type::Ephemeral, sessionID, NetworkProcess::singleton().supplement<CustomProtocolManager>())
+    auto networkSession = NetworkSession::create(NetworkSession::Type::Ephemeral, sessionID, NetworkProcess::singleton().supplement<CustomProtocolManager>(), WTFMove(networkStorageSession));
+    SessionTracker::setSession(sessionID, WTFMove(networkSession));
+#else
+    SessionTracker::setSession(sessionID, WTFMove(networkStorageSession));
 #endif
-    );
 }
 
 }

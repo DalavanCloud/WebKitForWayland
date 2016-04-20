@@ -31,8 +31,8 @@
 #include "IDBKey.h"
 #include "IDBKeyData.h"
 #include "IDBKeyPath.h"
+#include "IDBValue.h"
 #include "SharedBuffer.h"
-#include "ThreadSafeDataBuffer.h"
 
 namespace WebCore {
 
@@ -43,14 +43,14 @@ public:
     {
     }
 
-    IDBGetResult(PassRefPtr<SharedBuffer> buffer)
+    IDBGetResult(Ref<SharedBuffer>&& buffer, const IDBKeyData& currentPrimaryKey)
+        : m_primaryKeyData(currentPrimaryKey)
     {
-        if (buffer)
-            dataFromBuffer(*buffer);
+        dataFromBuffer(buffer.get());
     }
 
     IDBGetResult(const ThreadSafeDataBuffer& buffer)
-        : m_valueBuffer(buffer)
+        : m_value(buffer)
     {
     }
 
@@ -79,7 +79,7 @@ public:
     }
 
     IDBGetResult(const IDBKeyData& keyData, const IDBKeyData& primaryKeyData, const ThreadSafeDataBuffer& valueBuffer)
-        : m_valueBuffer(valueBuffer)
+        : m_value(valueBuffer)
         , m_keyData(keyData)
         , m_primaryKeyData(primaryKeyData)
     {
@@ -87,29 +87,51 @@ public:
 
     IDBGetResult isolatedCopy() const;
 
-    const ThreadSafeDataBuffer& valueBuffer() const { return m_valueBuffer; }
+    const IDBValue& value() const { return m_value; }
     const IDBKeyData& keyData() const { return m_keyData; }
     const IDBKeyData& primaryKeyData() const { return m_primaryKeyData; }
     const IDBKeyPath& keyPath() const { return m_keyPath; }
     bool isDefined() const { return m_isDefined; }
 
-    // FIXME: When removing LegacyIDB, remove these setters.
-    // https://bugs.webkit.org/show_bug.cgi?id=150854
-
-    void setValueBuffer(const ThreadSafeDataBuffer& valueBuffer) { m_valueBuffer = valueBuffer; }
-    void setKeyData(const IDBKeyData& keyData) { m_keyData = keyData; }
-    void setPrimaryKeyData(const IDBKeyData& keyData) { m_primaryKeyData = keyData; }
-    void setKeyPath(const IDBKeyPath& keyPath) { m_keyPath = keyPath; }
+    template<class Encoder> void encode(Encoder&) const;
+    template<class Decoder> static bool decode(Decoder&, IDBGetResult&);
 
 private:
     WEBCORE_EXPORT void dataFromBuffer(SharedBuffer&);
 
-    ThreadSafeDataBuffer m_valueBuffer;
+    IDBValue m_value;
     IDBKeyData m_keyData;
     IDBKeyData m_primaryKeyData;
     IDBKeyPath m_keyPath;
     bool m_isDefined { true };
 };
+
+template<class Encoder>
+void IDBGetResult::encode(Encoder& encoder) const
+{
+    encoder << m_keyData << m_primaryKeyData << m_keyPath << m_isDefined << m_value;
+}
+
+template<class Decoder>
+bool IDBGetResult::decode(Decoder& decoder, IDBGetResult& result)
+{
+    if (!decoder.decode(result.m_keyData))
+        return false;
+
+    if (!decoder.decode(result.m_primaryKeyData))
+        return false;
+
+    if (!decoder.decode(result.m_keyPath))
+        return false;
+
+    if (!decoder.decode(result.m_isDefined))
+        return false;
+
+    if (!decoder.decode(result.m_value))
+        return false;
+
+    return true;
+}
 
 } // namespace WebCore
 

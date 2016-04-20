@@ -25,7 +25,7 @@
 
 #include "config.h"
 
-#if ENABLE(MEDIA_STREAM)
+#if ENABLE(WEB_RTC)
 
 #include "RTCStatsReport.h"
 
@@ -70,4 +70,4 @@ void RTCStatsReport::addStatistic(const String& name, const String& value)
 
 } // namespace WebCore
 
-#endif // ENABLE(MEDIA_STREAM)
+#endif // ENABLE(WEB_RTC)

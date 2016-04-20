@@ -486,7 +486,6 @@ WebViewImpl::WebViewImpl(NSView <WebViewImplDelegate> *view, WKWebView *outerWeb
     registerDraggedTypes();
 
     m_view.wantsLayer = YES;
-    m_view.acceptsTouchEvents = YES;
 
     // Explicitly set the layer contents placement so AppKit will make sure that our layer has masksToBounds set to YES.
     m_view.layerContentsPlacement = NSViewLayerContentsPlacementTopLeft;
@@ -593,8 +592,11 @@ bool WebViewImpl::becomeFirstResponder()
     if (direction != NSDirectSelection) {
         NSEvent *event = [NSApp currentEvent];
         NSEvent *keyboardEvent = nil;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         if ([event type] == NSKeyDown || [event type] == NSKeyUp)
             keyboardEvent = event;
+#pragma clang diagnostic pop
         m_page->setInitialFocus(direction == NSSelectingNext, keyboardEvent != nil, NativeWebKeyboardEvent(keyboardEvent, false, { }), [](WebKit::CallbackBase::Error) { });
     }
     return true;
@@ -815,7 +817,10 @@ void WebViewImpl::updateContentInsetsIfAutomatic()
         return;
 
     NSWindow *window = m_view.window;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     if ((window.styleMask & NSFullSizeContentViewWindowMask) && !window.titlebarAppearsTransparent && ![m_view enclosingScrollView]) {
+#pragma clang diagnostic pop
         NSRect contentLayoutRect = [m_view convertRect:window.contentLayoutRect fromView:nil];
         CGFloat newTopContentInset = NSMaxY(contentLayoutRect) - NSHeight(contentLayoutRect);
         if (m_topContentInset != newTopContentInset)
@@ -866,7 +871,7 @@ void WebViewImpl::updateViewExposedRect()
         exposedRect = CGRectUnion(m_contentPreparationRect, exposedRect);
 
     if (auto drawingArea = m_page->drawingArea())
-        drawingArea->setExposedRect(m_clipsToVisibleRect ? WebCore::FloatRect(exposedRect) : WebCore::FloatRect::infiniteRect());
+        drawingArea->setViewExposedRect(m_clipsToVisibleRect ? Optional<WebCore::FloatRect>(exposedRect) : Nullopt);
 }
 
 void WebViewImpl::setClipsToVisibleRect(bool clipsToVisibleRect)
@@ -1182,7 +1187,10 @@ void WebViewImpl::viewDidMoveToWindow()
 
         if (!m_flagsChangedEventMonitor) {
             auto weakThis = createWeakPtr();
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
             m_flagsChangedEventMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSFlagsChangedMask handler:[weakThis] (NSEvent *flagsChangedEvent) {
+#pragma clang diagnostic pop
                 if (weakThis)
                     weakThis->postFakeMouseMovedEventForFlagsChangedEvent(flagsChangedEvent);
                 return flagsChangedEvent;
@@ -1250,9 +1258,12 @@ NSView *WebViewImpl::hitTest(CGPoint point)
 
 void WebViewImpl::postFakeMouseMovedEventForFlagsChangedEvent(NSEvent *flagsChangedEvent)
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     NSEvent *fakeEvent = [NSEvent mouseEventWithType:NSMouseMoved location:flagsChangedEvent.window.mouseLocationOutsideOfEventStream
         modifierFlags:flagsChangedEvent.modifierFlags timestamp:flagsChangedEvent.timestamp windowNumber:flagsChangedEvent.windowNumber
         context:nullptr eventNumber:0 clickCount:0 pressure:0];
+#pragma clang diagnostic pop
     NativeWebMouseEvent webEvent(fakeEvent, m_lastPressureEvent.get(), m_view);
     m_page->handleMouseEvent(webEvent);
 }
@@ -1601,7 +1612,10 @@ NSView *WebViewImpl::fullScreenPlaceholderView()
 NSWindow *WebViewImpl::createFullScreenWindow()
 {
 #if ENABLE(FULLSCREEN_API)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     return [[[WebCoreFullScreenWindow alloc] initWithContentRect:[[NSScreen mainScreen] frame] styleMask:(NSBorderlessWindowMask | NSResizableWindowMask) backing:NSBackingStoreBuffered defer:NO] autorelease];
+#pragma clang diagnostic pop
 #else
     return nil;
 #endif
@@ -1747,6 +1761,8 @@ void WebViewImpl::centerSelectionInVisibleArea()
 void WebViewImpl::selectionDidChange()
 {
     updateFontPanelIfNeeded();
+    if (!m_isHandlingAcceptedCandidate)
+        m_softSpaceRange = NSMakeRange(NSNotFound, 0);
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200
     updateWebViewImplAdditions();
     if (!m_page->editorState().isMissingPostLayoutData)
@@ -2130,6 +2146,7 @@ void WebViewImpl::requestCandidatesForSelectionIfNeeded()
     auto& postLayoutData = editorState.postLayoutData();
     m_lastStringForCandidateRequest = postLayoutData.stringForCandidateRequest;
 
+#if HAVE(ADVANCED_SPELL_CHECKING)
     NSRange rangeForCandidates = NSMakeRange(postLayoutData.candidateRequestStartPosition, postLayoutData.selectedTextLength);
     NSTextCheckingTypes checkingTypes = NSTextCheckingTypeSpelling | NSTextCheckingTypeReplacement | NSTextCheckingTypeCorrection;
     auto weakThis = createWeakPtr();
@@ -2140,6 +2157,7 @@ void WebViewImpl::requestCandidatesForSelectionIfNeeded()
             weakThis->handleRequestedCandidates(sequenceNumber, candidates);
         });
     }];
+#endif // HAVE(ADVANCED_SPELL_CHECKING)
 }
 
 void WebViewImpl::handleRequestedCandidates(NSInteger sequenceNumber, NSArray<NSTextCheckingResult *> *candidates)
@@ -2210,6 +2228,7 @@ void WebViewImpl::handleAcceptedCandidate(NSTextCheckingResult *acceptedCandidat
     if (m_lastStringForCandidateRequest != postLayoutData.stringForCandidateRequest)
         return;
 
+    m_isHandlingAcceptedCandidate = true;
     NSRange range = [acceptedCandidate range];
     if (acceptedCandidate.replacementString && [acceptedCandidate.replacementString length] > 0) {
         NSRange replacedRange = NSMakeRange(range.location, [acceptedCandidate.replacementString length]);
@@ -2279,9 +2298,11 @@ void WebViewImpl::dismissContentRelativeChildWindowsFromViewOnly()
     if (m_view.window.isKeyWindow || hasActiveImmediateAction) {
         WebCore::DictionaryLookup::hidePopup();
 
-        DDActionsManager *actionsManager = [getDDActionsManagerClass() sharedManager];
-        if ([actionsManager respondsToSelector:@selector(requestBubbleClosureUnanchorOnFailure:)])
-            [actionsManager requestBubbleClosureUnanchorOnFailure:YES];
+        if (DataDetectorsLibrary()) {
+            DDActionsManager *actionsManager = [getDDActionsManagerClass() sharedManager];
+            if ([actionsManager respondsToSelector:@selector(requestBubbleClosureUnanchorOnFailure:)])
+                [actionsManager requestBubbleClosureUnanchorOnFailure:YES];
+        }
     }
 
     clearTextIndicatorWithAnimation(WebCore::TextIndicatorWindowDismissalAnimation::FadeOut);
@@ -2361,6 +2382,18 @@ void WebViewImpl::completeImmediateActionAnimation()
 void WebViewImpl::didChangeContentSize(CGSize newSize)
 {
     [m_view _web_didChangeContentSize:NSSizeFromCGSize(newSize)];
+}
+
+void WebViewImpl::didHandleAcceptedCandidate()
+{
+    m_isHandlingAcceptedCandidate = false;
+}
+
+void WebViewImpl::videoControlsManagerDidChange()
+{
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200
+    updateWebViewImplAdditions();
+#endif
 }
 
 void WebViewImpl::setIgnoresNonWheelEvents(bool ignoresNonWheelEvents)
@@ -2542,6 +2575,8 @@ void WebViewImpl::removeTrackingRects(NSTrackingRectTag *tags, int count)
 void WebViewImpl::sendToolTipMouseExited()
 {
     // Nothing matters except window, trackingNumber, and userData.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     NSEvent *fakeEvent = [NSEvent enterExitEventWithType:NSMouseExited
                                                 location:NSMakePoint(0, 0)
                                            modifierFlags:0
@@ -2551,12 +2586,15 @@ void WebViewImpl::sendToolTipMouseExited()
                                              eventNumber:0
                                           trackingNumber:TRACKING_RECT_TAG
                                                 userData:m_trackingRectUserData];
+#pragma clang diagnostic pop
     [m_trackingRectOwner mouseExited:fakeEvent];
 }
 
 void WebViewImpl::sendToolTipMouseEntered()
 {
     // Nothing matters except window, trackingNumber, and userData.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     NSEvent *fakeEvent = [NSEvent enterExitEventWithType:NSMouseEntered
                                                 location:NSMakePoint(0, 0)
                                            modifierFlags:0
@@ -2566,6 +2604,7 @@ void WebViewImpl::sendToolTipMouseEntered()
                                              eventNumber:0
                                           trackingNumber:TRACKING_RECT_TAG
                                                 userData:m_trackingRectUserData];
+#pragma clang diagnostic pop
     [m_trackingRectOwner mouseEntered:fakeEvent];
 }
 
@@ -2721,7 +2760,10 @@ static WebCore::DragApplicationFlags applicationFlagsForDrag(NSView *view, id <N
         flags |= WebCore::DragApplicationHasAttachedSheet;
     if (draggingInfo.draggingSource == view)
         flags |= WebCore::DragApplicationIsSource;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     if ([NSApp currentEvent].modifierFlags & NSAlternateKeyMask)
+#pragma clang diagnostic pop
         flags |= WebCore::DragApplicationIsCopyKeyDown;
     return static_cast<WebCore::DragApplicationFlags>(flags);
 
@@ -3218,7 +3260,7 @@ void WebViewImpl::magnifyWithEvent(NSEvent *event)
 {
     if (!m_allowsMagnification) {
 #if ENABLE(MAC_GESTURE_EVENTS)
-        NativeWebGestureEvent webEvent = NativeWebGestureEvent(event, m_view, touchesOrderedByAge());
+        NativeWebGestureEvent webEvent = NativeWebGestureEvent(event, m_view);
         m_page->handleGestureEvent(webEvent);
 #endif
         [m_view _web_superMagnifyWithEvent:event];
@@ -3235,65 +3277,11 @@ void WebViewImpl::magnifyWithEvent(NSEvent *event)
         return;
     }
 
-    NativeWebGestureEvent webEvent = NativeWebGestureEvent(event, m_view, touchesOrderedByAge());
+    NativeWebGestureEvent webEvent = NativeWebGestureEvent(event, m_view);
     m_page->handleGestureEvent(webEvent);
 #else
     gestureController.handleMagnificationGestureEvent(event, [m_view convertPoint:event.locationInWindow fromView:nil]);
 #endif
-}
-
-Vector<NSTouch *> WebViewImpl::touchesOrderedByAge()
-{
-    Vector<NSTouch *> touches;
-
-    for (auto& touchIdentity : m_activeTouchIdentities) {
-        for (NSTouch *touch in m_lastTouches.get()) {
-            if (![touch.identity isEqual:touchIdentity.get()])
-                continue;
-            touches.append(touch);
-            break;
-        }
-    }
-
-    return touches;
-}
-
-void WebViewImpl::touchesBeganWithEvent(NSEvent *event)
-{
-    m_lastTouches = [event touchesMatchingPhase:NSTouchPhaseAny inView:m_view].allObjects;
-    for (NSTouch *touch in [event touchesMatchingPhase:NSTouchPhaseBegan inView:m_view])
-        m_activeTouchIdentities.append(touch.identity);
-}
-
-void WebViewImpl::touchesMovedWithEvent(NSEvent *event)
-{
-    m_lastTouches = [event touchesMatchingPhase:NSTouchPhaseAny inView:m_view].allObjects;
-}
-
-void WebViewImpl::touchesEndedWithEvent(NSEvent *event)
-{
-    m_lastTouches = [event touchesMatchingPhase:NSTouchPhaseAny inView:m_view].allObjects;
-    for (NSTouch *touch in [event touchesMatchingPhase:NSTouchPhaseEnded inView:m_view]) {
-        for (size_t i = 0; i < m_activeTouchIdentities.size(); i++) {
-            if ([m_activeTouchIdentities[i] isEqual:touch.identity]) {
-                m_activeTouchIdentities.remove(i);
-                break;
-            }
-        }
-    }
-}
-
-void WebViewImpl::touchesCancelledWithEvent(NSEvent *event)
-{
-    m_lastTouches = [event touchesMatchingPhase:NSTouchPhaseAny inView:m_view].allObjects;
-    for (NSTouch *touch in [event touchesMatchingPhase:NSTouchPhaseCancelled inView:m_view]) {
-        for (size_t i = 0; i < m_activeTouchIdentities.size(); i++) {
-            if ([m_activeTouchIdentities[i] isEqual:touch.identity]) {
-                m_activeTouchIdentities.remove(i);
-                break;
-            }
-        }
-    }
 }
 
 void WebViewImpl::smartMagnifyWithEvent(NSEvent *event)
@@ -3310,7 +3298,10 @@ void WebViewImpl::smartMagnifyWithEvent(NSEvent *event)
 
 void WebViewImpl::setLastMouseDownEvent(NSEvent *event)
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     ASSERT(!event || event.type == NSLeftMouseDown || event.type == NSRightMouseDown || event.type == NSOtherMouseDown);
+#pragma clang diagnostic pop
 
     if (event == m_lastMouseDownEvent.get())
         return;
@@ -3321,7 +3312,7 @@ void WebViewImpl::setLastMouseDownEvent(NSEvent *event)
 #if ENABLE(MAC_GESTURE_EVENTS)
 void WebViewImpl::rotateWithEvent(NSEvent *event)
 {
-    NativeWebGestureEvent webEvent = NativeWebGestureEvent(event, m_view, touchesOrderedByAge());
+    NativeWebGestureEvent webEvent = NativeWebGestureEvent(event, m_view);
     m_page->handleGestureEvent(webEvent);
 }
 #endif
@@ -3347,8 +3338,11 @@ void WebViewImpl::didRestoreScrollPosition()
 
 void WebViewImpl::doneWithKeyEvent(NSEvent *event, bool eventWasHandled)
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     if ([event type] != NSKeyDown)
         return;
+#pragma clang diagnostic pop
 
     if (tryPostProcessPluginComplexTextInputKeyDown(event))
         return;
@@ -3424,8 +3418,11 @@ Vector<WebCore::KeypressCommand> WebViewImpl::collectKeyboardLayoutCommandsForEv
 {
     Vector<WebCore::KeypressCommand> commands;
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     if ([event type] != NSKeyDown)
         return commands;
+#pragma clang diagnostic pop
 
     ASSERT(!m_collectedKeypressCommands);
     m_collectedKeypressCommands = &commands;
@@ -3520,7 +3517,7 @@ void WebViewImpl::insertText(id string, NSRange replacementRange)
         text = string;
 
     BOOL needToRemoveSoftSpace = NO;
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200
+#if HAVE(ADVANCED_SPELL_CHECKING)
     if (m_softSpaceRange.location != NSNotFound && (replacementRange.location == NSMaxRange(m_softSpaceRange) || replacementRange.location == NSNotFound) && replacementRange.length == 0 && [[NSSpellChecker sharedSpellChecker] deletesAutospaceBeforeString:text language:nil]) {
         replacementRange = m_softSpaceRange;
         needToRemoveSoftSpace = YES;
@@ -3548,7 +3545,7 @@ void WebViewImpl::insertText(id string, NSRange replacementRange)
     if (!dictationAlternatives.isEmpty())
         m_page->insertDictatedTextAsync(eventText, replacementRange, dictationAlternatives, registerUndoGroup);
     else
-        m_page->insertTextAsync(eventText, replacementRange, registerUndoGroup);
+        m_page->insertTextAsync(eventText, replacementRange, registerUndoGroup, needToRemoveSoftSpace ? EditingRangeIsRelativeTo::Paragraph : EditingRangeIsRelativeTo::EditableRoot);
 }
 
 void WebViewImpl::selectedRangeWithCompletionHandler(void(^completionHandlerPtr)(NSRange selectedRange))
@@ -3800,8 +3797,11 @@ bool WebViewImpl::performKeyEquivalent(NSEvent *event)
     // We get Esc key here after processing either Esc or Cmd+period. The former starts as a keyDown, and the latter starts as a key equivalent,
     // but both get transformed to a cancelOperation: command, executing which passes an Esc key event to -performKeyEquivalent:.
     // Don't interpret this event again, avoiding re-entrancy and infinite loops.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     if ([[event charactersIgnoringModifiers] isEqualToString:@"\e"] && !([event modifierFlags] & NSDeviceIndependentModifierFlagsMask))
         return [m_view _web_superPerformKeyEquivalent:event];
+#pragma clang diagnostic pop
 
     if (m_keyDownEventBeingResent) {
         // WebCore has already seen the event, no need for custom processing.

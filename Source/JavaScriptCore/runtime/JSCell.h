@@ -134,15 +134,21 @@ public:
 
     void dump(PrintStream&) const;
     JS_EXPORT_PRIVATE static void dumpToStream(const JSCell*, PrintStream&);
+
+    size_t estimatedSizeInBytes() const;
+    JS_EXPORT_PRIVATE static size_t estimatedSize(JSCell*);
+
     static void visitChildren(JSCell*, SlotVisitor&);
     JS_EXPORT_PRIVATE static void copyBackingStore(JSCell*, CopyVisitor&, CopyToken);
+
+    JS_EXPORT_PRIVATE static void heapSnapshot(JSCell*, HeapSnapshotBuilder&);
 
     // Object operations, with the toObject operation included.
     const ClassInfo* classInfo() const;
     const MethodTable* methodTable() const;
     const MethodTable* methodTable(VM&) const;
-    static void put(JSCell*, ExecState*, PropertyName, JSValue, PutPropertySlot&);
-    static void putByIndex(JSCell*, ExecState*, unsigned propertyName, JSValue, bool shouldThrow);
+    static bool put(JSCell*, ExecState*, PropertyName, JSValue, PutPropertySlot&);
+    static bool putByIndex(JSCell*, ExecState*, unsigned propertyName, JSValue, bool shouldThrow);
         
     static bool deleteProperty(JSCell*, ExecState*, PropertyName);
     static bool deletePropertyByIndex(JSCell*, ExecState*, unsigned propertyName);
@@ -202,6 +208,10 @@ protected:
     static uint32_t getEnumerableLength(ExecState*, JSObject*);
     static NO_RETURN_DUE_TO_CRASH void getStructurePropertyNames(JSObject*, ExecState*, PropertyNameArray&, EnumerationMode);
     static NO_RETURN_DUE_TO_CRASH void getGenericPropertyNames(JSObject*, ExecState*, PropertyNameArray&, EnumerationMode);
+    static NO_RETURN_DUE_TO_CRASH bool preventExtensions(JSObject*, ExecState*);
+    static NO_RETURN_DUE_TO_CRASH bool isExtensible(JSObject*, ExecState*);
+    static NO_RETURN_DUE_TO_CRASH bool setPrototype(JSObject*, ExecState*, JSValue, bool);
+    static NO_RETURN_DUE_TO_CRASH JSValue getPrototype(JSObject*, ExecState*);
 
     static String className(const JSObject*);
     JS_EXPORT_PRIVATE static bool customHasInstance(JSObject*, ExecState*, JSValue);

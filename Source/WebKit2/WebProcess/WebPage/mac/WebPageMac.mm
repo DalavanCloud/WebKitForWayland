@@ -155,6 +155,7 @@ void WebPage::handleAcceptedCandidate(WebCore::TextCheckingResult acceptedCandid
         return;
 
     frame->editor().handleAcceptedCandidate(acceptedCandidate);
+    send(Messages::WebPageProxy::DidHandleAcceptedCandidate());
 }
 
 NSObject *WebPage::accessibilityObjectForMainFramePlugin()
@@ -442,7 +443,7 @@ DictionaryPopupInfo WebPage::dictionaryPopupInfoForRange(Frame* frame, Range& ra
         [scaledNSAttributedString addAttributes:scaledAttributes.get() range:range];
     }];
 
-    TextIndicatorOptions indicatorOptions = TextIndicatorOptionDefault;
+    TextIndicatorOptions indicatorOptions = TextIndicatorOptionUseBoundingRectAndPaintAllContentForComplexRanges;
     if (presentationTransition == TextIndicatorPresentationTransition::BounceAndCrossfade)
         indicatorOptions |= TextIndicatorOptionIncludeSnapshotWithSelectionHighlight;
 
@@ -968,7 +969,7 @@ void WebPage::performImmediateActionHitTestAtLocation(WebCore::FloatPoint locati
     Element *URLElement = hitTestResult.URLElement();
     if (!absoluteLinkURL.isEmpty() && URLElement) {
         RefPtr<Range> linkRange = rangeOfContents(*URLElement);
-        immediateActionResult.linkTextIndicator = TextIndicator::createWithRange(*linkRange, TextIndicatorOptionDefault, TextIndicatorPresentationTransition::FadeIn);
+        immediateActionResult.linkTextIndicator = TextIndicator::createWithRange(*linkRange, TextIndicatorOptionUseBoundingRectAndPaintAllContentForComplexRanges, TextIndicatorPresentationTransition::FadeIn);
     }
 
     NSDictionary *options = nil;
@@ -1004,7 +1005,7 @@ void WebPage::performImmediateActionHitTestAtLocation(WebCore::FloatPoint locati
             detectedDataBoundingBox.unite(frameView->contentsToWindow(quad.enclosingBoundingBox()));
 
         immediateActionResult.detectedDataBoundingBox = detectedDataBoundingBox;
-        immediateActionResult.detectedDataTextIndicator = TextIndicator::createWithRange(*mainResultRange, TextIndicatorOptionDefault, TextIndicatorPresentationTransition::FadeIn);
+        immediateActionResult.detectedDataTextIndicator = TextIndicator::createWithRange(*mainResultRange, TextIndicatorOptionUseBoundingRectAndPaintAllContentForComplexRanges, TextIndicatorPresentationTransition::FadeIn);
         immediateActionResult.detectedDataOriginatingPageOverlay = overlay->pageOverlayID();
 
         break;
@@ -1017,7 +1018,7 @@ void WebPage::performImmediateActionHitTestAtLocation(WebCore::FloatPoint locati
         immediateActionResult.detectedDataActionContext = DataDetection::detectItemAroundHitTestResult(hitTestResult, detectedDataBoundingBox, detectedDataRange);
         if (immediateActionResult.detectedDataActionContext && detectedDataRange) {
             immediateActionResult.detectedDataBoundingBox = detectedDataBoundingBox;
-            immediateActionResult.detectedDataTextIndicator = TextIndicator::createWithRange(*detectedDataRange, TextIndicatorOptionDefault, TextIndicatorPresentationTransition::FadeIn);
+            immediateActionResult.detectedDataTextIndicator = TextIndicator::createWithRange(*detectedDataRange, TextIndicatorOptionUseBoundingRectAndPaintAllContentForComplexRanges, TextIndicatorPresentationTransition::FadeIn);
         }
     }
 

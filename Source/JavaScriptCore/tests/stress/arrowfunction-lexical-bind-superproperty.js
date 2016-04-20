@@ -123,6 +123,28 @@ var G = class G extends A {
      getParentValue() {
          return super.getValue();
      }
+
+     getValueBlockScope() {
+         if (true) {
+             var someValue ='';
+             if (true) {
+                 return () => {
+                    if (true) {
+                        let internalValue = '';
+                        return super.getValue();
+                    }
+                 }
+             }
+         }
+     }
+     *genGetParentValue() {
+         let arr = () => super.getValue();
+         yield arr();
+     }
+     *genGetParentValueDeepArrow() {
+         let arr = () => () => () => super.getValue();
+         yield arr()()();
+     }
  };
 
  var g = new G();
@@ -141,6 +163,10 @@ for (var i = 0; i < 10000; i++) {
     let setValue = g1.setValueCB();
     setValue('new-value');
     testCase(getValue(), 'new-value', 'Error: Some problem with using arrow and "super" inside of the method that retun arrow function');
+    getValue = g1.getValueBlockScope();
+    testCase(getValue(), 'new-value',  'Error: Some problem with using arrow and "super" with deep nesting inside of the method that retun arrow function');
+    testCase(g1.genGetParentValue().next().value, 'new-value',  'Error: Some problem with using arrow and "super" with deep nesting inside of the generator method that retun arrow function');
+    testCase(g1.genGetParentValueDeepArrow().next().value, 'new-value',  'Error: Some problem with using arrow and "super" with deep nesting inside of the generator method that retun arrow function');
 }
 
 var H = class H extends A {
@@ -201,4 +227,62 @@ for (var i = 0; i < 10000; i++) {
         error = e instanceof ReferenceError;
     }
     testCase(error, true, 'Error: using "super" property before super() should lead to error');
+}
+
+class K extends A {
+    newMethodArrowEval() {
+        var arrow = () => eval('super.getValue()');
+        var r = arrow();
+        return r;
+    }
+    newMethodArrowDoubleEval() {
+      var arrow = () => eval("eval('super.getValue()')");
+      var r = arrow();
+      return r;
+    }
+    newMethodArrowEvalEvalArrow() {
+      var arrow = () => eval("eval('(() => super.getValue())()')");
+      var r = arrow();
+      return r;
+    }
+    newMethodArrowEvalEvalArrowEval() {
+      var arrow  = () => eval("eval('(() => eval(\"super.getValue()\"))()')");
+      var r = arrow();
+      return r;
+    }
+    newMethodEval() {
+        var r = eval("super.getValue()");
+        return r;
+    }
+    newMethodEvalEval() {
+        var r = eval("eval('super.getValue()')");
+        return r;
+    }
+    newMethodEvalArrow() {
+        var r = eval("(() => super.getValue())()");
+        return r;
+    }
+    newMethodEvalEvalArrow() {
+        var r = eval("eval('(() => super.getValue())()')");
+        return r;
+    }
+    newMethodEvalEvalArrowEval() {
+        var r = eval("eval('(() => eval(\"(super.getValue())\"))()')");
+        return r;
+    }
+}
+
+var k = new K();
+
+for (var i = 0; i < 1000; i++) {
+    testCase(k.newMethodArrowEval() , testValue, 'Error: Error in lexical bind with eval and arrow function #1');
+    testCase(k.newMethodArrowDoubleEval() , testValue, 'Error: Error in lexical bind with eval and arrow function #2');
+    testCase(k.newMethodArrowEvalEvalArrow() , testValue, 'Error: Error in lexical bind with eval and arrow function #3');
+    testCase(k.newMethodArrowEvalEvalArrowEval() , testValue, 'Error: Error in lexical bind with eval and arrow function #4');
+
+    testCase(k.newMethodEval() , testValue, 'Error: Error in lexical bind with eval and arrow function #5');
+    testCase(k.newMethodEvalEval() , testValue, 'Error: Error in lexical bind with eval and arrow function #6');
+    testCase(k.newMethodEvalArrow() , testValue, 'Error: Error in lexical bind with eval and arrow function #7');
+    testCase(k.newMethodEvalEvalArrow() , testValue, 'Error: Error in lexical bind with eval and arrow function 8');
+    testCase(k.newMethodEvalEvalArrowEval() , testValue, 'Error: Error in lexical bind with eval and arrow function #9');
 }

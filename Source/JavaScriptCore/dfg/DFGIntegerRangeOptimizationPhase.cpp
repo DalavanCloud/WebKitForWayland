@@ -42,6 +42,7 @@ namespace JSC { namespace DFG {
 namespace {
 
 const bool verbose = false;
+const unsigned giveUpThreshold = 50;
 
 int64_t clampedSumImpl() { return 0; }
 
@@ -216,6 +217,19 @@ public:
     {
         return m_left == other.m_left
             && m_right == other.m_right;
+    }
+
+    bool isEquivalentTo(const Relationship& other) const
+    {
+        if (m_left != other.m_left || m_kind != other.m_kind)
+            return false;
+
+        if (*this == other)
+            return true;
+
+        if (m_right->isInt32Constant() && other.m_right->isInt32Constant())
+            return (m_right->asInt32() + m_offset) == (other.m_right->asInt32() + other.m_offset);
+        return false;
     }
     
     bool operator==(const Relationship& other) const
@@ -1072,6 +1086,19 @@ public:
         // the comment above Relationship::merge() for details.
         bool changed = true;
         while (changed) {
+            ++m_iterations;
+            if (m_iterations >= giveUpThreshold) {
+                // This case is not necessarily wrong but it can be a sign that this phase
+                // does not converge.
+                // If you hit this assertion for a legitimate case, update the giveUpThreshold
+                // to the smallest values that converges.
+                ASSERT_NOT_REACHED();
+
+                // In release, do not risk holding the thread for too long since this phase
+                // is really slow.
+                return false;
+            }
+
             changed = false;
             for (unsigned postOrderIndex = postOrder.size(); postOrderIndex--;) {
                 BasicBlock* block = postOrder[postOrderIndex];
@@ -1203,6 +1230,43 @@ public:
                 // optimize by using the relationships before the operation, but we need to
                 // call executeNode() before we optimize.
                 switch (node->op()) {
+                case ArithAbs: {
+                    if (node->child1().useKind() != Int32Use)
+                        break;
+
+                    auto iter = m_relationships.find(node->child1().node());
+                    if (iter == m_relationships.end())
+                        break;
+
+                    int minValue = std::numeric_limits<int>::min();
+                    int maxValue = std::numeric_limits<int>::max();
+                    for (Relationship relationship : iter->value) {
+                        minValue = std::max(minValue, relationship.minValueOfLeft());
+                        maxValue = std::min(maxValue, relationship.maxValueOfLeft());
+                    }
+
+                    executeNode(block->at(nodeIndex));
+
+                    if (minValue >= 0) {
+                        node->convertToIdentityOn(node->child1().node());
+                        changed = true;
+                        break;
+                    }
+                    if (maxValue <= 0) {
+                        node->convertToArithNegate();
+                        if (minValue > std::numeric_limits<int>::min())
+                            node->setArithMode(Arith::Unchecked);
+                        changed = true;
+                        break;
+                    }
+                    if (minValue > std::numeric_limits<int>::min()) {
+                        node->setArithMode(Arith::Unchecked);
+                        changed = true;
+                        break;
+                    }
+
+                    break;
+                }
                 case ArithAdd: {
                     if (!node->isBinaryUseKind(Int32Use))
                         break;
@@ -1307,6 +1371,13 @@ private:
         case CheckInBounds: {
             setRelationship(Relationship::safeCreate(node->child1().node(), node->child2().node(), Relationship::LessThan));
             setRelationship(Relationship::safeCreate(node->child1().node(), m_zero, Relationship::GreaterThan, -1));
+            break;
+        }
+
+        case ArithAbs: {
+            if (node->child1().useKind() != Int32Use)
+                break;
+            setRelationship(Relationship(node, m_zero, Relationship::GreaterThan, -1));
             break;
         }
             
@@ -1638,7 +1709,13 @@ private:
                 changed = true;
                 continue;
             }
-            
+
+            Vector<Relationship> constantRelationshipsAtHead;
+            for (Relationship& relationshipAtHead : entry.value) {
+                if (relationshipAtHead.right()->isInt32Constant())
+                    constantRelationshipsAtHead.append(relationshipAtHead);
+            }
+
             Vector<Relationship> mergedRelationships;
             for (Relationship targetRelationship : entry.value) {
                 for (Relationship sourceRelationship : iter->value) {
@@ -1649,6 +1726,24 @@ private:
                         [&] (Relationship newRelationship) {
                             if (verbose)
                                 dataLog("    Got ", newRelationship, "\n");
+
+                            if (newRelationship.right()->isInt32Constant()) {
+                                // We can produce a relationship with a constant equivalent to
+                                // an existing relationship yet of a different form. For example:
+                                //
+                                //     @a == @b(42) + 0
+                                //     @a == @c(41) + 1
+                                //
+                                // We do not want to perpetually switch between those two forms,
+                                // so we always prefer the one already at head.
+
+                                for (Relationship& existingRelationshipAtHead : constantRelationshipsAtHead) {
+                                    if (existingRelationshipAtHead.isEquivalentTo(newRelationship)) {
+                                        newRelationship = existingRelationshipAtHead;
+                                        break;
+                                    }
+                                }
+                            }
                             
                             // We need to filter() to avoid exponential explosion of identical
                             // relationships. We do this here to avoid making setOneSide() do
@@ -1720,13 +1815,14 @@ private:
     BlockSet m_seenBlocks;
     BlockMap<RelationshipMap> m_relationshipsAtHead;
     InsertionSet m_insertionSet;
+
+    unsigned m_iterations { 0 };
 };
     
 } // anonymous namespace
 
 bool performIntegerRangeOptimization(Graph& graph)
 {
-    SamplingRegion samplingRegion("DFG Integer Range Optimization Phase");
     return runPhase<IntegerRangeOptimizationPhase>(graph);
 }
 

@@ -360,6 +360,10 @@ sub GenerateInterface
     $fatalError = 0;
 
     my $name = $interface->name;
+
+    # ObjC bindings only support EventTarget as base class for Node.
+    $interface->parents([grep(!/EventTarget/, @{$interface->parents})]) if $name ne "Node";
+
     my $className = GetClassName($name);
     my $parentClassName = "DOM" . GetParentImplClassName($interface);
     $isProtocol = $interface->extendedAttributes->{ObjCProtocol};
@@ -538,7 +542,6 @@ sub SkipFunction
 
     return 1 if $function->signature->type eq "Promise";
     return 1 if $function->signature->type eq "Symbol";
-    return 1 if $function->signature->extendedAttributes->{"CustomBinding"};
 
     foreach my $param (@{$function->parameters}) {
         return 1 if $codeGenerator->GetSequenceType($param->type);
@@ -1457,6 +1460,8 @@ sub GenerateImplementation
 
             my $parameterIndex = 0;
             my $functionSig = "- ($returnType)$functionName";
+            my @functionContent = ();
+
             foreach my $param (@{$function->parameters}) {
                 my $paramName = $param->name;
                 my $paramType = GetObjCType($param->type);
@@ -1472,6 +1477,12 @@ sub GenerateImplementation
                     $implGetter = "AtomicString($paramName)"
                 } else {
                     $implGetter = GetObjCTypeGetter($paramName, $idlType);
+                }
+
+                if ($codeGenerator->ShouldPassWrapperByReference($param, $interface)) {
+                    $implGetter = "*$implGetter";
+                    push(@functionContent, "    if (!$paramName)\n");
+                    push(@functionContent, "        WebCore::raiseTypeErrorException();\n");
                 }
 
                 push(@parameterNames, $implGetter);
@@ -1494,7 +1505,6 @@ sub GenerateImplementation
                 $parameterIndex++;
             }
 
-            my @functionContent = ();
             my $caller = "IMPL";
 
             # special case the XPathNSResolver

@@ -81,7 +81,7 @@ public:
     JS_EXPORT_PRIVATE static JSFunction* createBuiltinFunction(VM&, FunctionExecutable*, JSGlobalObject*);
     static JSFunction* createBuiltinFunction(VM&, FunctionExecutable*, JSGlobalObject*, const String& name);
 
-    JS_EXPORT_PRIVATE String name(ExecState*);
+    JS_EXPORT_PRIVATE String name();
     JS_EXPORT_PRIVATE String displayName(ExecState*);
     const String calculatedDisplayName(ExecState*);
 
@@ -150,6 +150,8 @@ public:
     JS_EXPORT_PRIVATE bool isHostFunctionNonInline() const;
     bool isClassConstructorFunction() const;
 
+    void setFunctionName(ExecState*, JSValue name);
+
 protected:
     JS_EXPORT_PRIVATE JSFunction(VM&, JSGlobalObject*, Structure*);
     JSFunction(VM&, FunctionExecutable*, JSScope*, Structure*);
@@ -169,7 +171,7 @@ protected:
     static void getOwnNonIndexPropertyNames(JSObject*, ExecState*, PropertyNameArray&, EnumerationMode = EnumerationMode());
     static bool defineOwnProperty(JSObject*, ExecState*, PropertyName, const PropertyDescriptor&, bool shouldThrow);
 
-    static void put(JSCell*, ExecState*, PropertyName, JSValue, PutPropertySlot&);
+    static bool put(JSCell*, ExecState*, PropertyName, JSValue, PutPropertySlot&);
 
     static bool deleteProperty(JSCell*, ExecState*, PropertyName);
 
@@ -186,7 +188,14 @@ private:
         function->finishCreation(vm);
         return function;
     }
-    
+
+    bool hasReifiedLength() const;
+    bool hasReifiedName() const;
+    void reifyLength(ExecState*);
+    void reifyName(ExecState*);
+    void reifyName(ExecState*, String name);
+    void reifyLazyPropertyIfNeeded(ExecState*, PropertyName propertyName);
+
     friend class LLIntOffsetsExtractor;
 
     static EncodedJSValue argumentsGetter(ExecState*, EncodedJSValue, PropertyName);

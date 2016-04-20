@@ -24,11 +24,35 @@
         "documentation-url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl",
         "webkit-url": "https://bugs.webkit.org/show_bug.cgi?id=90906",
         "description": "The Internationalization API provides language sensitive operations for  string, number, and date.",
-        "keywords": ["Intl", "Collator", "ECMA-402"],
+        "keywords": ["Intl", "Collator", "ECMA-402"]
+    },
+    {
+        "name": "Web Animations",
+        "status": {
+            "status": "Under Consideration"
+        },
+        "url": "https://www.w3.org/TR/web-animations-1/",
+        "keywords": ["web animations"],
+        "description": "An API to synchronize with the timing for presentation changes of a web page.",
         "contact": {
-            "name": "Andy VanWagoner",
-            "email": "thetalecrafter@gmail.com",
-            "twitter": "@thetalecrafter"
+            "name": "Jonathan Davis",
+            "email": "web-evangelist@apple.com",
+            "twitter": "@jonathandavis"
+        }
+    },
+    {
+        "name": "WebAssembly",
+        "status": {
+            "status": "In Development"
+        },
+        "url": "http://webassembly.github.io",
+        "webkit-url": "https://bugs.webkit.org/show_bug.cgi?id=146064",
+        "description": "WebAssembly is a new format for native programs on the web. It aims to support everything that asm.js supports, but allows the VM to sidestep the JS parsing and profiling pipeline entirely.",
+        "keywords": ["webassembly", "wasm", "webassy"],
+        "contact": {
+            "name": "Jon Davis",
+            "email": "web-evangelist@apple.com",
+            "twitter": "@jonathandavis"
         }
     }
     ],
@@ -95,7 +119,7 @@
     {
         "name": "Classes",
         "status": {
-            "status": "In Development",
+            "status": "Done",
             "enabled-by-default": true
         },
         "url": "http://www.ecma-international.org/ecma-262/6.0/#sec-class-definitions",
@@ -203,7 +227,7 @@
     {
         "name": "Proxy Objects",
         "status": {
-            "status": "Under Consideration"
+            "status": "In Development"
         },
         "url": "http://www.ecma-international.org/ecma-262/6.0/index.html#sec-proxy-objects",
         "webkit-url": "https://bugs.webkit.org/show_bug.cgi?id=35731",

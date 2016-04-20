@@ -28,7 +28,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// @conditional=ENABLE(MEDIA_STREAM)
+// @conditional=ENABLE(WEB_RTC)
 // @internal
 
 // Operation queue as specified in section 4.3.1 (WebRTC 1.0)
@@ -93,7 +93,7 @@ function setLocalOrRemoteDescription(peerConnection, targetFunction, functionNam
         throw new @TypeError("Not enough arguments");
 
     var description = args[0];
-    if (!(description instanceof RTCSessionDescription))
+    if (!(description instanceof @RTCSessionDescription))
         throw new @TypeError("Argument 1 ('description') to RTCPeerConnection." + functionName + " must be an instance of RTCSessionDescription");
 
     if (args.length == 1) {

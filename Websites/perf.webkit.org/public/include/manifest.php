@@ -36,6 +36,7 @@ class ManifestGenerator {
             'builders' => (object)$this->builders(),
             'bugTrackers' => (object)$this->bug_trackers($repositories_table),
             'dashboards' => (object)config('dashboards'),
+            'summary' => (object)config('summary'),
         );
 
         $this->manifest['elapsedTime'] = (microtime(true) - $start_time) * 1000;
@@ -165,7 +166,7 @@ class ManifestGenerator {
                     'name' => $row['tracker_name'],
                     'bugUrl' => $row['tracker_bug_url'],
                     'newBugUrl' => $row['tracker_new_bug_url'],
-                    'repositories' => $tracker_id_to_repositories[$row['tracker_id']]);
+                    'repositories' => array_get($tracker_id_to_repositories, $row['tracker_id']));
             }
         }
 

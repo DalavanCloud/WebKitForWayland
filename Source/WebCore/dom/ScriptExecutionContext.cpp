@@ -34,6 +34,7 @@
 #include "Document.h"
 #include "ErrorEvent.h"
 #include "MessagePort.h"
+#include "NoEventDispatchAssertion.h"
 #include "PublicURLManager.h"
 #include "Settings.h"
 #include "WorkerGlobalScope.h"
@@ -390,7 +391,7 @@ bool ScriptExecutionContext::dispatchErrorEvent(const String& errorMessage, int 
         return false;
 
 #if PLATFORM(IOS)
-    if (target == target->toDOMWindow() && is<Document>(*this)) {
+    if (target->toDOMWindow() && is<Document>(*this)) {
         Settings* settings = downcast<Document>(*this).settings();
         if (settings && !settings->shouldDispatchJavaScriptWindowOnErrorEvents())
             return false;
@@ -426,7 +427,7 @@ PublicURLManager& ScriptExecutionContext::publicURLManager()
     return *m_publicURLManager;
 }
 
-void ScriptExecutionContext::adjustMinimumTimerInterval(double oldMinimumTimerInterval)
+void ScriptExecutionContext::adjustMinimumTimerInterval(std::chrono::milliseconds oldMinimumTimerInterval)
 {
     if (minimumTimerInterval() != oldMinimumTimerInterval) {
         for (auto& timer : m_timeouts.values())
@@ -434,7 +435,7 @@ void ScriptExecutionContext::adjustMinimumTimerInterval(double oldMinimumTimerIn
     }
 }
 
-double ScriptExecutionContext::minimumTimerInterval() const
+std::chrono::milliseconds ScriptExecutionContext::minimumTimerInterval() const
 {
     // The default implementation returns the DOMTimer's default
     // minimum timer interval. FIXME: to make it work with dedicated
@@ -450,7 +451,7 @@ void ScriptExecutionContext::didChangeTimerAlignmentInterval()
         timer->didChangeAlignmentInterval();
 }
 
-double ScriptExecutionContext::timerAlignmentInterval(bool) const
+std::chrono::milliseconds ScriptExecutionContext::timerAlignmentInterval(bool) const
 {
     return DOMTimer::defaultAlignmentInterval();
 }

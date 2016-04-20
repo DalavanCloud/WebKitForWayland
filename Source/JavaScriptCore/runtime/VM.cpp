@@ -50,6 +50,7 @@
 #include "GetterSetter.h"
 #include "Heap.h"
 #include "HeapIterationScope.h"
+#include "HeapProfiler.h"
 #include "HostCallReturnValue.h"
 #include "Identifier.h"
 #include "IncrementalSweeper.h"
@@ -64,7 +65,6 @@
 #include "JSInternalPromiseDeferred.h"
 #include "JSLexicalEnvironment.h"
 #include "JSLock.h"
-#include "JSNotAnObject.h"
 #include "JSPromiseDeferred.h"
 #include "JSPropertyNameEnumerator.h"
 #include "JSTemplateRegistryKey.h"
@@ -82,6 +82,7 @@
 #include "RegisterAtOffsetList.h"
 #include "RuntimeType.h"
 #include "SamplingProfiler.h"
+#include "ShadowChicken.h"
 #include "SimpleTypedArrayController.h"
 #include "SourceProviderCache.h"
 #include "StackVisitor.h"
@@ -197,6 +198,7 @@ VM::VM(VMType vmType, HeapType heapType)
     , m_builtinExecutables(std::make_unique<BuiltinExecutables>(*this))
     , m_typeProfilerEnabledCount(0)
     , m_controlFlowProfilerEnabledCount(0)
+    , m_shadowChicken(std::make_unique<ShadowChicken>())
 {
     interpreter = new Interpreter(*this);
     StackBounds stack = wtfThreadData().stack();
@@ -214,7 +216,6 @@ VM::VM(VMType vmType, HeapType heapType)
     structureRareDataStructure.set(*this, StructureRareData::createStructure(*this, 0, jsNull()));
     terminatedExecutionErrorStructure.set(*this, TerminatedExecutionError::createStructure(*this, 0, jsNull()));
     stringStructure.set(*this, JSString::createStructure(*this, 0, jsNull()));
-    notAnObjectStructure.set(*this, JSNotAnObject::createStructure(*this, 0, jsNull()));
     propertyNameEnumeratorStructure.set(*this, JSPropertyNameEnumerator::createStructure(*this, 0, jsNull()));
     getterSetterStructure.set(*this, GetterSetter::createStructure(*this, 0, jsNull()));
     customGetterSetterStructure.set(*this, CustomGetterSetter::createStructure(*this, 0, jsNull()));
@@ -317,7 +318,9 @@ VM::VM(VMType vmType, HeapType heapType)
 #if ENABLE(SAMPLING_PROFILER)
     if (Options::useSamplingProfiler()) {
         setShouldBuildPCToCodeOriginMapping();
-        m_samplingProfiler = adoptRef(new SamplingProfiler(*this, Stopwatch::create()));
+        Ref<Stopwatch> stopwatch = Stopwatch::create();
+        stopwatch->start();
+        m_samplingProfiler = adoptRef(new SamplingProfiler(*this, WTFMove(stopwatch)));
         m_samplingProfiler->start();
     }
 #endif // ENABLE(SAMPLING_PROFILER)
@@ -443,6 +446,13 @@ Watchdog& VM::ensureWatchdog()
     return *m_watchdog;
 }
 
+HeapProfiler& VM::ensureHeapProfiler()
+{
+    if (!m_heapProfiler)
+        m_heapProfiler = std::make_unique<HeapProfiler>(*this);
+    return *m_heapProfiler;
+}
+
 #if ENABLE(SAMPLING_PROFILER)
 void VM::ensureSamplingProfiler(RefPtr<Stopwatch>&& stopwatch)
 {
@@ -473,6 +483,8 @@ static ThunkGenerator thunkGeneratorForIntrinsic(Intrinsic intrinsic)
         return floorThunkGenerator;
     case CeilIntrinsic:
         return ceilThunkGenerator;
+    case TruncIntrinsic:
+        return truncThunkGenerator;
     case RoundIntrinsic:
         return roundThunkGenerator;
     case ExpIntrinsic:
@@ -522,16 +534,6 @@ void VM::resetDateCache()
     dateInstanceCache.reset();
 }
 
-void VM::startSampling()
-{
-    interpreter->startSampling();
-}
-
-void VM::stopSampling()
-{
-    interpreter->stopSampling();
-}
-
 void VM::whenIdle(std::function<void()> callback)
 {
     if (!entryScope) {
@@ -550,6 +552,14 @@ void VM::deleteAllLinkedCode()
     });
 }
 
+void VM::deleteAllRegExpCode()
+{
+    whenIdle([this]() {
+        m_regExpCache->deleteAllCode();
+        heap.reportAbandonedObjectGraph();
+    });
+}
+
 void VM::deleteAllCode()
 {
     whenIdle([this]() {
@@ -559,14 +569,6 @@ void VM::deleteAllCode()
         heap.deleteAllUnlinkedCodeBlocks();
         heap.reportAbandonedObjectGraph();
     });
-}
-
-void VM::dumpSampleData(ExecState* exec)
-{
-    interpreter->dumpSampleData(exec);
-#if ENABLE(ASSEMBLER)
-    ExecutableAllocator::dumpProfile();
-#endif
 }
 
 SourceProviderCache* VM::addSourceProviderCache(SourceProvider* sourceProvider)
@@ -753,12 +755,17 @@ void VM::dumpRegExpTrace()
 }
 #endif
 
-void VM::registerWatchpointForImpureProperty(const Identifier& propertyName, Watchpoint* watchpoint)
+WatchpointSet* VM::ensureWatchpointSetForImpureProperty(const Identifier& propertyName)
 {
     auto result = m_impurePropertyWatchpointSets.add(propertyName.string(), nullptr);
     if (result.isNewEntry)
         result.iterator->value = adoptRef(new WatchpointSet(IsWatched));
-    result.iterator->value->add(watchpoint);
+    return result.iterator->value.get();
+}
+
+void VM::registerWatchpointForImpureProperty(const Identifier& propertyName, Watchpoint* watchpoint)
+{
+    ensureWatchpointSetForImpureProperty(propertyName)->add(watchpoint);
 }
 
 void VM::addImpureProperty(const String& propertyName)
@@ -769,7 +776,7 @@ void VM::addImpureProperty(const String& propertyName)
 
 class SetEnabledProfilerFunctor {
 public:
-    bool operator()(CodeBlock* codeBlock)
+    bool operator()(CodeBlock* codeBlock) const
     {
         if (JITCode::isOptimizingJIT(codeBlock->jitType()))
             codeBlock->jettison(Profiler::JettisonDueToLegacyProfiler);

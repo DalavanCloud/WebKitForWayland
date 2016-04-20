@@ -83,7 +83,7 @@ bool JSModuleEnvironment::getOwnPropertySlot(JSObject* cell, ExecState* exec, Pr
     if (resolution.type == JSModuleRecord::Resolution::Type::Resolved) {
         // When resolveImport resolves the resolution, the imported module environment must have the binding.
         JSModuleEnvironment* importedModuleEnvironment = resolution.moduleRecord->moduleEnvironment();
-        PropertySlot redirectSlot(importedModuleEnvironment);
+        PropertySlot redirectSlot(importedModuleEnvironment, PropertySlot::InternalMethodType::Get);
         bool result = importedModuleEnvironment->methodTable(exec->vm())->getOwnPropertySlot(importedModuleEnvironment, exec, resolution.localName, redirectSlot);
         ASSERT_UNUSED(result, result);
         ASSERT(redirectSlot.isValue());
@@ -108,14 +108,14 @@ void JSModuleEnvironment::getOwnNonIndexPropertyNames(JSObject* cell, ExecState*
     return Base::getOwnNonIndexPropertyNames(thisObject, exec, propertyNamesArray, mode);
 }
 
-void JSModuleEnvironment::put(JSCell* cell, ExecState* exec, PropertyName propertyName, JSValue value, PutPropertySlot& slot)
+bool JSModuleEnvironment::put(JSCell* cell, ExecState* exec, PropertyName propertyName, JSValue value, PutPropertySlot& slot)
 {
     JSModuleEnvironment* thisObject = jsCast<JSModuleEnvironment*>(cell);
     // All imported bindings are immutable.
     JSModuleRecord::Resolution resolution = thisObject->moduleRecord()->resolveImport(exec, Identifier::fromUid(exec, propertyName.uid()));
     if (resolution.type == JSModuleRecord::Resolution::Type::Resolved) {
         throwTypeError(exec, ASCIILiteral(StrictModeReadonlyPropertyWriteError));
-        return;
+        return false;
     }
     return Base::put(thisObject, exec, propertyName, value, slot);
 }

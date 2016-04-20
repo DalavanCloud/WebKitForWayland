@@ -1,7 +1,7 @@
 /*
 *  Copyright (C) 1999-2002 Harri Porten (porten@kde.org)
 *  Copyright (C) 2001 Peter Kelly (pmk@post.com)
-*  Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2012, 2013, 2015 Apple Inc. All rights reserved.
+*  Copyright (C) 2003-2009, 2012-2013, 2015-2016 Apple Inc. All rights reserved.
 *  Copyright (C) 2007 Cameron Zwarich (cwzwarich@uwaterloo.ca)
 *  Copyright (C) 2007 Maks Orlovich
 *  Copyright (C) 2007 Eric Seidel <eric@webkit.org>
@@ -45,7 +45,6 @@
 #include "PropertyNameArray.h"
 #include "RegExpCache.h"
 #include "RegExpObject.h"
-#include "SamplingTool.h"
 #include "StackAlignment.h"
 #include "TemplateRegistryKey.h"
 #include <wtf/Assertions.h>
@@ -146,7 +145,7 @@ RegisterID* RegExpNode::emitBytecode(BytecodeGenerator& generator, RegisterID* d
 
 RegisterID* ThisNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
 {
-    if (generator.constructorKind() == ConstructorKind::Derived && generator.needsToUpdateArrowFunctionContext())
+    if (generator.constructorKind() == ConstructorKind::Derived && generator.needsToUpdateArrowFunctionContext() && generator.isSuperCallUsedInInnerArrowFunction())
         generator.emitLoadThisFromArrowFunctionLexicalEnvironment();
 
     if (m_shouldAlwaysEmitTDZCheck || generator.constructorKind() == ConstructorKind::Derived || generator.isDerivedConstructorContext())
@@ -511,6 +510,7 @@ RegisterID* PropertyListNode::emitBytecode(BytecodeGenerator& generator, Registe
                 // Computed accessors.
                 if (node->m_type & PropertyNode::Computed) {
                     RefPtr<RegisterID> propertyName = generator.emitNode(node->m_expression);
+                    generator.emitSetFunctionNameIfNeeded(node->m_assign, value.get(), propertyName.get());
                     if (node->m_type & PropertyNode::Getter)
                         generator.emitPutGetterByVal(dst, propertyName.get(), attribute, value.get());
                     else
@@ -601,6 +601,7 @@ void PropertyListNode::emitPutConstantProperty(BytecodeGenerator& generator, Reg
         return;
     }
     RefPtr<RegisterID> propertyName = generator.emitNode(node.m_expression);
+    generator.emitSetFunctionNameIfNeeded(node.m_assign, value.get(), propertyName.get());
     generator.emitDirectPutByVal(newObj, propertyName.get(), value.get());
 }
 
@@ -723,7 +724,7 @@ RegisterID* EvalFunctionCallNode::emitBytecode(BytecodeGenerator& generator, Reg
     //       eval("this.id = 'B'");
     //    }
     // }
-    if (generator.constructorKind() == ConstructorKind::Derived && generator.needsToUpdateArrowFunctionContext())
+    if (generator.constructorKind() == ConstructorKind::Derived && generator.needsToUpdateArrowFunctionContext() && generator.isThisUsedInInnerArrowFunction())
         generator.emitLoadThisFromArrowFunctionLexicalEnvironment();
 
     Variable var = generator.variable(generator.propertyNames().eval);
@@ -839,6 +840,21 @@ RegisterID* BytecodeIntrinsicNode::emit_intrinsic_putByValDirect(BytecodeGenerat
     ASSERT(!node->m_next);
 
     return generator.moveToDestinationIfNeeded(dst, generator.emitDirectPutByVal(base.get(), index.get(), value.get()));
+}
+
+RegisterID* BytecodeIntrinsicNode::emit_intrinsic_tryGetById(BytecodeGenerator& generator, RegisterID* dst)
+{
+    ArgumentListNode* node = m_args->m_listNode;
+    RefPtr<RegisterID> base = generator.emitNode(node);
+    node = node->m_next;
+
+    // Since this is a builtin we expect the creator to use a string literal as the second argument.
+    ASSERT(node->m_expr->isString());
+    const Identifier& ident = static_cast<StringNode*>(node->m_expr)->value();
+    ASSERT(!node->m_next);
+
+    RegisterID* finalDest = generator.finalDestination(dst);
+    return generator.emitTryGetById(finalDest, base.get(), ident);
 }
 
 RegisterID* BytecodeIntrinsicNode::emit_intrinsic_toString(BytecodeGenerator& generator, RegisterID* dst)
@@ -2150,6 +2166,8 @@ RegisterID* EmptyLetExpression::emitBytecode(BytecodeGenerator& generator, Regis
         generator.emitProfileType(value.get(), var, position(), JSTextPosition(-1, position().offset + m_ident.length(), -1)); 
     }
 
+    generator.liftTDZCheckIfPossible(var);
+
     // It's safe to return null here because this node will always be a child node of DeclarationStatement which ignores our return value.
     return nullptr;
 }
@@ -3138,7 +3156,7 @@ void FunctionNode::emitBytecode(BytecodeGenerator& generator, RegisterID*)
 
         // If there is no return we must automatically insert one.
         if (!returnNode) {
-            if (generator.constructorKind() == ConstructorKind::Derived && generator.needsToUpdateArrowFunctionContext())
+            if (generator.constructorKind() == ConstructorKind::Derived && generator.needsToUpdateArrowFunctionContext() && generator.isSuperCallUsedInInnerArrowFunction())
                 generator.emitLoadThisFromArrowFunctionLexicalEnvironment(); // Arrow function can invoke 'super' in constructor and before leave constructor we need load 'this' from lexical arrow function environment
             
             RegisterID* r0 = generator.isConstructor() ? generator.thisRegister() : generator.emitLoad(0, jsUndefined());
@@ -3155,8 +3173,9 @@ void FunctionNode::emitBytecode(BytecodeGenerator& generator, RegisterID*)
 
 // ------------------------------ FuncDeclNode ---------------------------------
 
-void FuncDeclNode::emitBytecode(BytecodeGenerator&, RegisterID*)
+void FuncDeclNode::emitBytecode(BytecodeGenerator& generator, RegisterID*)
 {
+    generator.hoistSloppyModeFunctionIfNecessary(metadata()->ident());
 }
 
 // ------------------------------ FuncExprNode ---------------------------------
@@ -3171,6 +3190,13 @@ RegisterID* FuncExprNode::emitBytecode(BytecodeGenerator& generator, RegisterID*
 RegisterID* ArrowFuncExprNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
 {
     return generator.emitNewArrowFunctionExpression(generator.finalDestination(dst), this);
+}
+
+// ------------------------------ MethodDefinitionNode ---------------------------------
+
+RegisterID* MethodDefinitionNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
+{
+    return generator.emitNewMethodDefinition(generator.finalDestination(dst), this);
 }
 
 // ------------------------------ YieldExprNode --------------------------------
@@ -3220,11 +3246,16 @@ RegisterID* ClassExprNode::emitBytecode(BytecodeGenerator& generator, RegisterID
     RefPtr<RegisterID> constructor;
 
     // FIXME: Make the prototype non-configurable & non-writable.
-    if (m_constructorExpression)
+    if (m_constructorExpression) {
+        ASSERT(m_constructorExpression->isFuncExprNode());
+        FunctionMetadataNode* metadata = static_cast<FuncExprNode*>(m_constructorExpression)->metadata();
+        metadata->setEcmaName(ecmaName());
+        metadata->setClassSource(m_classSource);
         constructor = generator.emitNode(dst, m_constructorExpression);
-    else {
+    } else {
         constructor = generator.emitNewDefaultConstructor(generator.finalDestination(dst),
-            m_classHeritage ? ConstructorKind::Derived : ConstructorKind::Base, m_name);
+            m_classHeritage ? ConstructorKind::Derived : ConstructorKind::Base,
+            m_name, ecmaName(), m_classSource);
     }
 
     const auto& propertyNames = generator.propertyNames();

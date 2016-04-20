@@ -28,12 +28,12 @@
 
 #include "GetPutInfo.h"
 #include "JSObject.h"
-#include "VariableEnvironment.h"
 
 namespace JSC {
 
 class ScopeChainIterator;
 class WatchpointSet;
+class VariableEnvironment;
 
 class JSScope : public JSNonFinalObject {
 public:
@@ -45,7 +45,7 @@ public:
 
     static JSObject* objectAtScope(JSScope*);
 
-    static JSValue resolve(ExecState*, JSScope*, const Identifier&);
+    static JSObject* resolve(ExecState*, JSScope*, const Identifier&);
     static ResolveOp abstractResolve(ExecState*, size_t depthOffset, JSScope*, const Identifier&, GetOrPut, ResolveType, InitializationMode);
 
     static bool hasConstantScope(ResolveType);
@@ -58,7 +58,6 @@ public:
     bool isVarScope();
     bool isLexicalScope();
     bool isModuleScope();
-    bool isGlobalLexicalEnvironment();
     bool isCatchScope();
     bool isFunctionNameScopeObject();
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2011, 2012 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -236,6 +236,11 @@ void InjectedBundle::didReceiveMessageToPage(WKBundlePageRef page, WKStringRef m
         return;
     }
 
+    if (WKStringIsEqualToUTF8CString(messageName, "NotifyDownloadDone")) {
+        m_testRunner->notifyDone();
+        return;
+    }
+
     if (WKStringIsEqualToUTF8CString(messageName, "CallUISideScriptCallback")) {
         WKDictionaryRef messageBodyDictionary = static_cast<WKDictionaryRef>(messageBody);
 
@@ -304,6 +309,14 @@ void InjectedBundle::beginTesting(WKDictionaryRef settings)
     m_testRunner->setShouldDumpFrameLoadCallbacks(booleanForKey(settings, "DumpFrameLoadDelegates"));
     m_testRunner->setUserStyleSheetEnabled(false);
     m_testRunner->setXSSAuditorEnabled(false);
+
+    m_testRunner->setShadowDOMEnabled(true);
+    m_testRunner->setCustomElementsEnabled(true);
+
+    m_testRunner->setWebGL2Enabled(true);
+
+    m_testRunner->setFetchAPIEnabled(true);
+
     m_testRunner->setCloseRemainingWindowsWhenComplete(false);
     m_testRunner->setAcceptsEditing(true);
     m_testRunner->setTabKeyCyclesThroughElements(true);
@@ -429,6 +442,24 @@ void InjectedBundle::postSetWindowIsKey(bool isKey)
     WKBundlePagePostSynchronousMessageForTesting(page()->page(), messageName.get(), messageBody.get(), 0);
 }
 
+void InjectedBundle::postSetViewSize(double width, double height)
+{
+    WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("SetViewSize"));
+
+    WKRetainPtr<WKStringRef> widthKey(AdoptWK, WKStringCreateWithUTF8CString("width"));
+    WKRetainPtr<WKStringRef> heightKey(AdoptWK, WKStringCreateWithUTF8CString("height"));
+
+    WKRetainPtr<WKMutableDictionaryRef> messageBody(AdoptWK, WKMutableDictionaryCreate());
+
+    WKRetainPtr<WKDoubleRef> widthWK(AdoptWK, WKDoubleCreate(width));
+    WKDictionarySetItem(messageBody.get(), widthKey.get(), widthWK.get());
+
+    WKRetainPtr<WKDoubleRef> heightWK(AdoptWK, WKDoubleCreate(height));
+    WKDictionarySetItem(messageBody.get(), heightKey.get(), heightWK.get());
+
+    WKBundlePagePostSynchronousMessageForTesting(page()->page(), messageName.get(), messageBody.get(), 0);
+}
+
 void InjectedBundle::postSimulateWebNotificationClick(uint64_t notificationID)
 {
     WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("SimulateWebNotificationClick"));
@@ -526,7 +557,7 @@ void InjectedBundle::setUserMediaPermission(bool enabled)
     WKBundlePagePostMessage(page()->page(), messageName.get(), messageBody.get());
 }
 
-void InjectedBundle::setUserMediaPermissionForOrigin(bool permission, WKStringRef url)
+void InjectedBundle::setUserMediaPermissionForOrigin(bool permission, WKStringRef origin, WKStringRef parentOrigin)
 {
     auto messageName = adoptWK(WKStringCreateWithUTF8CString("SetUserMediaPermissionForOrigin"));
     WKRetainPtr<WKMutableDictionaryRef> messageBody(AdoptWK, WKMutableDictionaryCreate());
@@ -535,8 +566,11 @@ void InjectedBundle::setUserMediaPermissionForOrigin(bool permission, WKStringRe
     WKRetainPtr<WKBooleanRef> permissionWK(AdoptWK, WKBooleanCreate(permission));
     WKDictionarySetItem(messageBody.get(), permissionKeyWK.get(), permissionWK.get());
 
-    WKRetainPtr<WKStringRef> urlKeyWK(AdoptWK, WKStringCreateWithUTF8CString("url"));
-    WKDictionarySetItem(messageBody.get(), urlKeyWK.get(), url);
+    WKRetainPtr<WKStringRef> originKeyWK(AdoptWK, WKStringCreateWithUTF8CString("origin"));
+    WKDictionarySetItem(messageBody.get(), originKeyWK.get(), origin);
+
+    WKRetainPtr<WKStringRef> parentOriginKeyWK(AdoptWK, WKStringCreateWithUTF8CString("parentOrigin"));
+    WKDictionarySetItem(messageBody.get(), parentOriginKeyWK.get(), parentOrigin);
 
     WKBundlePagePostMessage(page()->page(), messageName.get(), messageBody.get());
 }

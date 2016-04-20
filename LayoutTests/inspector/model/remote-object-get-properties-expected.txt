@@ -37,15 +37,19 @@ type: object
 description: Event
 
 OWN PROPERTIES:
+    isTrusted
     __proto__
 
 DISPLAYABLE PROPERTIES:
+    isTrusted
     type
     target
     currentTarget
     eventPhase
     bubbles
     cancelable
+    scoped
+    relatedTargetScoped
     timeStamp
     defaultPrevented
     srcElement
@@ -55,6 +59,7 @@ DISPLAYABLE PROPERTIES:
     __proto__
 
 ALL PROPERTIES:
+    isTrusted
     constructor
     type
     target
@@ -62,12 +67,19 @@ ALL PROPERTIES:
     eventPhase
     bubbles
     cancelable
+    scoped
+    relatedTargetScoped
     timeStamp
     defaultPrevented
     srcElement
     returnValue
     cancelBubble
     clipboardData
+    deepPath
+    stopPropagation
+    preventDefault
+    initEvent
+    stopImmediatePropagation
     NONE
     CAPTURING_PHASE
     AT_TARGET
@@ -88,10 +100,6 @@ ALL PROPERTIES:
     BLUR
     SELECT
     CHANGE
-    stopPropagation
-    preventDefault
-    initEvent
-    stopImmediatePropagation
     toString
     toLocaleString
     valueOf
@@ -217,7 +225,7 @@ ALL PROPERTIES:
 -----------------------------------------------------
 EXPRESSION: window.boundFunction
 type: function
-description: function () {
+description: function unboundFunction() {
     [native code]
 }
 

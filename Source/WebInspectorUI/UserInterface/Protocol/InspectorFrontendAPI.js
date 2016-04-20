@@ -55,6 +55,11 @@ InspectorFrontendAPI = {
         }
     },
 
+    setElementSelectionEnabled: function(enabled)
+    {
+        WebInspector.domTreeManager.inspectModeEnabled = enabled;
+    },
+
     setDockingUnavailable: function(unavailable)
     {
         WebInspector.updateDockingAvailability(!unavailable);
@@ -101,7 +106,11 @@ InspectorFrontendAPI = {
 
     contextMenuItemSelected: function(id)
     {
-        WebInspector.ContextMenu.contextMenuItemSelected(id);
+        try {
+            WebInspector.ContextMenu.contextMenuItemSelected(id);
+        } catch (e) {
+            console.error("Uncaught exception in inspector page under contextMenuItemSelected", e);
+        }
     },
 
     contextMenuCleared: function()

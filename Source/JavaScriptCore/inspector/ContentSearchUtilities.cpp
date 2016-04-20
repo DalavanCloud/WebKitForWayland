@@ -32,6 +32,7 @@
 #include "InspectorValues.h"
 #include "RegularExpression.h"
 #include "Yarr.h"
+#include "YarrInterpreter.h"
 #include <wtf/BumpPointerAllocator.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/text/StringBuilder.h>
@@ -176,7 +177,7 @@ static String findMagicComment(const String& content, const String& patternStrin
 {
     ASSERT(!content.isNull());
     const char* error = nullptr;
-    JSC::Yarr::YarrPattern pattern(patternString, false, true, &error);
+    JSC::Yarr::YarrPattern pattern(patternString, JSC::RegExpFlags::FlagMultiline, &error);
     ASSERT(!error);
     BumpPointerAllocator regexAllocator;
     auto bytecodePattern = JSC::Yarr::byteCompile(pattern, &regexAllocator);

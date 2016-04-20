@@ -28,9 +28,9 @@
 
 #if ENABLE(INDEXED_DATABASE)
 
-#include "IDBRequestImpl.h"
+#include "IDBRequest.h"
 #include "IDBResourceIdentifier.h"
-#include "IDBTransactionImpl.h"
+#include "IDBTransaction.h"
 
 namespace WebCore {
 
@@ -42,7 +42,7 @@ enum class IndexRecordType;
 
 namespace IDBClient {
 
-class TransactionOperation : public RefCounted<TransactionOperation> {
+class TransactionOperation : public ThreadSafeRefCounted<TransactionOperation> {
 public:
     void perform()
     {
@@ -92,7 +92,6 @@ public:
     TransactionOperationImpl(IDBTransaction& transaction, void (IDBTransaction::*completeMethod)(const IDBResultData&), void (IDBTransaction::*performMethod)(TransactionOperation&, Arguments...), Arguments&&... arguments)
         : TransactionOperation(transaction)
     {
-        relaxAdoptionRequirement();
         RefPtr<TransactionOperation> self(this);
 
         ASSERT(performMethod);
@@ -111,7 +110,6 @@ public:
     TransactionOperationImpl(IDBTransaction& transaction, IDBRequest& request, void (IDBTransaction::*completeMethod)(IDBRequest&, const IDBResultData&), void (IDBTransaction::*performMethod)(TransactionOperation&, Arguments...), Arguments&&... arguments)
         : TransactionOperation(transaction, request)
     {
-        relaxAdoptionRequirement();
         RefPtr<TransactionOperation> self(this);
 
         ASSERT(performMethod);

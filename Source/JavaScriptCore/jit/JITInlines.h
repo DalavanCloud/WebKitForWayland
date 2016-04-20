@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008, 2012, 2013, 2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2008, 2012-2013, 2015-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -143,6 +143,10 @@ ALWAYS_INLINE void JIT::updateTopCallFrame()
     uint32_t locationBits = CallSiteIndex(m_bytecodeOffset + 1).bits();
 #endif
     store32(TrustedImm32(locationBits), intTagFor(JSStack::ArgumentCount));
+    
+    // FIXME: It's not clear that this is needed. JITOperations tend to update the top call frame on
+    // the C++ side.
+    // https://bugs.webkit.org/show_bug.cgi?id=155693
     storePtr(callFrameRegister, &m_vm->topCallFrame);
 }
 
@@ -455,6 +459,12 @@ ALWAYS_INLINE MacroAssembler::Call JIT::callOperation(V_JITOperation_EZJ operati
     return appendCallWithExceptionCheck(operation);
 }
 
+ALWAYS_INLINE MacroAssembler::Call JIT::callOperation(J_JITOperation_ESsiJI operation, int dst, StructureStubInfo* stubInfo, GPRReg arg1, UniquedStringImpl* uid)
+{
+    setupArgumentsWithExecState(TrustedImmPtr(stubInfo), arg1, TrustedImmPtr(uid));
+    return appendCallWithExceptionCheckSetJSValueResult(operation, dst);
+}
+
 ALWAYS_INLINE MacroAssembler::Call JIT::callOperation(JIT::WithProfileTag, J_JITOperation_ESsiJI operation, int dst, StructureStubInfo* stubInfo, GPRReg arg1, UniquedStringImpl* uid)
 {
     setupArgumentsWithExecState(TrustedImmPtr(stubInfo), arg1, TrustedImmPtr(uid));
@@ -558,6 +568,12 @@ ALWAYS_INLINE MacroAssembler::Call JIT::callOperation(V_JITOperation_ECIZJJ oper
     return appendCallWithExceptionCheck(operation);
 }
 
+ALWAYS_INLINE MacroAssembler::Call JIT::callOperation(V_JITOperation_ECJ operation, RegisterID arg1, RegisterID arg2)
+{
+    setupArgumentsWithExecState(arg1, arg2);
+    return appendCallWithExceptionCheck(operation);
+}
+
 ALWAYS_INLINE MacroAssembler::Call JIT::callOperation(V_JITOperation_ECJZC operation, RegisterID regOp1, RegisterID regOp2, int32_t op3, RegisterID regOp4)
 {
     setupArgumentsWithExecState(regOp1, regOp2, TrustedImm32(op3), regOp4);
@@ -632,6 +648,12 @@ ALWAYS_INLINE MacroAssembler::Call JIT::callOperation(J_JITOperation_EJ operatio
     return appendCallWithExceptionCheckSetJSValueResult(operation, dst);
 }
 
+ALWAYS_INLINE MacroAssembler::Call JIT::callOperation(J_JITOperation_ESsiJI operation, int dst, StructureStubInfo* stubInfo, GPRReg arg1Tag, GPRReg arg1Payload, UniquedStringImpl* uid)
+{
+    setupArgumentsWithExecState(TrustedImmPtr(stubInfo), arg1Payload, arg1Tag, TrustedImmPtr(uid));
+    return appendCallWithExceptionCheckSetJSValueResult(operation, dst);
+}
+
 ALWAYS_INLINE MacroAssembler::Call JIT::callOperation(JIT::WithProfileTag, J_JITOperation_ESsiJI operation, int dst, StructureStubInfo* stubInfo, GPRReg arg1Tag, GPRReg arg1Payload, UniquedStringImpl* uid)
 {
     setupArgumentsWithExecState(TrustedImmPtr(stubInfo), arg1Payload, arg1Tag, TrustedImmPtr(uid));
@@ -689,6 +711,12 @@ ALWAYS_INLINE MacroAssembler::Call JIT::callOperation(S_JITOperation_EJJ operati
 ALWAYS_INLINE MacroAssembler::Call JIT::callOperation(V_JITOperation_ECIZCC operation, RegisterID regOp1, UniquedStringImpl* identOp2, int32_t op3, RegisterID regOp4, RegisterID regOp5)
 {
     setupArgumentsWithExecState(regOp1, TrustedImmPtr(identOp2), TrustedImm32(op3), regOp4, regOp5);
+    return appendCallWithExceptionCheck(operation);
+}
+
+ALWAYS_INLINE MacroAssembler::Call JIT::callOperation(V_JITOperation_ECJ operation, RegisterID arg1, RegisterID arg2Tag, RegisterID arg2Payload)
+{
+    setupArgumentsWithExecState(arg1, arg2Payload, arg2Tag);
     return appendCallWithExceptionCheck(operation);
 }
 

@@ -71,9 +71,9 @@ static void determineDirectionality(TextDirection& dir, InlineIterator iter)
     }
 }
 
-inline BidiRun* createRun(int start, int end, RenderObject& obj, InlineBidiResolver& resolver)
+inline std::unique_ptr<BidiRun> createRun(int start, int end, RenderObject& obj, InlineBidiResolver& resolver)
 {
-    return new BidiRun(start, end, obj, resolver.context(), resolver.dir());
+    return std::make_unique<BidiRun>(start, end, obj, resolver.context(), resolver.dir());
 }
 
 void RenderBlockFlow::appendRunsForObject(BidiRunList<BidiRun>* runs, int start, int end, RenderObject& obj, InlineBidiResolver& resolver)
@@ -81,40 +81,40 @@ void RenderBlockFlow::appendRunsForObject(BidiRunList<BidiRun>* runs, int start,
     if (start > end || shouldSkipCreatingRunsForObject(obj))
         return;
 
-    LineMidpointState& lineMidpointState = resolver.midpointState();
-    bool haveNextMidpoint = (lineMidpointState.currentMidpoint() < lineMidpointState.numMidpoints());
-    InlineIterator nextMidpoint;
-    if (haveNextMidpoint)
-        nextMidpoint = lineMidpointState.midpoints()[lineMidpointState.currentMidpoint()];
-    if (lineMidpointState.betweenMidpoints()) {
-        if (!haveNextMidpoint || (&obj != nextMidpoint.renderer()))
+    LineWhitespaceCollapsingState& lineWhitespaceCollapsingState = resolver.whitespaceCollapsingState();
+    bool haveNextTransition = (lineWhitespaceCollapsingState.currentTransition() < lineWhitespaceCollapsingState.numTransitions());
+    InlineIterator nextTransition;
+    if (haveNextTransition)
+        nextTransition = lineWhitespaceCollapsingState.transitions()[lineWhitespaceCollapsingState.currentTransition()];
+    if (lineWhitespaceCollapsingState.betweenTransitions()) {
+        if (!haveNextTransition || (&obj != nextTransition.renderer()))
             return;
         // This is a new start point. Stop ignoring objects and
         // adjust our start.
-        start = nextMidpoint.offset();
-        lineMidpointState.incrementCurrentMidpoint();
+        start = nextTransition.offset();
+        lineWhitespaceCollapsingState.incrementCurrentTransition();
         if (start < end) {
             appendRunsForObject(runs, start, end, obj, resolver);
             return;
         }
     } else {
-        if (!haveNextMidpoint || (&obj != nextMidpoint.renderer())) {
+        if (!haveNextTransition || (&obj != nextTransition.renderer())) {
             if (runs)
-                runs->addRun(createRun(start, end, obj, resolver));
+                runs->appendRun(createRun(start, end, obj, resolver));
             return;
         }
 
-        // An end midpoint has been encountered within our object. We need to append a run with our endpoint.
-        if (static_cast<int>(nextMidpoint.offset() + 1) <= end) {
-            lineMidpointState.incrementCurrentMidpoint();
+        // An end transition has been encountered within our object. We need to append a run with our endpoint.
+        if (static_cast<int>(nextTransition.offset() + 1) <= end) {
+            lineWhitespaceCollapsingState.incrementCurrentTransition();
             // The end of the line is before the object we're inspecting. Skip everything and return
-            if (nextMidpoint.refersToEndOfPreviousNode())
+            if (nextTransition.refersToEndOfPreviousNode())
                 return;
-            if (static_cast<int>(nextMidpoint.offset() + 1) > start && runs)
-                runs->addRun(createRun(start, nextMidpoint.offset() + 1, obj, resolver));
-            appendRunsForObject(runs, nextMidpoint.offset() + 1, end, obj, resolver);
+            if (static_cast<int>(nextTransition.offset() + 1) > start && runs)
+                runs->appendRun(createRun(start, nextTransition.offset() + 1, obj, resolver));
+            appendRunsForObject(runs, nextTransition.offset() + 1, end, obj, resolver);
         } else if (runs)
-            runs->addRun(createRun(start, end, obj, resolver));
+            runs->appendRun(createRun(start, end, obj, resolver));
     }
 }
 
@@ -337,7 +337,7 @@ RootInlineBox* RenderBlockFlow::constructLine(BidiRunList<BidiRun>& bidiRuns, co
     // paint borders/margins/padding.  This knowledge will ultimately be used when
     // we determine the horizontal positions and widths of all the inline boxes on
     // the line.
-    bool isLogicallyLastRunWrapped = bidiRuns.logicallyLastRun()->renderer().isText() ? !reachedEndOfTextRenderer(bidiRuns) : true;
+    bool isLogicallyLastRunWrapped = bidiRuns.logicallyLastRun()->renderer().isText() ? !reachedEndOfTextRenderer(bidiRuns) : !is<RenderInline>(bidiRuns.logicallyLastRun()->renderer());
     lastRootBox()->determineSpacingForFlowBoxes(lineInfo.isLastLine(), isLogicallyLastRunWrapped, &bidiRuns.logicallyLastRun()->renderer());
 
     // Now mark the line boxes as being constructed.
@@ -672,16 +672,16 @@ void RenderBlockFlow::updateLogicalWidthForAlignment(const ETextAlign& textAlign
     }
 }
 
-static void updateLogicalInlinePositions(RenderBlockFlow& block, float& lineLogicalLeft, float& lineLogicalRight, float& availableLogicalWidth, bool firstLine, IndentTextOrNot shouldIndentText, LayoutUnit boxLogicalHeight,
-    RootInlineBox* rootBox)
+static void updateLogicalInlinePositions(RenderBlockFlow& block, float& lineLogicalLeft, float& lineLogicalRight, float& availableLogicalWidth, bool firstLine,
+    IndentTextOrNot shouldIndentText, LayoutUnit boxLogicalHeight, RootInlineBox* rootBox)
 {
     LayoutUnit lineLogicalHeight = block.minLineHeightForReplacedRenderer(firstLine, boxLogicalHeight);
     if (rootBox->hasAnonymousInlineBlock()) {
         lineLogicalLeft = block.logicalLeftOffsetForContent(block.logicalHeight());
         lineLogicalRight = block.logicalRightOffsetForContent(block.logicalHeight());
     } else {
-        lineLogicalLeft = block.logicalLeftOffsetForLine(block.logicalHeight(), shouldIndentText == IndentText, lineLogicalHeight);
-        lineLogicalRight = block.logicalRightOffsetForLine(block.logicalHeight(), shouldIndentText == IndentText, lineLogicalHeight);
+        lineLogicalLeft = block.logicalLeftOffsetForLine(block.logicalHeight(), shouldIndentText, lineLogicalHeight);
+        lineLogicalRight = block.logicalRightOffsetForLine(block.logicalHeight(), shouldIndentText, lineLogicalHeight);
     }
     availableLogicalWidth = lineLogicalRight - lineLogicalLeft;
 }
@@ -806,11 +806,46 @@ static inline void applyExpansionBehavior(InlineTextBox& textBox, ExpansionBehav
     }
 }
 
+static bool inlineAncestorHasStartBorderPaddingOrMargin(const RenderBlockFlow& block, const InlineBox& box)
+{
+    bool isLTR = block.style().isLeftToRightDirection();
+    for (auto* currentBox = box.parent(); currentBox; currentBox = currentBox->parent()) {
+        if ((isLTR && currentBox->marginBorderPaddingLogicalLeft() > 0)
+            || (!isLTR && currentBox->marginBorderPaddingLogicalRight() > 0))
+            return true;
+    }
+    return false;
+}
+
+static bool inlineAncestorHasEndBorderPaddingOrMargin(const RenderBlockFlow& block, const InlineBox& box)
+{
+    bool isLTR = block.style().isLeftToRightDirection();
+    for (auto* currentBox = box.parent(); currentBox; currentBox = currentBox->parent()) {
+        if ((isLTR && currentBox->marginBorderPaddingLogicalRight() > 0)
+            || (!isLTR && currentBox->marginBorderPaddingLogicalLeft() > 0))
+            return true;
+    }
+    return false;
+}
+    
+static bool isLastInFlowRun(BidiRun& runToCheck)
+{
+    for (auto* run = runToCheck.next(); run; run = run->next()) {
+        if (!run->box() || run->renderer().isOutOfFlowPositioned() || run->box()->isLineBreak())
+            continue;
+        return false;
+    }
+    return true;
+}
+    
 BidiRun* RenderBlockFlow::computeInlineDirectionPositionsForSegment(RootInlineBox* lineBox, const LineInfo& lineInfo, ETextAlign textAlign, float& logicalLeft, 
     float& availableLogicalWidth, BidiRun* firstRun, BidiRun* trailingSpaceRun, GlyphOverflowAndFallbackFontsMap& textBoxDataMap, VerticalPositionCache& verticalPositionCache,
     WordMeasurements& wordMeasurements)
 {
     bool needsWordSpacing = false;
+    bool canHangPunctuationAtStart = style().hangingPunctuation() & FirstHangingPunctuation;
+    bool canHangPunctuationAtEnd = style().hangingPunctuation() & LastHangingPunctuation;
+    bool isLTR = style().isLeftToRightDirection();
     float totalLogicalWidth = lineBox->getFlowSpacingLogicalWidth();
     unsigned expansionOpportunityCount = 0;
     bool isAfterExpansion = is<RenderRubyBase>(*this) ? downcast<RenderRubyBase>(*this).isAfterExpansion() : true;
@@ -827,6 +862,24 @@ BidiRun* RenderBlockFlow::computeInlineDirectionPositionsForSegment(RootInlineBo
         if (is<RenderText>(run->renderer())) {
             auto& renderText = downcast<RenderText>(run->renderer());
             auto& textBox = downcast<InlineTextBox>(*run->box());
+            if (canHangPunctuationAtStart && lineInfo.isFirstLine() && (isLTR || isLastInFlowRun(*run))
+                && !inlineAncestorHasStartBorderPaddingOrMargin(*this, *run->box())) {
+                float hangStartWidth = renderText.hangablePunctuationStartWidth(run->m_start);
+                availableLogicalWidth += hangStartWidth;
+                if (style().isLeftToRightDirection())
+                    logicalLeft -= hangStartWidth;
+                canHangPunctuationAtStart = false;
+            }
+            
+            if (canHangPunctuationAtEnd && lineInfo.isLastLine() && run->m_stop > 0 && (!isLTR || isLastInFlowRun(*run))
+                && !inlineAncestorHasEndBorderPaddingOrMargin(*this, *run->box())) {
+                float hangEndWidth = renderText.hangablePunctuationEndWidth(run->m_stop - 1);
+                availableLogicalWidth += hangEndWidth;
+                if (!style().isLeftToRightDirection())
+                    logicalLeft -= hangEndWidth;
+                canHangPunctuationAtEnd = false;
+            }
+            
             if (textAlign == JUSTIFY && run != trailingSpaceRun) {
                 ExpansionBehavior expansionBehavior = expansionBehaviorForInlineTextBox(*this, textBox, previousRun, run->next(), textAlign, isAfterExpansion);
                 applyExpansionBehavior(textBox, expansionBehavior);
@@ -844,6 +897,7 @@ BidiRun* RenderBlockFlow::computeInlineDirectionPositionsForSegment(RootInlineBo
 
             setLogicalWidthForTextRun(lineBox, run, renderText, totalLogicalWidth, lineInfo, textBoxDataMap, verticalPositionCache, wordMeasurements);
         } else {
+            canHangPunctuationAtStart = false;
             bool encounteredJustifiedRuby = false;
             if (is<RenderRubyRun>(run->renderer()) && textAlign == JUSTIFY && run != trailingSpaceRun && downcast<RenderRubyRun>(run->renderer()).rubyBase()) {
                 auto* rubyBase = downcast<RenderRubyRun>(run->renderer()).rubyBase();
@@ -982,13 +1036,13 @@ inline BidiRun* RenderBlockFlow::handleTrailingSpaces(BidiRunList<BidiRun>& bidi
         while (BidiContext* parent = baseContext->parent())
             baseContext = parent;
 
-        BidiRun* newTrailingRun = new BidiRun(firstSpace, trailingSpaceRun->m_stop, trailingSpaceRun->renderer(), baseContext, U_OTHER_NEUTRAL);
+        std::unique_ptr<BidiRun> newTrailingRun = std::make_unique<BidiRun>(firstSpace, trailingSpaceRun->m_stop, trailingSpaceRun->renderer(), baseContext, U_OTHER_NEUTRAL);
         trailingSpaceRun->m_stop = firstSpace;
+        trailingSpaceRun = newTrailingRun.get();
         if (direction == LTR)
-            bidiRuns.addRun(newTrailingRun);
+            bidiRuns.appendRun(WTFMove(newTrailingRun));
         else
-            bidiRuns.prependRun(newTrailingRun);
-        trailingSpaceRun = newTrailingRun;
+            bidiRuns.prependRun(WTFMove(newTrailingRun));
         return trailingSpaceRun;
     }
     if (!shouldReorder)
@@ -1006,7 +1060,7 @@ inline BidiRun* RenderBlockFlow::handleTrailingSpaces(BidiRunList<BidiRun>& bidi
 
 void RenderBlockFlow::appendFloatingObjectToLastLine(FloatingObject* floatingObject)
 {
-    ASSERT(!floatingObject->originatingLine());
+    ASSERT_WITH_SECURITY_IMPLICATION(!floatingObject->originatingLine());
     floatingObject->setOriginatingLine(lastRootBox());
     lastRootBox()->appendFloat(floatingObject->renderer());
 }
@@ -1022,9 +1076,9 @@ static inline void notifyResolverToResumeInIsolate(InlineBidiResolver& resolver,
 
 static inline void setUpResolverToResumeInIsolate(InlineBidiResolver& resolver, InlineBidiResolver& topResolver, BidiRun& isolatedRun, RenderObject* root, RenderObject* startObject)
 {
-    // Set up m_midpointState
-    resolver.midpointState() = topResolver.midpointState();
-    resolver.midpointState().setCurrentMidpoint(topResolver.midpointForIsolatedRun(isolatedRun));
+    // Set up m_whitespaceCollapsingState
+    resolver.whitespaceCollapsingState() = topResolver.whitespaceCollapsingState();
+    resolver.whitespaceCollapsingState().setCurrentTransition(topResolver.whitespaceCollapsingTransitionForIsolatedRun(isolatedRun));
 
     // Set up m_nestedIsolateCount
     notifyResolverToResumeInIsolate(resolver, root, startObject);
@@ -1091,7 +1145,7 @@ static inline void constructBidiRunsForSegment(InlineBidiResolver& topResolver, 
         while (!isolatedResolver.isolatedRuns().isEmpty()) {
             auto runWithContext = WTFMove(isolatedResolver.isolatedRuns().last());
             isolatedResolver.isolatedRuns().removeLast();
-            topResolver.setMidpointForIsolatedRun(runWithContext.runToReplace, isolatedResolver.midpointForIsolatedRun(runWithContext.runToReplace));
+            topResolver.setWhitespaceCollapsingTransitionForIsolatedRun(runWithContext.runToReplace, isolatedResolver.whitespaceCollapsingTransitionForIsolatedRun(runWithContext.runToReplace));
             topResolver.isolatedRuns().append(WTFMove(runWithContext));
         }
     }
@@ -1232,7 +1286,7 @@ void RenderBlockFlow::layoutRunsAndFloatsInRange(LineLayoutState& layoutState, I
 {
     const RenderStyle& styleToUse = style();
     bool paginated = view().layoutState() && view().layoutState()->isPaginated();
-    LineMidpointState& lineMidpointState = resolver.midpointState();
+    LineWhitespaceCollapsingState& lineWhitespaceCollapsingState = resolver.whitespaceCollapsingState();
     InlineIterator end = resolver.position();
     bool checkForEndLineMatch = layoutState.endLine();
     RenderTextInfo renderTextInfo;
@@ -1251,7 +1305,7 @@ void RenderBlockFlow::layoutRunsAndFloatsInRange(LineLayoutState& layoutState, I
             }
         }
 
-        lineMidpointState.reset();
+        lineWhitespaceCollapsingState.reset();
 
         layoutState.lineInfo().setEmpty(true);
         layoutState.lineInfo().resetRunsFromLeadingWhitespace();
@@ -1267,7 +1321,7 @@ void RenderBlockFlow::layoutRunsAndFloatsInRange(LineLayoutState& layoutState, I
         if (resolver.position().atEnd()) {
             // FIXME: We shouldn't be creating any runs in nextLineBreak to begin with!
             // Once BidiRunList is separated from BidiResolver this will not be needed.
-            resolver.runs().deleteRuns();
+            resolver.runs().clear();
             resolver.markCurrentRunEmpty(); // FIXME: This can probably be replaced by an ASSERT (or just removed).
             layoutState.setCheckForFloatsFromLastLine(true);
             resolver.setPosition(InlineIterator(resolver.position().root(), 0, 0), 0);
@@ -1308,7 +1362,7 @@ void RenderBlockFlow::layoutRunsAndFloatsInRange(LineLayoutState& layoutState, I
             LayoutUnit oldLogicalHeight = logicalHeight();
             RootInlineBox* lineBox = createLineBoxesFromBidiRuns(resolver.status().context->level(), bidiRuns, end, layoutState.lineInfo(), verticalPositionCache, trailingSpaceRun, wordMeasurements);
 
-            bidiRuns.deleteRuns();
+            bidiRuns.clear();
             resolver.markCurrentRunEmpty(); // FIXME: This can probably be replaced by an ASSERT (or just removed).
 
             if (lineBox) {
@@ -1337,14 +1391,14 @@ void RenderBlockFlow::layoutRunsAndFloatsInRange(LineLayoutState& layoutState, I
 
                 if (paginated)
                     adjustLinePositionForPagination(lineBox, adjustment, overflowsRegion, layoutState.flowThread());
-                
                 if (adjustment) {
-                    LayoutUnit oldLineWidth = availableLogicalWidthForLine(oldLogicalHeight, layoutState.lineInfo().isFirstLine());
+                    IndentTextOrNot shouldIndentText = layoutState.lineInfo().isFirstLine() ? IndentText : DoNotIndentText;
+                    LayoutUnit oldLineWidth = availableLogicalWidthForLine(oldLogicalHeight, shouldIndentText);
                     lineBox->adjustBlockDirectionPosition(adjustment);
                     if (layoutState.usesRepaintBounds())
                         layoutState.updateRepaintRangeFromBox(lineBox);
 
-                    if (availableLogicalWidthForLine(oldLogicalHeight + adjustment, layoutState.lineInfo().isFirstLine()) != oldLineWidth) {
+                    if (availableLogicalWidthForLine(oldLogicalHeight + adjustment, shouldIndentText) != oldLineWidth) {
                         // We have to delete this line, remove all floats that got added, and let line layout re-run.
                         lineBox->deleteLine();
                         end = restartLayoutRunsAndFloatsInRange(oldLogicalHeight, oldLogicalHeight + adjustment, lastFloatFromPreviousLine, resolver, oldEnd);
@@ -1372,7 +1426,7 @@ void RenderBlockFlow::layoutRunsAndFloatsInRange(LineLayoutState& layoutState, I
         }
 
         for (size_t i = 0; i < lineBreaker.positionedObjects().size(); ++i)
-            setStaticPositions(*this, *lineBreaker.positionedObjects()[i]);
+            setStaticPositions(*this, *lineBreaker.positionedObjects()[i], DoNotIndentText);
 
         if (!layoutState.lineInfo().isEmpty()) {
             layoutState.lineInfo().setFirstLine(false);
@@ -1401,7 +1455,7 @@ void RenderBlockFlow::layoutRunsAndFloatsInRange(LineLayoutState& layoutState, I
             layoutState.setLastFloat(!floatingObjectSet.isEmpty() ? floatingObjectSet.last().get() : nullptr);
         }
 
-        lineMidpointState.reset();
+        lineWhitespaceCollapsingState.reset();
         resolver.setPosition(end, numberOfIsolateAncestors(end));
     }
 
@@ -1464,18 +1518,39 @@ void RenderBlockFlow::layoutRunsAndFloatsInRange(LineLayoutState& layoutState, I
             markLinesDirtyInBlockRange(lastRootBox()->lineBottomWithLeading(), lineBox->lineBottomWithLeading(), lineBox);
         }
     }
-
     clearDidBreakAtLineToAvoidWidow();
+}
+
+void RenderBlockFlow::reattachCleanLineFloats(RootInlineBox& cleanLine, LayoutUnit delta, bool isFirstCleanLine)
+{
+    auto* cleanLineFloats = cleanLine.floatsPtr();
+    if (!cleanLineFloats)
+        return;
+
+    for (auto* floatingBox : *cleanLineFloats) {
+        auto* floatingObject = insertFloatingObject(*floatingBox);
+        if (isFirstCleanLine && floatingObject->originatingLine()) {
+            // Float box does not belong to this line anymore.
+            ASSERT_WITH_SECURITY_IMPLICATION(cleanLine.prevRootBox() == floatingObject->originatingLine());
+            cleanLine.removeFloat(*floatingBox);
+            continue;
+        }
+        ASSERT_WITH_SECURITY_IMPLICATION(!floatingObject->originatingLine());
+        floatingObject->setOriginatingLine(&cleanLine);
+        setLogicalHeight(logicalTopForChild(*floatingBox) - marginBeforeForChild(*floatingBox) + delta);
+        positionNewFloats();
+    }
 }
 
 void RenderBlockFlow::linkToEndLineIfNeeded(LineLayoutState& layoutState)
 {
-    if (layoutState.endLine()) {
+    auto* firstCleanLine = layoutState.endLine();
+    if (firstCleanLine) {
         if (layoutState.endLineMatched()) {
             bool paginated = view().layoutState() && view().layoutState()->isPaginated();
             // Attach all the remaining lines, and then adjust their y-positions as needed.
             LayoutUnit delta = logicalHeight() - layoutState.endLineLogicalTop();
-            for (RootInlineBox* line = layoutState.endLine(); line; line = line->nextRootBox()) {
+            for (auto* line = firstCleanLine; line; line = line->nextRootBox()) {
                 line->attachLine();
                 if (paginated) {
                     delta -= line->paginationStrut();
@@ -1488,16 +1563,7 @@ void RenderBlockFlow::linkToEndLineIfNeeded(LineLayoutState& layoutState)
                 }
                 if (layoutState.flowThread())
                     updateRegionForLine(line);
-                if (Vector<RenderBox*>* cleanLineFloats = line->floatsPtr()) {
-                    for (auto it = cleanLineFloats->begin(), end = cleanLineFloats->end(); it != end; ++it) {
-                        RenderBox* floatingBox = *it;
-                        FloatingObject* floatingObject = insertFloatingObject(*floatingBox);
-                        ASSERT(!floatingObject->originatingLine());
-                        floatingObject->setOriginatingLine(line);
-                        setLogicalHeight(logicalTopForChild(*floatingBox) - marginBeforeForChild(*floatingBox) + delta);
-                        positionNewFloats();
-                    }
-                }
+                reattachCleanLineFloats(*line, delta, line == firstCleanLine);
             }
             setLogicalHeight(lastRootBox()->lineBottomWithLeading());
         } else {
@@ -1793,7 +1859,7 @@ RootInlineBox* RenderBlockFlow::determineStartPosition(LineLayoutState& layoutSt
                 for (auto it = cleanLineFloats->begin(), end = cleanLineFloats->end(); it != end; ++it) {
                     RenderBox* floatingBox = *it;
                     FloatingObject* floatingObject = insertFloatingObject(*floatingBox);
-                    ASSERT(!floatingObject->originatingLine());
+                    ASSERT_WITH_SECURITY_IMPLICATION(!floatingObject->originatingLine());
                     floatingObject->setOriginatingLine(line);
                     setLogicalHeight(logicalTopForChild(*floatingBox) - marginBeforeForChild(*floatingBox));
                     positionNewFloats();
@@ -1998,14 +2064,14 @@ void RenderBlockFlow::deleteEllipsisLineBoxes()
 {
     ETextAlign textAlign = style().textAlign();
     bool ltr = style().isLeftToRightDirection();
-    bool firstLine = true;
+    IndentTextOrNot shouldIndentText = IndentText;
     for (RootInlineBox* curr = firstRootBox(); curr; curr = curr->nextRootBox()) {
         if (curr->hasEllipsisBox()) {
             curr->clearTruncation();
 
             // Shift the line back where it belongs if we cannot accomodate an ellipsis.
-            float logicalLeft = logicalLeftOffsetForLine(curr->lineTop(), firstLine);
-            float availableLogicalWidth = logicalRightOffsetForLine(curr->lineTop(), false) - logicalLeft;
+            float logicalLeft = logicalLeftOffsetForLine(curr->lineTop(), shouldIndentText);
+            float availableLogicalWidth = logicalRightOffsetForLine(curr->lineTop(), DoNotIndentText) - logicalLeft;
             float totalLogicalWidth = curr->logicalWidth();
             updateLogicalWidthForAlignment(textAlign, curr, 0, logicalLeft, totalLogicalWidth, availableLogicalWidth, 0);
 
@@ -2014,7 +2080,7 @@ void RenderBlockFlow::deleteEllipsisLineBoxes()
             else
                 curr->adjustLogicalPosition(-(curr->logicalLeft() - logicalLeft), 0);
         }
-        firstLine = false;
+        shouldIndentText = DoNotIndentText;
     }
 }
 
@@ -2025,8 +2091,8 @@ void RenderBlockFlow::checkLinesForTextOverflow()
     const FontCascade& font = style().fontCascade();
     static NeverDestroyed<AtomicString> ellipsisStr(&horizontalEllipsis, 1);
     const FontCascade& firstLineFont = firstLineStyle().fontCascade();
-    float firstLineEllipsisWidth = firstLineFont.width(constructTextRun(this, firstLineFont, &horizontalEllipsis, 1, firstLineStyle()));
-    float ellipsisWidth = (font == firstLineFont) ? firstLineEllipsisWidth : font.width(constructTextRun(this, font, &horizontalEllipsis, 1, style()));
+    float firstLineEllipsisWidth = firstLineFont.width(constructTextRun(&horizontalEllipsis, 1, firstLineStyle()));
+    float ellipsisWidth = (font == firstLineFont) ? firstLineEllipsisWidth : font.width(constructTextRun(&horizontalEllipsis, 1, style()));
 
     // For LTR text truncation, we want to get the right edge of our padding box, and then we want to see
     // if the right edge of a line box exceeds that.  For RTL, we use the left edge of the padding box and
@@ -2036,22 +2102,22 @@ void RenderBlockFlow::checkLinesForTextOverflow()
     ETextAlign textAlign = style().textAlign();
     bool firstLine = true;
     for (RootInlineBox* curr = firstRootBox(); curr; curr = curr->nextRootBox()) {
-        LayoutUnit blockRightEdge = logicalRightOffsetForLine(curr->lineTop(), firstLine);
-        LayoutUnit blockLeftEdge = logicalLeftOffsetForLine(curr->lineTop(), firstLine);
+        IndentTextOrNot shouldIndentText = firstLine ? IndentText : DoNotIndentText;
+        LayoutUnit blockRightEdge = logicalRightOffsetForLine(curr->lineTop(), shouldIndentText);
+        LayoutUnit blockLeftEdge = logicalLeftOffsetForLine(curr->lineTop(), shouldIndentText);
         LayoutUnit lineBoxEdge = ltr ? curr->x() + curr->logicalWidth() : curr->x();
         if ((ltr && lineBoxEdge > blockRightEdge) || (!ltr && lineBoxEdge < blockLeftEdge)) {
             // This line spills out of our box in the appropriate direction.  Now we need to see if the line
             // can be truncated.  In order for truncation to be possible, the line must have sufficient space to
             // accommodate our truncation string, and no replaced elements (images, tables) can overlap the ellipsis
             // space.
-
             LayoutUnit width = firstLine ? firstLineEllipsisWidth : ellipsisWidth;
             LayoutUnit blockEdge = ltr ? blockRightEdge : blockLeftEdge;
             if (curr->lineCanAccommodateEllipsis(ltr, blockEdge, lineBoxEdge, width)) {
                 float totalLogicalWidth = curr->placeEllipsis(ellipsisStr, ltr, blockLeftEdge, blockRightEdge, width);
 
                 float logicalLeft = 0; // We are only interested in the delta from the base position.
-                float truncatedWidth = availableLogicalWidthForLine(curr->lineTop(), firstLine);
+                float truncatedWidth = availableLogicalWidthForLine(curr->lineTop(), shouldIndentText);
                 updateLogicalWidthForAlignment(textAlign, curr, nullptr, logicalLeft, totalLogicalWidth, truncatedWidth, 0);
                 if (ltr)
                     curr->adjustLogicalPosition(logicalLeft, 0);
@@ -2119,21 +2185,36 @@ bool RenderBlockFlow::positionNewFloatOnLine(const FloatingObject& newFloat, Flo
     return true;
 }
 
-LayoutUnit RenderBlockFlow::startAlignedOffsetForLine(LayoutUnit position, bool firstLine)
+LayoutUnit RenderBlockFlow::startAlignedOffsetForLine(LayoutUnit position, IndentTextOrNot shouldIndentText)
 {
     ETextAlign textAlign = style().textAlign();
-
+    bool shouldApplyIndentText = false;
+    switch (textAlign) {
+    case LEFT:
+    case WEBKIT_LEFT:
+        shouldApplyIndentText = style().isLeftToRightDirection();
+        break;
+    case RIGHT:
+    case WEBKIT_RIGHT:
+        shouldApplyIndentText = !style().isLeftToRightDirection();
+        break;
+    case TASTART:
+        shouldApplyIndentText = true;
+        break;
+    default:
+        shouldApplyIndentText = false;
+    }
     // <rdar://problem/15427571>
     // https://bugs.webkit.org/show_bug.cgi?id=124522
     // This quirk is for legacy content that doesn't work properly with the center positioning scheme
     // being honored (e.g., epubs).
-    if (textAlign == TASTART || document().settings()->useLegacyTextAlignPositionedElementBehavior()) // FIXME: Handle TAEND here
-        return startOffsetForLine(position, firstLine);
+    if (shouldApplyIndentText || document().settings()->useLegacyTextAlignPositionedElementBehavior()) // FIXME: Handle TAEND here
+        return startOffsetForLine(position, shouldIndentText);
 
     // updateLogicalWidthForAlignment() handles the direction of the block so no need to consider it here
     float totalLogicalWidth = 0;
-    float logicalLeft = logicalLeftOffsetForLine(logicalHeight(), false);
-    float availableLogicalWidth = logicalRightOffsetForLine(logicalHeight(), false) - logicalLeft;
+    float logicalLeft = logicalLeftOffsetForLine(logicalHeight(), DoNotIndentText);
+    float availableLogicalWidth = logicalRightOffsetForLine(logicalHeight(), DoNotIndentText) - logicalLeft;
 
     // FIXME: Bug 129311: We need to pass a valid RootInlineBox here, considering the bidi level used to construct the line.
     updateLogicalWidthForAlignment(textAlign, 0, 0, logicalLeft, totalLogicalWidth, availableLogicalWidth, 0);

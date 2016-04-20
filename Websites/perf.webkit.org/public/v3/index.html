@@ -37,12 +37,13 @@ Run tools/bundle-v3-scripts to speed up the load time for production.`);
     </script>
 
     <template id="unbundled-scripts">
-        <script src="../v2/js/statistics.js"></script>
+        <script src="../shared/statistics.js"></script>
         <script src="../v2/data.js"></script>
 
         <script src="instrumentation.js"></script>
         <script src="remote.js"></script>
 
+        <script src="models/time-series.js"></script>
         <script src="models/measurement-adaptor.js"></script>
         <script src="models/measurement-cluster.js"></script>
         <script src="models/measurement-set.js"></script>
@@ -60,12 +61,14 @@ Run tools/bundle-v3-scripts to speed up the load time for production.`);
         <script src="models/test-group.js"></script>
         <script src="models/build-request.js"></script>
         <script src="models/root-set.js"></script>
+        <script src="models/manifest.js"></script>
 
         <script src="components/base.js"></script>
         <script src="components/spinner-icon.js"></script>
         <script src="components/button-base.js"></script>
         <script src="components/close-button.js"></script>
         <script src="components/commit-log-viewer.js"></script>
+        <script src="components/editable-text.js"></script>
         <script src="components/time-series-chart.js"></script>
         <script src="components/interactive-time-series-chart.js"></script>
         <script src="components/chart-status-view.js"></script>
@@ -74,8 +77,12 @@ Run tools/bundle-v3-scripts to speed up the load time for production.`);
         <script src="components/results-table.js"></script>
         <script src="components/analysis-results-viewer.js"></script>
         <script src="components/test-group-results-table.js"></script>
+        <script src="components/test-group-form.js"></script>
+        <script src="components/customizable-test-group-form.js"></script>
         <script src="components/chart-styles.js"></script>
         <script src="components/chart-pane-base.js"></script>
+        <script src="components/mutable-list-view.js"></script>
+        <script src="components/ratio-bar-graph.js"></script>
         <script src="pages/page.js"></script>
         <script src="pages/page-router.js"></script>
         <script src="pages/heading.js"></script>
@@ -92,6 +99,7 @@ Run tools/bundle-v3-scripts to speed up the load time for production.`);
         <script src="pages/analysis-category-page.js"></script>
         <script src="pages/analysis-task-page.js"></script>
         <script src="pages/create-analysis-task-page.js"></script>
+        <script src="pages/summary-page.js"></script>
 
         <script src="main.js"></script>
     </template>

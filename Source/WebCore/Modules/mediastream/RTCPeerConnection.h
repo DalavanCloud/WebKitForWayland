@@ -33,7 +33,7 @@
 #ifndef RTCPeerConnection_h
 #define RTCPeerConnection_h
 
-#if ENABLE(MEDIA_STREAM)
+#if ENABLE(WEB_RTC)
 
 #include "ActiveDOMObject.h"
 #include "Dictionary.h"
@@ -59,7 +59,7 @@ class RTCPeerConnectionErrorCallback;
 class RTCSessionDescription;
 class RTCStatsCallback;
 
-class RTCPeerConnection final : public RefCounted<RTCPeerConnection>, public ScriptWrappable, public PeerConnectionBackendClient, public RTCRtpSenderClient, public EventTargetWithInlineData, public ActiveDOMObject {
+class RTCPeerConnection final : public RefCounted<RTCPeerConnection>, public PeerConnectionBackendClient, public RTCRtpSenderClient, public EventTargetWithInlineData, public ActiveDOMObject {
 public:
     static RefPtr<RTCPeerConnection> create(ScriptExecutionContext&, const Dictionary& rtcConfiguration, ExceptionCode&);
     ~RTCPeerConnection();
@@ -101,8 +101,8 @@ public:
     void close();
 
     // EventTarget
-    virtual EventTargetInterface eventTargetInterface() const override { return RTCPeerConnectionEventTargetInterfaceType; }
-    virtual ScriptExecutionContext* scriptExecutionContext() const override { return ActiveDOMObject::scriptExecutionContext(); }
+    EventTargetInterface eventTargetInterface() const override { return RTCPeerConnectionEventTargetInterfaceType; }
+    ScriptExecutionContext* scriptExecutionContext() const override { return ActiveDOMObject::scriptExecutionContext(); }
 
     using RefCounted<RTCPeerConnection>::ref;
     using RefCounted<RTCPeerConnection>::deref;
@@ -111,8 +111,8 @@ private:
     RTCPeerConnection(ScriptExecutionContext&, RefPtr<RTCConfiguration>&&, ExceptionCode&);
 
     // EventTarget implementation.
-    virtual void refEventTarget() override { ref(); }
-    virtual void derefEventTarget() override { deref(); }
+    void refEventTarget() override { ref(); }
+    void derefEventTarget() override { deref(); }
 
     // ActiveDOMObject
     void stop() override;
@@ -120,6 +120,7 @@ private:
     bool canSuspendForDocumentSuspension() const override;
 
     // PeerConnectionBackendClient
+    void addReceiver(RTCRtpReceiver&) override;
     void setSignalingState(PeerConnectionStates::SignalingState) override;
     void updateIceGatheringState(PeerConnectionStates::IceGatheringState) override;
     void updateIceConnectionState(PeerConnectionStates::IceConnectionState) override;
@@ -146,12 +147,10 @@ private:
     std::unique_ptr<PeerConnectionBackend> m_backend;
 
     RefPtr<RTCConfiguration> m_configuration;
-
-    bool m_stopped;
 };
 
 } // namespace WebCore
 
-#endif // ENABLE(MEDIA_STREAM)
+#endif // ENABLE(WEB_RTC)
 
 #endif // RTCPeerConnection_h

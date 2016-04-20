@@ -78,7 +78,7 @@ Graph::Graph(VM& vm, Plan& plan, LongLivedState& longLivedState)
 {
     ASSERT(m_profiledBlock);
     
-    m_hasDebuggerEnabled = m_profiledBlock->globalObject()->hasDebugger()
+    m_hasDebuggerEnabled = m_profiledBlock->globalObject()->hasInteractiveDebugger()
         || Options::forceDebuggerBytecodeGeneration();
 }
 
@@ -222,6 +222,8 @@ void Graph::dump(PrintStream& out, const char* prefix, Node* node, DumpContext* 
         out.print(comma, node->arrayMode());
     if (node->hasArithMode())
         out.print(comma, node->arithMode());
+    if (node->hasArithRoundingMode())
+        out.print(comma, "Rounding:", node->arithRoundingMode());
     if (node->hasScopeOffset())
         out.print(comma, node->scopeOffset());
     if (node->hasDirectArgumentsOffset())
@@ -313,6 +315,8 @@ void Graph::dump(PrintStream& out, const char* prefix, Node* node, DumpContext* 
             out.print(anotherComma, pointerDumpInContext(freeze(m_codeBlock->constantBuffer(node->startConstant())[i]), context));
         out.print("]");
     }
+    if (node->hasLazyJSValue())
+        out.print(comma, node->lazyJSValue());
     if (node->hasIndexingType())
         out.print(comma, IndexingTypeDump(node->indexingType()));
     if (node->hasTypedArrayType())
@@ -510,7 +514,7 @@ void Graph::dump(PrintStream& out, DumpContext* context)
             RELEASE_ASSERT(block->ssa);
             out.print("  Availability: ", block->ssa->availabilityAtHead, "\n");
             out.print("  Live: ", nodeListDump(block->ssa->liveAtHead), "\n");
-            out.print("  Values: ", nodeMapDump(block->ssa->valuesAtHead, context), "\n");
+            out.print("  Values: ", nodeValuePairListDump(block->ssa->valuesAtHead, context), "\n");
             break;
         } }
         for (size_t i = 0; i < block->size(); ++i) {
@@ -565,8 +569,6 @@ void Graph::dethread()
     
     if (logCompilationChanges())
         dataLog("Dethreading DFG graph.\n");
-    
-    SamplingRegion samplingRegion("DFG Dethreading");
     
     for (BlockIndex blockIndex = m_blocks.size(); blockIndex--;) {
         BasicBlock* block = m_blocks[blockIndex].get();
@@ -885,6 +887,18 @@ bool Graph::watchCondition(const ObjectPropertyCondition& key)
     if (key.kind() == PropertyCondition::Presence)
         m_safeToLoad.add(std::make_pair(key.object(), key.offset()));
     
+    return true;
+}
+
+bool Graph::watchConditions(const ObjectPropertyConditionSet& keys)
+{
+    if (!keys.isValid())
+        return false;
+
+    for (const ObjectPropertyCondition& key : keys) {
+        if (!watchCondition(key))
+            return false;
+    }
     return true;
 }
 
@@ -1514,6 +1528,9 @@ bool Graph::canOptimizeStringObjectAccess(const CodeOrigin& codeOrigin)
         return false;
 
     if (stringPrototypeStructure->isDictionary())
+        return false;
+
+    if (!watchConditions(generateConditionsForPropertyMissConcurrently(m_vm, globalObjectFor(codeOrigin), stringObjectStructure, m_vm.propertyNames->toPrimitiveSymbol.impl())))
         return false;
 
     // We're being conservative here. We want DFG's ToString on StringObject to be

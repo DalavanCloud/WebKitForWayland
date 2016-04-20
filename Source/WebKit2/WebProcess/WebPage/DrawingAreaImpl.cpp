@@ -34,7 +34,6 @@
 #include "WebPageCreationParameters.h"
 #include "WebPreferencesKeys.h"
 #include "WebProcess.h"
-#include <WebCore/DisplayRefreshMonitor.h>
 #include <WebCore/GraphicsContext.h>
 #include <WebCore/MainFrame.h>
 #include <WebCore/Page.h>
@@ -69,16 +68,6 @@ DrawingAreaImpl::DrawingAreaImpl(WebPage& webPage, const WebPageCreationParamete
     , m_displayTimer(RunLoop::main(), this, &DrawingAreaImpl::displayTimerFired)
     , m_exitCompositingTimer(RunLoop::main(), this, &DrawingAreaImpl::exitAcceleratedCompositingMode)
 {
-
-#if USE(COORDINATED_GRAPHICS_THREADED)
-    webPage.corePage()->settings().setForceCompositingMode(true);
-#endif
-
-    if (webPage.corePage()->settings().acceleratedDrawingEnabled() || webPage.corePage()->settings().forceCompositingMode())
-        m_alwaysUseCompositing = true;
-
-    if (m_alwaysUseCompositing)
-        enterAcceleratedCompositingMode(0);
 }
 
 void DrawingAreaImpl::setNeedsDisplay()
@@ -249,7 +238,19 @@ void DrawingAreaImpl::mainFrameContentSizeChanged(const WebCore::IntSize& newSiz
 
 void DrawingAreaImpl::updatePreferences(const WebPreferencesStore& store)
 {
-    m_webPage.corePage()->settings().setForceCompositingMode(store.getBoolValueForKey(WebPreferencesKey::forceCompositingModeKey()));
+    Settings& settings = m_webPage.corePage()->settings();
+    settings.setForceCompositingMode(store.getBoolValueForKey(WebPreferencesKey::forceCompositingModeKey()));
+
+#if USE(COORDINATED_GRAPHICS_THREADED)
+    // Fixed position elements need to be composited and create stacking contexts
+    // in order to be scrolled by the ScrollingCoordinator.
+    settings.setAcceleratedCompositingForFixedPositionEnabled(true);
+    settings.setFixedPositionCreatesStackingContext(true);
+#endif
+
+    m_alwaysUseCompositing = settings.acceleratedDrawingEnabled() && settings.forceCompositingMode();
+    if (m_alwaysUseCompositing && !m_layerTreeHost)
+        enterAcceleratedCompositingMode(nullptr);
 }
 
 void DrawingAreaImpl::layerHostDidFlushLayers()
@@ -332,16 +333,6 @@ void DrawingAreaImpl::scheduleCompositingLayerFlushImmediately()
 {
     scheduleCompositingLayerFlush();
 }
-
-#if USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR)
-RefPtr<WebCore::DisplayRefreshMonitor> DrawingAreaImpl::createDisplayRefreshMonitor(PlatformDisplayID displayID)
-{
-    if (!m_layerTreeHost)
-        return nullptr;
-
-    return m_layerTreeHost->createDisplayRefreshMonitor(displayID);
-}
-#endif
 
 void DrawingAreaImpl::updateBackingStoreState(uint64_t stateID, bool respondImmediately, float deviceScaleFactor, const WebCore::IntSize& size, const WebCore::IntSize& scrollOffset)
 {
@@ -645,7 +636,8 @@ void DrawingAreaImpl::display(UpdateInfo& updateInfo)
     updateInfo.viewSize = m_webPage.size();
     updateInfo.deviceScaleFactor = m_webPage.corePage()->deviceScaleFactor();
 
-    IntRect bounds = m_dirtyRegion.bounds();
+    // Always render the whole page when we don't render the background.
+    IntRect bounds = m_webPage.drawsBackground() ? m_dirtyRegion.bounds() : m_webPage.bounds();
     ASSERT(m_webPage.bounds().contains(bounds));
 
     IntSize bitmapSize = bounds.size();
@@ -658,12 +650,16 @@ void DrawingAreaImpl::display(UpdateInfo& updateInfo)
     if (!bitmap->createHandle(updateInfo.bitmapHandle))
         return;
 
-    Vector<IntRect> rects = m_dirtyRegion.rects();
+    Vector<IntRect> rects;
+    if (m_webPage.drawsBackground()) {
+        rects = m_dirtyRegion.rects();
 
-    if (shouldPaintBoundsRect(bounds, rects)) {
-        rects.clear();
+        if (shouldPaintBoundsRect(bounds, rects)) {
+            rects.clear();
+            rects.append(bounds);
+        }
+    } else
         rects.append(bounds);
-    }
 
     updateInfo.scrollRect = m_scrollRect;
     updateInfo.scrollOffset = m_scrollOffset;

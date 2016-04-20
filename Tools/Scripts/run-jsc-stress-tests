@@ -355,12 +355,43 @@ def determineArchitectureFromELFBinary
     end
 end
 
+def determineArchitectureFromPEBinary
+    f = File.open($jscPath.to_s)
+    data = f.read(1024)
+
+    if !(data[0, 2] == "MZ")
+        $stderr.puts "Warning: Missing PE magic in file #{Shellwords.shellescape($jscPath.to_s)}"
+        return nil
+    end
+
+    peHeaderAddr = data[0x3c, 4].unpack('V').first # 32-bit unsigned int little endian
+
+    if !(data[peHeaderAddr, 4] == "PE\0\0")
+        $stderr.puts "Warning: Incorrect PE header in file #{Shellwords.shellescape($jscPath.to_s)}"
+        return nil
+    end
+
+    machine = data[peHeaderAddr + 4, 2].unpack('v').first # 16-bit unsigned short, little endian
+
+    case machine
+    when 0x014c
+        "x86"
+    when 0x8664
+        "x86-64"
+    else
+        $stderr.puts "Warning: unsupported machine type: #{machine}"
+        nil
+    end
+end
+
 def determineArchitecture
     case $hostOS
     when "darwin"
         determineArchitectureFromMachOBinary
     when "linux"
         determineArchitectureFromELFBinary
+    when "windows"
+        determineArchitectureFromPEBinary
     else
         $stderr.puts "Warning: unable to determine architecture on this platform."
         nil
@@ -398,7 +429,7 @@ $numPasses = 0
 BASE_OPTIONS = ["--useFTLJIT=false", "--useFunctionDotArguments=true"]
 EAGER_OPTIONS = ["--thresholdForJITAfterWarmUp=10", "--thresholdForJITSoon=10", "--thresholdForOptimizeAfterWarmUp=20", "--thresholdForOptimizeAfterLongWarmUp=20", "--thresholdForOptimizeSoon=20", "--thresholdForFTLOptimizeAfterWarmUp=20", "--thresholdForFTLOptimizeSoon=20", "--maximumEvalCacheableSourceLength=150000"]
 NO_CJIT_OPTIONS = ["--useConcurrentJIT=false", "--thresholdForJITAfterWarmUp=100"]
-FTL_OPTIONS = ["--useFTLJIT=true", "--ftlCrashesIfCantInitializeLLVM=true"]
+FTL_OPTIONS = ["--useFTLJIT=true"]
 
 $runlist = []
 
@@ -823,10 +854,6 @@ def runNoCJITNoASO
     run("no-cjit-no-aso", "--useArchitectureSpecificOptimizations=false", *NO_CJIT_OPTIONS)
 end
 
-def runFTLNoCJITNoSimpleOpt
-    run("ftl-no-cjit-no-simple-opt", "--llvmSimpleOpt=false", *(FTL_OPTIONS + NO_CJIT_OPTIONS)) if $enableFTL
-end
-
 def runNoCJITNoAccessInlining
     run("no-cjit-no-access-inlining", "--useAccessInlining=false", *NO_CJIT_OPTIONS)
 end
@@ -849,6 +876,10 @@ end
 
 def runDFGMaximalFlushPhase
     run("dfg-maximal-flush-validate-no-cjit", "--validateGraph=true", "--useMaximalFlushInsertionPhase=true", *NO_CJIT_OPTIONS)
+end
+
+def runShadowChicken
+    run("shadow-chicken", "--useDFGJIT=false", "--alwaysUseShadowChicken=true")
 end
 
 def defaultRun
@@ -888,7 +919,6 @@ end
 
 def defaultSpotCheckNoMaximalFlush
     defaultQuickRun
-    runFTLNoCJITNoSimpleOpt
     runFTLNoCJITOSRValidation
     runNoCJITNoAccessInlining
     runFTLNoCJITNoAccessInlining
@@ -1092,6 +1122,15 @@ def defaultRunLayoutTest
             runLayoutTestFTLNoCJIT
             runLayoutTestFTLEagerNoCJIT
         end
+    end
+end
+
+def noEagerNoNoLLIntTestsRunLayoutTest
+    runLayoutTestDefault
+    if $jitTests
+        runLayoutTestNoCJIT
+        runLayoutTestDefaultFTL
+        runLayoutTestFTLNoCJIT
     end
 end
 
@@ -1481,13 +1520,6 @@ def prepareBundle
             end
 
             if $remote and $hostOS == "linux"
-                if $enableFTL
-                    begin
-                        FileUtils.cp_r originalJSCPath + "../../lib/libllvmForJSC.so" , $jscPath.dirname
-                    rescue
-                        $stderr.puts "Warning: unable to copy libllvmForJSC.so to the bundle."
-                    end
-                end
                 begin
                     dependencies = `ldd #{source}`
                     dependencies.split(/\n/).each {
@@ -1675,17 +1707,21 @@ def runCommandOnTester(cmd)
 end
 
 def numberOfProcessors
-    begin
-        numProcessors = runCommandOnTester("sysctl -n hw.activecpu 2>/dev/null").to_i
-    rescue
-        numProcessors = 0
-    end
-
-    if numProcessors == 0
+    if $hostOS == "windows"
+        numProcessors = runCommandOnTester("cmd /c echo %NUMBER_OF_PROCESSORS%").to_i
+    else
         begin
-            numProcessors = runCommandOnTester("nproc --all 2>/dev/null").to_i
+            numProcessors = runCommandOnTester("sysctl -n hw.activecpu 2>/dev/null").to_i
         rescue
-            numProcessors == 0
+            numProcessors = 0
+        end
+
+        if numProcessors == 0
+            begin
+                numProcessors = runCommandOnTester("nproc --all 2>/dev/null").to_i
+            rescue
+                numProcessors == 0
+            end
         end
     end
 

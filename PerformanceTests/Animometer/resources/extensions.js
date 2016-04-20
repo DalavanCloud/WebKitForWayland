@@ -83,21 +83,21 @@ Utilities =
         parentElement.appendChild(element);
         return element;
     },
-    
+
     browserPrefix: function()
     {
         // Get the HTML element's CSSStyleDeclaration
         var styles = window.getComputedStyle(document.documentElement, '');
-        
+
         // Convert the styles list to an array
         var stylesArray = Array.prototype.slice.call(styles);
-        
+
         // Concatenate all the styles in one big string
         var stylesString = stylesArray.join('');
 
         // Search the styles string for a known prefix type, settle on Opera if none is found.
         var prefixes = stylesString.match(/-(moz|webkit|ms)-/) || (styles.OLink === '' && ['', 'o']);
-        
+
         // prefixes has two elements; e.g. for webkit it has ['-webkit-', 'webkit'];
         var prefix = prefixes[1];
 
@@ -112,10 +112,49 @@ Utilities =
             js: prefix[0].toUpperCase() + prefix.substr(1)
         };
     },
-    
+
     setElementPrefixedProperty: function(element, property, value)
     {
         element.style[property] = element.style[this.browserPrefix().js + property[0].toUpperCase() + property.substr(1)] = value;
+    },
+
+    stripNonASCIICharacters: function(inputString)
+    {
+        return inputString.replace(/[ .,]/g, '');
+    },
+
+    convertObjectToQueryString: function(object)
+    {
+        var queryString = [];
+        for (var property in object) {
+            if (object.hasOwnProperty(property))
+                queryString.push(encodeURIComponent(property) + "=" + encodeURIComponent(object[property]));
+        }
+        return "?" + queryString.join("&");
+    },
+
+    convertQueryStringToObject: function(queryString)
+    {
+        queryString = queryString.substring(1);
+        if (!queryString)
+            return null;
+
+        var object = {};
+        queryString.split("&").forEach(function(parameter) {
+            var components = parameter.split("=");
+            object[components[0]] = components[1];
+        });
+        return object;
+    },
+
+    progressValue: function(value, min, max)
+    {
+        return (value - min) / (max - min);
+    },
+
+    lerp: function(value, min, max)
+    {
+        return min + (max - min) * value;
     }
 };
 
@@ -247,10 +286,7 @@ Point = Utilities.createClass(
 });
 
 Utilities.extendObject(Point, {
-    zero: function()
-    {
-        return new Point(0, 0);
-    },
+    zero: new Point(0, 0),
 
     pointOnCircle: function(angle, radius)
     {
@@ -304,6 +340,76 @@ Insets.elementPadding = function(element)
         parseFloat(styles.paddingTop));
 }
 
+UnitBezier = Utilities.createClass(
+    function(point1, point2)
+    {
+        // First and last points in the Bézier curve are assumed to be (0,0) and (!,1)
+        this._c = point1.multiply(3);
+        this._b = point2.subtract(point1).multiply(3).subtract(this._c);
+        this._a = new Point(1, 1).subtract(this._c).subtract(this._b);
+    }, {
+
+    epsilon: 1e-5,
+    derivativeEpsilon: 1e-6,
+
+    solve: function(x)
+    {
+        return this.sampleY(this.solveForT(x));
+    },
+
+    sampleX: function(t)
+    {
+        return ((this._a.x * t + this._b.x) * t + this._c.x) * t;
+    },
+
+    sampleY: function(t)
+    {
+        return ((this._a.y * t + this._b.y) * t + this._c.y) * t;kkkj
+    },
+
+    sampleDerivativeX: function(t)
+    {
+        return(3 * this._a.x * t + 2 * this._b.x) * t + this._c.x;
+    },
+
+    solveForT: function(x)
+    {
+        var t0, t1, t2, x2, d2, i;
+
+        for (t2 = x, i = 0; i < 8; ++i) {
+            x2 = this.sampleX(t2) - x;
+            if (Math.abs(x2) < this.epsilon)
+                return t2;
+            d2 = this.sampleDerivativeX(t2);
+            if (Math.abs(d2) < this.derivativeEpsilon)
+                break;
+            t2 = t2 - x2 / d2;
+        }
+
+        t0 = 0;
+        t1 = 1;
+        t2 = x;
+
+        if (t2 < t0)
+            return t0;
+        if (t2 > t1)
+            return t1;
+
+        while (t0 < t1) {
+            x2 = this.sampleX(t2);
+            if (Math.abs(x2 - x) < this.epsilon)
+                return t2;
+            if (x > x2)
+                t0 = t2;
+            else
+                t1 = t2;
+            t2 = (t1 - t0) * .5 + t0;
+        }
+
+        return t2;
+    }
+});
+
 SimplePromise = Utilities.createClass(
     function()
     {
@@ -342,29 +448,136 @@ SimplePromise = Utilities.createClass(
     }
 });
 
-Statistics =
-{
-    sampleMean: function(numberOfSamples, sum)
+var Heap = Utilities.createClass(
+    function(maxSize, compare)
     {
-        if (numberOfSamples < 1)
-            return 0;
-        return sum / numberOfSamples;
+        this._maxSize = maxSize;
+        this._compare = compare;
+        this._size = 0;
+        this._values = new Array(this._maxSize);
+    }, {
+
+    // This is a binary heap represented in an array. The root element is stored
+    // in the first element in the array. The root is followed by its two children.
+    // Then its four grandchildren and so on. So every level in the binary heap is
+    // doubled in the following level. Here is an example of the node indices and
+    // how they are related to their parents and children.
+    // ===========================================================================
+    //              0       1       2       3       4       5       6
+    // PARENT       -1      0       0       1       1       2       2
+    // LEFT         1       3       5       7       9       11      13
+    // RIGHT        2       4       6       8       10      12      14
+    // ===========================================================================
+    _parentIndex: function(i)
+    {
+        return i > 0 ? Math.floor((i - 1) / 2) : -1;
     },
 
-    // With sum and sum of squares, we can compute the sample standard deviation in O(1).
-    // See https://rniwa.com/2012-11-10/sample-standard-deviation-in-terms-of-sum-and-square-sum-of-samples/
-    unbiasedSampleStandardDeviation: function(numberOfSamples, sum, squareSum)
+    _leftIndex: function(i)
     {
-        if (numberOfSamples < 2)
-            return 0;
-        return Math.sqrt((squareSum - sum * sum / numberOfSamples) / (numberOfSamples - 1));
+        var leftIndex = i * 2 + 1;
+        return leftIndex < this._size ? leftIndex : -1;
     },
 
-    geometricMean: function(values)
+    _rightIndex: function(i)
     {
-        if (!values.length)
-            return 0;
-        var roots = values.map(function(value) { return  Math.pow(value, 1 / values.length); })
-        return roots.reduce(function(a, b) { return a * b; });
+        var rightIndex = i * 2 + 2;
+        return rightIndex < this._size ? rightIndex : -1;
+    },
+
+    // Return the child index that may violate the heap property at index i.
+    _childIndex: function(i)
+    {
+        var left = this._leftIndex(i);
+        var right = this._rightIndex(i);
+
+        if (left != -1 && right != -1)
+            return this._compare(this._values[left], this._values[right]) > 0 ? left : right;
+
+        return left != -1 ? left : right;
+    },
+
+    init: function()
+    {
+        this._size = 0;
+    },
+
+    top: function()
+    {
+        return this._size ? this._values[0] : NaN;
+    },
+
+    push: function(value)
+    {
+        if (this._size == this._maxSize) {
+            // If size is bounded and the new value can be a parent of the top()
+            // if the size were unbounded, just ignore the new value.
+            if (this._compare(value, this.top()) > 0)
+                return;
+            this.pop();
+        }
+        this._values[this._size++] = value;
+        this._bubble(this._size - 1);
+    },
+
+    pop: function()
+    {
+        if (!this._size)
+            return NaN;
+
+        this._values[0] = this._values[--this._size];
+        this._sink(0);
+    },
+
+    _bubble: function(i)
+    {
+        // Fix the heap property at index i given that parent is the only node that
+        // may violate the heap property.
+        for (var pi = this._parentIndex(i); pi != -1; i = pi, pi = this._parentIndex(pi)) {
+            if (this._compare(this._values[pi], this._values[i]) > 0)
+                break;
+
+            this._values.swap(pi, i);
+        }
+    },
+
+    _sink: function(i)
+    {
+        // Fix the heap property at index i given that each of the left and the right
+        // sub-trees satisfies the heap property.
+        for (var ci = this._childIndex(i); ci != -1; i = ci, ci = this._childIndex(ci)) {
+            if (this._compare(this._values[i], this._values[ci]) > 0)
+                break;
+
+            this._values.swap(ci, i);
+        }
+    },
+
+    str: function()
+    {
+        var out = "Heap[" + this._size + "] = [";
+        for (var i = 0; i < this._size; ++i) {
+            out += this._values[i];
+            if (i < this._size - 1)
+                out += ", ";
+        }
+        return out + "]";
+    },
+
+    values: function(size) {
+        // Return the last "size" heap elements values.
+        var values = this._values.slice(0, this._size);
+        return values.sort(this._compare).slice(0, Math.min(size, this._size));
     }
-};
+});
+
+Utilities.extendObject(Heap, {
+    createMinHeap: function(maxSize)
+    {
+        return new Heap(maxSize, function(a, b) { return b - a; });
+    },
+
+    createMaxHeap: function(maxSize) {
+        return new Heap(maxSize, function(a, b) { return a - b; });
+    }
+});

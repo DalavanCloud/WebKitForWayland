@@ -28,19 +28,12 @@ shouldBe("flags.call({global: 1, multiline: 0, ignoreCase: 2})", "'gi'");
 // inherited properties count
 shouldBe("flags.call({ __proto__: { multiline: true } })", "'m'");
 
-if (RegExp.prototype.hasOwnProperty('sticky')) {
-  debug("sticky flag");
-  // when the engine supports "sticky", these tests will fail by design.
-  // Hopefully, only the expected output will need updating.
-  shouldBe("/a/yimg.flags", "'gimy'");
-  shouldBe("new RegExp('a', 'yimg').flags", "'gimy'");
-  shouldBe("flags.call({global: true, multiline: true, ignoreCase: true, sticky: true})", "'gimy'");
-}
-if (RegExp.prototype.hasOwnProperty('unicode')) {
-  debug("unicode flag");
-  // when the engine supports "unicode", these tests will fail by design.
-  // Hopefully, only the expected output will need updating.
-  shouldBe("/a/uimg.flags", "'gimu'");
-  shouldBe("new RegExp('a', 'uimg').flags", "'gimu'");
-  shouldBe("flags.call({global: true, multiline: true, ignoreCase: true, unicode: true})", "'gimu'");
-}
+debug("unicode flag");
+shouldBe("/a/uimg.flags", "'gimu'");
+shouldBe("new RegExp('a', 'uimg').flags", "'gimu'");
+shouldBe("flags.call({global: true, multiline: true, ignoreCase: true, unicode: true})", "'gimu'");
+
+debug("sticky flag");
+shouldBe("/a/yimg.flags", "'gimy'");
+shouldBe("new RegExp('a', 'yimg').flags", "'gimy'");
+shouldBe("flags.call({global: true, multiline: true, ignoreCase: true, sticky: true})", "'gimy'");

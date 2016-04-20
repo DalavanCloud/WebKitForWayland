@@ -31,13 +31,17 @@
 
 #if ENABLE(FETCH_API)
 
+#include "DOMRequestState.h"
 #include "Dictionary.h"
-#include "ExceptionCode.h"
+#include "FetchBodyOwner.h"
+#include "FormData.h"
+#include "HTTPParsers.h"
 #include "JSBlob.h"
 #include "JSDOMFormData.h"
-#include <runtime/JSONObject.h>
 
 namespace WebCore {
+
+static RefPtr<Blob> blobFromArrayBuffer(ArrayBuffer*, const String&);
 
 FetchBody::FetchBody(Ref<Blob>&& blob)
     : m_type(Type::Blob)
@@ -61,7 +65,7 @@ FetchBody::FetchBody(String&& text)
 {
 }
 
-FetchBody FetchBody::fromJSValue(JSC::ExecState& state, JSC::JSValue value)
+FetchBody FetchBody::extract(JSC::ExecState& state, JSC::JSValue value)
 {
     if (value.inherits(JSBlob::info()))
         return FetchBody(*JSBlob::toWrapped(value));
@@ -69,111 +73,209 @@ FetchBody FetchBody::fromJSValue(JSC::ExecState& state, JSC::JSValue value)
         return FetchBody(*JSDOMFormData::toWrapped(value));
     if (value.isString())
         return FetchBody(value.toWTFString(&state));
-    return FetchBody();
+    return { };
 }
 
-// FIXME: Once FetchResponse is added, check whether using a move constructor instead.
-// Ensure whether resetting m_mimeType to the empty string be not observable.
-FetchBody FetchBody::fromRequestBody(FetchBody* body)
+FetchBody FetchBody::extractFromBody(FetchBody* body)
 {
     if (!body)
-        return FetchBody();
+        return { };
 
-    FetchBody result;
-    result.m_type = body->m_type;
-    result.m_mimeType = body->m_mimeType;
-
-    result.m_blob = WTFMove(body->m_blob);
-    result.m_formData = WTFMove(body->m_formData);
-    result.m_text = WTFMove(body->m_text);
-
-    body->m_isDisturbed = true;
-
-    return result;
+    return FetchBody(WTFMove(*body));
 }
 
-template<typename T> inline bool FetchBody::processIfEmptyOrDisturbed(DOMPromise<T, ExceptionCode>& promise)
+void FetchBody::arrayBuffer(FetchBodyOwner& owner, DeferredWrapper&& promise)
 {
-    if (m_type == Type::None) {
-        promise.resolve(T());
-        return true;
-    }
-
-    if (m_isDisturbed) {
-        promise.reject(TypeError);
-        return true;
-    }
-    m_isDisturbed = true;
-    return false;
+    ASSERT(m_type != Type::None);
+    consume(owner, Consumer::Type::ArrayBuffer, WTFMove(promise));
 }
 
-void FetchBody::arrayBuffer(ArrayBufferPromise&& promise)
+void FetchBody::blob(FetchBodyOwner& owner, DeferredWrapper&& promise)
 {
-    if (processIfEmptyOrDisturbed(promise))
-        return;
+    ASSERT(m_type != Type::None);
+    consume(owner, Consumer::Type::Blob, WTFMove(promise));
+}
+
+void FetchBody::json(FetchBodyOwner& owner, DeferredWrapper&& promise)
+{
+    ASSERT(m_type != Type::None);
 
     if (m_type == Type::Text) {
-        // FIXME: promise expects a Vector<unsigned char> that will be converted to an ArrayBuffer.
-        // We should try to create a Vector<unsigned char> or an ArrayBuffer directly from m_text.
-        CString data = m_text.utf8();
-        Vector<unsigned char> value(data.length());
-        memcpy(value.data(), data.data(), data.length());
-        promise.resolve(WTFMove(value));
+        fulfillPromiseWithJSON(promise, m_text);
         return;
     }
-    // FIXME: Support other types.
-    promise.reject(0);
+    consume(owner, Consumer::Type::JSON, WTFMove(promise));
 }
 
-void FetchBody::formData(FormDataPromise&& promise)
+void FetchBody::text(FetchBodyOwner& owner, DeferredWrapper&& promise)
 {
-    if (m_type == Type::None || m_isDisturbed) {
-        promise.reject(TypeError);
-        return;
-    }
-    m_isDisturbed = true;
-
-    // FIXME: Support other types.
-    promise.reject(0);
-}
-
-void FetchBody::blob(BlobPromise&& promise)
-{
-    if (processIfEmptyOrDisturbed(promise))
-        return;
-
-    // FIXME: Support other types.
-    promise.reject(0);
-}
-
-void FetchBody::text(TextPromise&& promise)
-{
-    if (processIfEmptyOrDisturbed(promise))
-        return;
+    ASSERT(m_type != Type::None);
 
     if (m_type == Type::Text) {
         promise.resolve(m_text);
         return;
     }
-    // FIXME: Support other types.
-    promise.reject(0);
+    consume(owner, Consumer::Type::Text, WTFMove(promise));
 }
 
-void FetchBody::json(JSC::ExecState& state, JSONPromise&& promise)
+void FetchBody::consume(FetchBodyOwner& owner, Consumer::Type type, DeferredWrapper&& promise)
 {
-    if (processIfEmptyOrDisturbed(promise))
-        return;
-
-    if (m_type == Type::Text) {
-        JSC::JSValue value = JSC::JSONParse(&state, m_text);
-        if (!value)
-            promise.reject(SYNTAX_ERR);
-        else
-            promise.resolve(value);
+    if (m_type == Type::ArrayBuffer) {
+        consumeArrayBuffer(type, promise);
         return;
     }
+    if (m_type == Type::Text) {
+        consumeText(type, promise);
+        return;
+    }
+    if (m_type == Type::Blob) {
+        consumeBlob(owner, type, WTFMove(promise));
+        return;
+    }
+    if (m_type == Type::Loading) {
+        // FIXME: We should be able to change the loading type to text if consumer type is JSON or Text.
+        m_consumer = Consumer({type, WTFMove(promise)});
+        return;
+    }
+
     // FIXME: Support other types.
-    promise.reject(0);
+    promise.reject<ExceptionCode>(0);
+}
+
+void FetchBody::consumeArrayBuffer(Consumer::Type type, DeferredWrapper& promise)
+{
+    if (type == Consumer::Type::ArrayBuffer) {
+        fulfillPromiseWithArrayBuffer(promise, m_data.get());
+        return;
+    }
+    if (type == Consumer::Type::Blob) {
+        promise.resolve(blobFromArrayBuffer(m_data.get(), Blob::normalizedContentType(extractMIMETypeFromMediaType(m_mimeType))));
+        return;
+    }
+
+    ASSERT(type == Consumer::Type::Text || type == Consumer::Type::JSON);
+    // FIXME: Do we need TextResourceDecoder to create a String to decode UTF-8 data.
+    fulfillTextPromise(type, TextResourceDecoder::create(ASCIILiteral("text/plain"), "UTF-8")->decodeAndFlush(static_cast<const char*>(m_data->data()), m_data->byteLength()), promise);
+}
+
+void FetchBody::consumeText(Consumer::Type type, DeferredWrapper& promise)
+{
+    ASSERT(type == Consumer::Type::ArrayBuffer || type == Consumer::Type::Blob);
+
+    if (type == Consumer::Type::ArrayBuffer) {
+        Vector<uint8_t> data = extractFromText();
+        fulfillPromiseWithArrayBuffer(promise, data.data(), data.size());
+        return;
+    }
+    String contentType = Blob::normalizedContentType(extractMIMETypeFromMediaType(m_mimeType));
+    promise.resolve<RefPtr<Blob>>(Blob::create(extractFromText(), contentType));
+}
+
+FetchLoader::Type FetchBody::loadingType(Consumer::Type type)
+{
+    switch (type) {
+    case Consumer::Type::JSON:
+    case Consumer::Type::Text:
+        return FetchLoader::Type::Text;
+    case Consumer::Type::Blob:
+    case Consumer::Type::ArrayBuffer:
+        return FetchLoader::Type::ArrayBuffer;
+    default:
+        ASSERT_NOT_REACHED();
+        return FetchLoader::Type::ArrayBuffer;
+    };
+}
+
+void FetchBody::consumeBlob(FetchBodyOwner& owner, Consumer::Type type, DeferredWrapper&& promise)
+{
+    ASSERT(m_blob);
+
+    m_consumer = Consumer({type, WTFMove(promise)});
+    owner.loadBlob(*m_blob, loadingType(type));
+}
+
+Vector<uint8_t> FetchBody::extractFromText() const
+{
+    ASSERT(m_type == Type::Text);
+    // FIXME: This double allocation is not efficient. Might want to fix that at WTFString level.
+    CString data = m_text.utf8();
+    Vector<uint8_t> value(data.length());
+    memcpy(value.data(), data.data(), data.length());
+    return value;
+}
+
+static inline RefPtr<Blob> blobFromArrayBuffer(ArrayBuffer* buffer, const String& contentType)
+{
+    if (!buffer)
+        return Blob::create(Vector<uint8_t>(), contentType);
+
+    // FIXME: We should try to move buffer to Blob without doing this copy.
+    Vector<uint8_t> value(buffer->byteLength());
+    memcpy(value.data(), buffer->data(), buffer->byteLength());
+    return Blob::create(WTFMove(value), contentType);
+}
+
+void FetchBody::fulfillTextPromise(FetchBody::Consumer::Type type, const String& text, DeferredWrapper& promise)
+{
+    ASSERT(type == Consumer::Type::Text || type == Consumer::Type::JSON);
+    if (type == FetchBody::Consumer::Type::Text)
+        promise.resolve(text);
+    else
+        fulfillPromiseWithJSON(promise, text);
+}
+
+void FetchBody::loadingFailed()
+{
+    ASSERT(m_consumer);
+    m_consumer->promise.reject<ExceptionCode>(0);
+    m_consumer = Nullopt;
+}
+
+void FetchBody::loadedAsArrayBuffer(RefPtr<ArrayBuffer>&& buffer)
+{
+    if (m_type == Type::Loading) {
+        m_type = Type::ArrayBuffer;
+        m_data = buffer;
+        if (m_consumer) {
+            consumeArrayBuffer(m_consumer->type, m_consumer->promise);
+            m_consumer = Nullopt;
+        }
+        return;
+    }
+
+    ASSERT(m_consumer);
+    ASSERT(m_consumer->type == Consumer::Type::Blob || m_consumer->type == Consumer::Type::ArrayBuffer);
+    if (m_consumer->type == Consumer::Type::ArrayBuffer)
+        fulfillPromiseWithArrayBuffer(m_consumer->promise, buffer.get());
+    else {
+        ASSERT(m_blob);
+        m_consumer->promise.resolve(blobFromArrayBuffer(buffer.get(), m_blob->type()));
+    }
+    m_consumer = Nullopt;
+}
+
+void FetchBody::loadedAsText(String&& text)
+{
+    ASSERT(m_consumer);
+    ASSERT(m_consumer->type == Consumer::Type::Text || m_consumer->type == Consumer::Type::JSON);
+
+    fulfillTextPromise(m_consumer->type, text, m_consumer->promise);
+    m_consumer = Nullopt;
+}
+
+RefPtr<FormData> FetchBody::bodyForInternalRequest() const
+{
+    if (m_type == Type::None)
+        return nullptr;
+    if (m_type == Type::Text)
+        return FormData::create(UTF8Encoding().encode(m_text, EntitiesForUnencodables));
+    if (m_type == Type::Blob) {
+        RefPtr<FormData> body = FormData::create();
+        body->appendBlob(m_blob->url());
+        return body;
+    }
+    ASSERT_NOT_REACHED();
+    return nullptr;
 }
 
 }

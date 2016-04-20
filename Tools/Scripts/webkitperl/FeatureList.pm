@@ -106,6 +106,7 @@ my (
     $mediaSourceSupport,
     $mediaStatisticsSupport,
     $mediaStreamSupport,
+    $webRTCSupport,
     $meterElementSupport,
     $mhtmlSupport,
     $modulesSupport,
@@ -184,17 +185,11 @@ my @features = (
     { option => "channel-messaging", desc => "Toggle Channel Messaging support",
       define => "ENABLE_CHANNEL_MESSAGING", default => 1, value => \$channelMessagingSupport },
 
-    { option => "class-syntax", desc => "Toggle ES6 class syntax support",
-      define => "ENABLE_ES6_CLASS_SYNTAX", default => 1, value => \$classSyntax },
-
     { option => "generators", desc => "Toggle ES6 generators support",
       define => "ENABLE_ES6_GENERATORS", default => 1, value => \$generatorsSupport },
 
     { option => "modules", desc => "Toggle ES6 modules support",
       define => "ENABLE_ES6_MODULES", default => 0, value => \$modulesSupport },
-
-    { option => "template-literal-syntax", desc => "Toggle ES6 template literal syntax support",
-      define => "ENABLE_ES6_TEMPLATE_LITERAL_SYNTAX", default => 1, value => \$templateLiteralSyntax },
 
     { option => "csp-next", desc => "Toggle Content Security Policy 1.1 support",
       define => "ENABLE_CSP_NEXT", default => isGtk(), value => \$cspNextSupport },
@@ -338,7 +333,10 @@ my @features = (
       define => "ENABLE_MEDIA_STATISTICS", default => 0, value => \$mediaStatisticsSupport },
 
     { option => "media-stream", desc => "Toggle Media Stream support",
-      define => "ENABLE_MEDIA_STREAM", default => 0, value => \$mediaStreamSupport },
+      define => "ENABLE_MEDIA_STREAM", default => (isGtk()), value => \$mediaStreamSupport },
+
+    { option => "web-rtc", desc => "Toggle WebRTC support",
+      define => "ENABLE_WEB_RTC", default => (isGtk()), value => \$webRTCSupport },
 
     { option => "meter-element", desc => "Toggle Meter Element support",
       define => "ENABLE_METER_ELEMENT", default => !isAppleWinWebKit(), value => \$meterElementSupport },
@@ -386,7 +384,7 @@ my @features = (
       define => "ENABLE_RESOURCE_TIMING", default => (isGtk() || isWPE()), value => \$resourceTimingSupport },
 
     { option => "request-animation-frame", desc => "Toggle Request Animation Frame support",
-      define => "ENABLE_REQUEST_ANIMATION_FRAME", default => (isAppleMacWebKit() || isGtk() || isEfl() || isWPE()), value => \$requestAnimationFrameSupport },
+      define => "ENABLE_REQUEST_ANIMATION_FRAME", default => 1, value => \$requestAnimationFrameSupport },
 
     { option => "seccomp-filters", desc => "Toggle Seccomp Filter sandbox",
       define => "ENABLE_SECCOMP_FILTERS", default => 0, value => \$seccompFiltersSupport },
@@ -446,7 +444,7 @@ my @features = (
       define => "ENABLE_WEBASSEMBLY", default => 0, value => \$webAssemblySupport },
 
     { option => "web-animations", desc => "Toggle Web Animations support",
-      define => "ENABLE_WEB_ANIMATIONS", default => 0, value => \$webAnimationsSupport },
+      define => "ENABLE_WEB_ANIMATIONS", default => 1, value => \$webAnimationsSupport },
 
     { option => "web-audio", desc => "Toggle Web Audio support",
       define => "ENABLE_WEB_AUDIO", default => (isEfl() || isGtk() || isWPE()), value => \$webAudioSupport },

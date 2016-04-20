@@ -164,6 +164,69 @@ inline bool Inst::admitsStack(Arg& arg)
     return admitsStack(&arg - &args[0]);
 }
 
+inline Optional<unsigned> Inst::shouldTryAliasingDef()
+{
+    if (!isX86())
+        return Nullopt;
+
+    switch (opcode) {
+    case Add32:
+    case Add64:
+    case And32:
+    case And64:
+    case Mul32:
+    case Mul64:
+    case Or32:
+    case Or64:
+    case Xor32:
+    case Xor64:
+    case AndFloat:
+    case AndDouble:
+    case XorDouble:
+    case XorFloat:
+        if (args.size() == 3)
+            return 2;
+        break;
+    case AddDouble:
+    case AddFloat:
+    case MulDouble:
+    case MulFloat:
+#if CPU(X86) || CPU(X86_64)
+        if (MacroAssembler::supportsAVX())
+            return Nullopt;
+#endif
+        if (args.size() == 3)
+            return 2;
+        break;
+    case BranchAdd32:
+    case BranchAdd64:
+        if (args.size() == 4)
+            return 3;
+        break;
+    case MoveConditionally32:
+    case MoveConditionally64:
+    case MoveConditionallyTest32:
+    case MoveConditionallyTest64:
+    case MoveConditionallyDouble:
+    case MoveConditionallyFloat:
+    case MoveDoubleConditionally32:
+    case MoveDoubleConditionally64:
+    case MoveDoubleConditionallyTest32:
+    case MoveDoubleConditionallyTest64:
+    case MoveDoubleConditionallyDouble:
+    case MoveDoubleConditionallyFloat:
+        if (args.size() == 6)
+            return 5;
+        break;
+        break;
+    case Patch:
+        return PatchCustom::shouldTryAliasingDef(*this);
+    default:
+        break;
+    }
+    return Nullopt;
+}
+
 inline bool isShiftValid(const Inst& inst)
 {
 #if CPU(X86) || CPU(X86_64)

@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2015 Apple Inc. All rights reserved.
+# Copyright (C) 2011-2016 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -221,8 +221,6 @@ const PutByIdSecondaryTypeObject = 0x38
 const PutByIdSecondaryTypeObjectOrOther = 0x40
 const PutByIdSecondaryTypeTop = 0x48
 
-const CopyBarrierSpaceBits = 3
-
 const CallOpCodeSize = 9
 
 if X86_64 or ARM64 or C_LOOP
@@ -328,8 +326,9 @@ const SlowPutArrayStorageShape = 30
 # Type constants.
 const StringType = 6
 const SymbolType = 7
-const ObjectType = 21
-const FinalObjectType = 22
+const ObjectType = 20
+const FinalObjectType = 21
+const JSFunctionType = 23
 
 # Type flags constants.
 const MasqueradesAsUndefined = 1
@@ -658,10 +657,6 @@ macro preserveReturnAddressAfterCall(destinationRegister)
     else
         error
     end
-end
-
-macro copyBarrier(value, slow)
-    btpnz value, CopyBarrierSpaceBits, slow
 end
 
 macro functionPrologue()
@@ -1218,9 +1213,9 @@ _llint_op_create_scoped_arguments:
     dispatch(3)
 
 
-_llint_op_create_out_of_band_arguments:
+_llint_op_create_cloned_arguments:
     traceExecution()
-    callSlowPath(_slow_path_create_out_of_band_arguments)
+    callSlowPath(_slow_path_create_cloned_arguments)
     dispatch(2)
 
 
@@ -1310,6 +1305,12 @@ _llint_op_is_function:
 _llint_op_in:
     traceExecution()
     callSlowPath(_slow_path_in)
+    dispatch(4)
+
+
+_llint_op_try_get_by_id:
+    traceExecution()
+    callSlowPath(_llint_slow_path_try_get_by_id)
     dispatch(4)
 
 
@@ -1462,6 +1463,42 @@ _llint_op_watchdog:
     jmp _llint_throw_from_slow_path_trampoline
 
 
+# Returns the packet pointer in t0.
+macro acquireShadowChickenPacket(slow)
+    loadp CodeBlock[cfr], t1
+    loadp CodeBlock::m_vm[t1], t1
+    loadp VM::m_shadowChicken[t1], t2
+    loadp ShadowChicken::m_logCursor[t2], t0
+    bpaeq t0, ShadowChicken::m_logEnd[t2], slow
+    addp sizeof ShadowChicken::Packet, t0, t1
+    storep t1, ShadowChicken::m_logCursor[t2]
+end
+
+_llint_op_log_shadow_chicken_prologue:
+    traceExecution()
+    acquireShadowChickenPacket(.opLogShadowChickenPrologueSlow)
+    storep cfr, ShadowChicken::Packet::frame[t0]
+    loadp CallerFrame[cfr], t1
+    storep t1, ShadowChicken::Packet::callerFrame[t0]
+    loadp Callee + PayloadOffset[cfr], t1
+    storep t1, ShadowChicken::Packet::callee[t0]
+    dispatch(1)
+.opLogShadowChickenPrologueSlow:
+    callSlowPath(_llint_slow_path_log_shadow_chicken_prologue)
+    dispatch(1)
+
+
+_llint_op_log_shadow_chicken_tail:
+    traceExecution()
+    acquireShadowChickenPacket(.opLogShadowChickenTailSlow)
+    storep cfr, ShadowChicken::Packet::frame[t0]
+    storep 0x7a11, ShadowChicken::Packet::callee[t0]
+    dispatch(1)
+.opLogShadowChickenTailSlow:
+    callSlowPath(_llint_slow_path_log_shadow_chicken_tail)
+    dispatch(1)
+
+
 _llint_op_switch_string:
     traceExecution()
     callSlowPath(_llint_slow_path_switch_string)
@@ -1482,6 +1519,11 @@ _llint_op_new_arrow_func_exp:
     traceExecution()
     callSlowPath(_llint_slow_path_new_arrow_func_exp)
     dispatch(4)
+
+_llint_op_set_function_name:
+    traceExecution()
+    callSlowPath(_llint_slow_path_set_function_name)
+    dispatch(3)
 
 _llint_op_call:
     traceExecution()
@@ -1710,6 +1752,11 @@ _llint_op_to_index_string:
 _llint_op_copy_rest:
     traceExecution()
     callSlowPath(_slow_path_copy_rest)
+    dispatch(4)
+
+_llint_op_instanceof:
+    traceExecution()
+    callSlowPath(_llint_slow_path_instanceof)
     dispatch(4)
 
 

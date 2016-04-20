@@ -1,3 +1,4 @@
+'use strict';
 
 class MeasurementCluster {
     constructor(response)
@@ -7,6 +8,7 @@ class MeasurementCluster {
     }
 
     startTime() { return this._response['startTime']; }
+    endTime() { return this._response['endTime']; }
 
     addToSeries(series, configType, includeOutliers, idMap)
     {
@@ -24,7 +26,10 @@ class MeasurementCluster {
 
             idMap[id] = true;
 
-            series._series.push(self._adaptor.adoptToSeries(row, series, series._series.length));
+            series.append(self._adaptor.applyTo(row));
         });
     }
 }
+
+if (typeof module != 'undefined')
+    module.exports.MeasurementCluster = MeasurementCluster;

@@ -172,6 +172,8 @@ JSObject* constructDate(ExecState* exec, JSGlobalObject* globalObject, JSValue n
         value = millisecondsFromComponents(exec, args, WTF::LocalTime);
 
     Structure* dateStructure = InternalFunction::createSubclassStructure(exec, newTarget, globalObject->dateStructure());
+    if (exec->hadException())
+        return nullptr;
 
     return DateInstance::create(vm, dateStructure, value);
 }
@@ -185,7 +187,7 @@ static EncodedJSValue JSC_HOST_CALL constructWithDateConstructor(ExecState* exec
 ConstructType DateConstructor::getConstructData(JSCell*, ConstructData& constructData)
 {
     constructData.native.function = constructWithDateConstructor;
-    return ConstructTypeHost;
+    return ConstructType::Host;
 }
 
 // ECMA 15.9.2
@@ -200,12 +202,15 @@ static EncodedJSValue JSC_HOST_CALL callDate(ExecState* exec)
 CallType DateConstructor::getCallData(JSCell*, CallData& callData)
 {
     callData.native.function = callDate;
-    return CallTypeHost;
+    return CallType::Host;
 }
 
 EncodedJSValue JSC_HOST_CALL dateParse(ExecState* exec)
 {
-    return JSValue::encode(jsNumber(parseDate(exec->vm(), exec->argument(0).toString(exec)->value(exec))));
+    String dateStr = exec->argument(0).toString(exec)->value(exec);
+    if (exec->hadException())
+        return JSValue::encode(jsUndefined());
+    return JSValue::encode(jsNumber(parseDate(exec->vm(), dateStr)));
 }
 
 EncodedJSValue JSC_HOST_CALL dateNow(ExecState* exec)

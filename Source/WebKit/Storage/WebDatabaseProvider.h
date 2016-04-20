@@ -42,8 +42,7 @@ public:
     virtual ~WebDatabaseProvider();
 
 #if ENABLE(INDEXED_DATABASE)
-    virtual bool supportsModernIDB() const override { return true; }
-    virtual WebCore::IDBClient::IDBConnectionToServer& idbConnectionToServerForSession(const WebCore::SessionID&) override;
+    WebCore::IDBClient::IDBConnectionToServer& idbConnectionToServerForSession(const WebCore::SessionID&) override;
 #endif
 
 private:
@@ -52,7 +51,6 @@ private:
     static String indexedDatabaseDirectoryPath();
 
 #if ENABLE(INDEXED_DATABASE)
-    virtual RefPtr<WebCore::IDBFactoryBackendInterface> createIDBFactoryBackend() override;
     HashMap<uint64_t, RefPtr<WebCore::InProcessIDBServer>> m_idbServerMap;
 #endif
 };

@@ -74,6 +74,8 @@ WEBCORE_EXPORT @interface DOMTestObj : DOMObject
 @property (copy) NSString *stringAttr;
 @property (strong) DOMTestObj *testObjAttr;
 @property (strong) DOMTestObj *lenientTestObjAttr;
+@property (readonly, copy) NSString *unforgeableAttr;
+@property (copy) NSString *stringAttrTreatingNullAsEmptyString;
 @property (strong) DOMTestObj *XMLObjAttr;
 @property BOOL create;
 @property (copy) NSString *reflectedStringAttr;
@@ -85,6 +87,7 @@ WEBCORE_EXPORT @interface DOMTestObj : DOMObject
 @property int reflectedCustomIntegralAttr;
 @property BOOL reflectedCustomBooleanAttr;
 @property (copy) NSString *reflectedCustomURLAttr;
+@property (copy) NSString *enabledAtRuntimeAttribute;
 @property int attrWithGetterException;
 @property int attrWithGetterExceptionWithMessage;
 @property int attrWithSetterException;
@@ -125,6 +128,7 @@ WEBCORE_EXPORT @interface DOMTestObj : DOMObject
 @property (readonly) BOOL nullableBooleanAttribute;
 @property (readonly, copy) NSString *nullableStringAttribute;
 @property int nullableLongSettableAttribute;
+@property (copy) NSString *nullableStringSettableAttribute;
 @property int nullableStringValue;
 @property (readonly, copy) NSString *attribute;
 @property (readonly, strong) DOMTestNode *putForwardsAttribute;
@@ -140,6 +144,11 @@ WEBCORE_EXPORT @interface DOMTestObj : DOMObject
 - (int)longMethodWithArgs:(int)longArg strArg:(NSString *)strArg objArg:(DOMTestObj *)objArg;
 - (DOMTestObj *)objMethod;
 - (DOMTestObj *)objMethodWithArgs:(int)longArg strArg:(NSString *)strArg objArg:(DOMTestObj *)objArg;
+- (int)unforgeableMethod;
+- (void)methodWithArgTreatingNullAsEmptyString:(NSString *)arg;
+- (NSString *)nullableStringMethod;
+- (NSString *)nullableStringStaticMethod;
+- (NSString *)nullableStringSpecialMethod:(unsigned)index;
 - (void)methodWithEnumArg:(DOMTestEnumType *)enumArg;
 - (void)methodWithOptionalEnumArgAndDefaultValue:(DOMTestEnumType *)enumArg;
 - (DOMTestObj *)methodThatRequiresAllArgsAndThrows:(NSString *)strArg objArg:(DOMTestObj *)objArg;
@@ -160,6 +169,7 @@ WEBCORE_EXPORT @interface DOMTestObj : DOMObject
 - (DOMTestObj *)withScriptExecutionContextAndScriptStateObjException;
 - (DOMTestObj *)withScriptExecutionContextAndScriptStateWithSpaces;
 - (void)withScriptArgumentsAndCallStack;
+- (void)withDocumentArgument;
 - (void)methodWithOptionalArg:(int)opt;
 - (void)methodWithOptionalArgAndDefaultValue:(int)opt;
 - (void)methodWithNonOptionalArgAndOptionalArg:(int)nonOpt opt:(int)opt;
@@ -174,8 +184,8 @@ WEBCORE_EXPORT @interface DOMTestObj : DOMObject
 - (DOMSVGDocument *)getSVGDocument;
 - (void)convert1:(DOMTestNode *)value;
 - (void)convert2:(DOMTestNode *)value;
-- (void)convert4:(DOMTestNode *)value;
-- (void)convert5:(DOMTestNode *)value;
+- (void)convert3:(NSString *)value;
+- (void)convert4:(NSString *)value;
 - (DOMSVGPoint *)mutablePointFunction;
 - (DOMSVGPoint *)immutablePointFunction;
 - (void)orange;

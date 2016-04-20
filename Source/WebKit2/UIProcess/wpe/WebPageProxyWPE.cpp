@@ -26,6 +26,7 @@
 #include "config.h"
 #include "WebPageProxy.h"
 
+#include "WebsiteDataStore.h"
 #include <WebCore/NotImplemented.h>
 
 namespace WebKit {
@@ -37,7 +38,7 @@ void WebPageProxy::platformInitialize()
 
 String WebPageProxy::standardUserAgent(const String&)
 {
-    return "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_3) AppleWebKit/601.4.4 (KHTML, like Gecko) Version/9.0.3 Safari/601.4.4";
+    return "Mozilla/5.0 (Linux; x86_64 GNU/Linux) AppleWebKit/601.1 (KHTML, like Gecko) Version/8.0 Safari/601.1 WPE";
 }
 
 void WebPageProxy::saveRecentSearches(const String&, const Vector<WebCore::RecentSearch>&)
@@ -46,6 +47,11 @@ void WebPageProxy::saveRecentSearches(const String&, const Vector<WebCore::Recen
 }
 
 void WebPageProxy::loadRecentSearches(const String&, Vector<WebCore::RecentSearch>&)
+{
+    notImplemented();
+}
+
+void WebsiteDataStore::platformRemoveRecentSearches(std::chrono::system_clock::time_point)
 {
     notImplemented();
 }

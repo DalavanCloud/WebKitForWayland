@@ -26,6 +26,8 @@
 #include <heap/Weak.h>
 #include <heap/WeakInlines.h>
 #include <wtf/Ref.h>
+#include <wtf/text/TextPosition.h>
+#include <wtf/text/WTFString.h>
 
 namespace WebCore {
 
@@ -50,7 +52,7 @@ public:
 
     virtual ~JSEventListener();
 
-    virtual bool operator==(const EventListener& other) override;
+    bool operator==(const EventListener& other) override;
 
     // Returns true if this event listener was created for an event handler attribute, like "onload" or "onclick".
     bool isAttribute() const { return m_isAttribute; }
@@ -61,14 +63,17 @@ public:
     JSC::JSObject* wrapper() const { return m_wrapper.get(); }
     void setWrapper(JSC::VM&, JSC::JSObject* wrapper) const { m_wrapper = JSC::Weak<JSC::JSObject>(wrapper); }
 
+    virtual String sourceURL() const { return String(); }
+    virtual TextPosition sourcePosition() const { return TextPosition::minimumPosition(); }
+
 private:
     virtual JSC::JSObject* initializeJSFunction(ScriptExecutionContext*) const;
-    virtual void visitJSFunction(JSC::SlotVisitor&) override;
-    virtual bool virtualisAttribute() const override;
+    void visitJSFunction(JSC::SlotVisitor&) override;
+    bool virtualisAttribute() const override;
 
 protected:
     JSEventListener(JSC::JSObject* function, JSC::JSObject* wrapper, bool isAttribute, DOMWrapperWorld&);
-    virtual void handleEvent(ScriptExecutionContext*, Event*) override;
+    void handleEvent(ScriptExecutionContext*, Event*) override;
 
 private:
     mutable JSC::Weak<JSC::JSObject> m_jsFunction;

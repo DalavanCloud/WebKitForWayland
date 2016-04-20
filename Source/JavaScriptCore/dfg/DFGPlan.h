@@ -75,6 +75,8 @@ struct Plan : public ThreadSafeRefCounted<Plan> {
     void checkLivenessAndVisitChildren(SlotVisitor&);
     bool isKnownToBeLiveDuringGC();
     void cancel();
+
+    bool canTierUpAndOSREnter() const { return !tierUpAndOSREnterBytecodes.isEmpty(); }
     
     VM& vm;
 
@@ -98,7 +100,10 @@ struct Plan : public ThreadSafeRefCounted<Plan> {
     DesiredWeakReferences weakReferences;
     DesiredTransitions transitions;
     
-    bool willTryToTierUp;
+    bool willTryToTierUp { false };
+
+    HashMap<unsigned, Vector<unsigned>> tierUpInLoopHierarchy;
+    Vector<unsigned> tierUpAndOSREnterBytecodes;
 
     enum Stage { Preparing, Compiling, Compiled, Ready, Cancelled };
     Stage stage;

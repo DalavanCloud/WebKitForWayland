@@ -48,6 +48,7 @@
 #include "JSWeakMap.h"
 #include "JSWeakSet.h"
 #include "ObjectConstructor.h"
+#include "ProxyObject.h"
 #include "RegExpObject.h"
 #include "ScopedArguments.h"
 #include "SourceCode.h"
@@ -202,7 +203,7 @@ JSValue JSInjectedScriptHost::functionDetails(ExecState* exec)
     JSObject* result = constructEmptyObject(exec);
     result->putDirect(exec->vm(), Identifier::fromString(exec, "location"), location);
 
-    String name = function->name(exec);
+    String name = function->name();
     if (!name.isEmpty())
         result->putDirect(exec->vm(), Identifier::fromString(exec, "name"), jsString(exec, name));
 
@@ -257,6 +258,14 @@ JSValue JSInjectedScriptHost::getInternalProperties(ExecState* exec)
         array->putDirectIndex(exec, index++, constructInternalProperty(exec, "targetFunction", boundFunction->targetFunction()));
         array->putDirectIndex(exec, index++, constructInternalProperty(exec, "boundThis", boundFunction->boundThis()));
         array->putDirectIndex(exec, index++, constructInternalProperty(exec, "boundArgs", boundFunction->boundArgs()));
+        return array;
+    }
+
+    if (ProxyObject* proxy = jsDynamicCast<ProxyObject*>(value)) {
+        unsigned index = 0;
+        JSArray* array = constructEmptyArray(exec, nullptr, 2);
+        array->putDirectIndex(exec, index++, constructInternalProperty(exec, ASCIILiteral("target"), proxy->target()));
+        array->putDirectIndex(exec, index++, constructInternalProperty(exec, ASCIILiteral("handler"), proxy->handler()));
         return array;
     }
 
@@ -439,9 +448,11 @@ JSValue JSInjectedScriptHost::iteratorEntries(ExecState* exec)
         iterator = setIterator->clone(exec);
     else if (JSStringIterator* stringIterator = jsDynamicCast<JSStringIterator*>(value))
         iterator = stringIterator->clone(exec);
-    else if (JSPropertyNameIterator* propertyNameIterator = jsDynamicCast<JSPropertyNameIterator*>(value))
+    else if (JSPropertyNameIterator* propertyNameIterator = jsDynamicCast<JSPropertyNameIterator*>(value)) {
         iterator = propertyNameIterator->clone(exec);
-    else
+        if (UNLIKELY(exec->hadException()))
+            return JSValue();
+    } else
         return jsUndefined();
 
     unsigned numberToFetch = 5;

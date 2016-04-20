@@ -71,7 +71,7 @@
 #include "Counter.h"
 #include "Document.h"
 #include "FloatConversion.h"
-#include "GridCoordinate.h"
+#include "GridArea.h"
 #include "HTMLParserIdioms.h"
 #include "HashTools.h"
 #include "MediaList.h"
@@ -109,6 +109,7 @@
 #include <wtf/text/StringImpl.h>
 
 #if ENABLE(CSS_GRID_LAYOUT)
+#include "CSSGridAutoRepeatValue.h"
 #include "CSSGridLineNamesValue.h"
 #include "CSSGridTemplateAreasValue.h"
 #endif
@@ -669,8 +670,8 @@ static inline bool isValidKeywordPropertyAndValue(CSSPropertyID propertyId, int 
         // inline | block | list-item | inline-block | table |
         // inline-table | table-row-group | table-header-group | table-footer-group | table-row |
         // table-column-group | table-column | table-cell | table-caption | -webkit-box | -webkit-inline-box | none | inherit
-        // flex | -webkit-flex | inline-flex | -webkit-inline-flex | -webkit-grid | -webkit-inline-grid
-        if ((valueID >= CSSValueInline && valueID <= CSSValueWebkitInlineFlex) || valueID == CSSValueNone)
+        // flex | -webkit-flex | inline-flex | -webkit-inline-flex | -webkit-grid | -webkit-inline-grid | contents
+        if ((valueID >= CSSValueInline && valueID <= CSSValueContents) || valueID == CSSValueNone)
             return true;
 #if ENABLE(CSS_GRID_LAYOUT)
         if (valueID == CSSValueWebkitGrid || valueID == CSSValueWebkitInlineGrid)
@@ -731,12 +732,12 @@ static inline bool isValidKeywordPropertyAndValue(CSSPropertyID propertyId, int 
             return true;
         break;
 #endif
-    case CSSPropertyOverflowX: // visible | hidden | scroll | auto | marquee | overlay | inherit
-        if (valueID == CSSValueVisible || valueID == CSSValueHidden || valueID == CSSValueScroll || valueID == CSSValueAuto || valueID == CSSValueOverlay || valueID == CSSValueWebkitMarquee)
+    case CSSPropertyOverflowX: // visible | hidden | scroll | auto  | overlay | inherit
+        if (valueID == CSSValueVisible || valueID == CSSValueHidden || valueID == CSSValueScroll || valueID == CSSValueAuto || valueID == CSSValueOverlay)
             return true;
         break;
-    case CSSPropertyOverflowY: // visible | hidden | scroll | auto | marquee | overlay | inherit | -webkit-paged-x | -webkit-paged-y
-        if (valueID == CSSValueVisible || valueID == CSSValueHidden || valueID == CSSValueScroll || valueID == CSSValueAuto || valueID == CSSValueOverlay || valueID == CSSValueWebkitMarquee || valueID == CSSValueWebkitPagedX || valueID == CSSValueWebkitPagedY)
+    case CSSPropertyOverflowY: // visible | hidden | scroll | auto | overlay | inherit | -webkit-paged-x | -webkit-paged-y
+        if (valueID == CSSValueVisible || valueID == CSSValueHidden || valueID == CSSValueScroll || valueID == CSSValueAuto || valueID == CSSValueOverlay || valueID == CSSValueWebkitPagedX || valueID == CSSValueWebkitPagedY)
             return true;
         break;
     case CSSPropertyPageBreakAfter: // auto | always | avoid | left | right | inherit
@@ -2697,8 +2698,8 @@ bool CSSParser::parseValue(CSSPropertyID propId, bool important)
     case CSSPropertyTransformOriginX:
     case CSSPropertyTransformOriginY:
     case CSSPropertyTransformOriginZ: {
-        RefPtr<CSSValue> val1;
-        RefPtr<CSSValue> val2;
+        RefPtr<CSSPrimitiveValue> val1;
+        RefPtr<CSSPrimitiveValue> val2;
         RefPtr<CSSValue> val3;
         CSSPropertyID propId1, propId2, propId3;
         if (parseTransformOrigin(propId, propId1, propId2, propId3, val1, val2, val3)) {
@@ -2729,8 +2730,8 @@ bool CSSParser::parseValue(CSSPropertyID propId, bool important)
     case CSSPropertyPerspectiveOrigin:
     case CSSPropertyPerspectiveOriginX:
     case CSSPropertyPerspectiveOriginY: {
-        RefPtr<CSSValue> val1;
-        RefPtr<CSSValue> val2;
+        RefPtr<CSSPrimitiveValue> val1;
+        RefPtr<CSSPrimitiveValue> val2;
         CSSPropertyID propId1, propId2;
         if (parsePerspectiveOrigin(propId, propId1, propId2, val1, val2)) {
             addProperty(propId1, val1.release(), important);
@@ -2886,6 +2887,16 @@ bool CSSParser::parseValue(CSSPropertyID propId, bool important)
     case CSSPropertyColumnWidth: // auto | <length>
         parsedValue = parseColumnWidth();
         break;
+    case CSSPropertyObjectPosition: {
+        RefPtr<CSSPrimitiveValue> val1;
+        RefPtr<CSSPrimitiveValue> val2;
+        parseFillPosition(*m_valueList, val1, val2);
+        if (val1) {
+            addProperty(CSSPropertyObjectPosition, createPrimitiveValuePair(val1.release(), val2.release()), important);
+            return true;
+        }
+        return false;
+        }
     // End of CSS3 properties
 
     case CSSPropertyWillChange: // auto | [scroll-position | contents | <custom-ident>]#
@@ -3405,18 +3416,18 @@ bool CSSParser::parseLegacyPosition(CSSPropertyID propId, bool important)
 
 RefPtr<CSSValue> CSSParser::parseContentDistributionOverflowPosition()
 {
-    // auto | <baseline-position> | <content-distribution> || [ <overflow-position>? && <content-position> ]
+    // normal | <baseline-position> | <content-distribution> || [ <overflow-position>? && <content-position> ]
     // <baseline-position> = baseline | last-baseline;
     // <content-distribution> = space-between | space-around | space-evenly | stretch;
     // <content-position> = center | start | end | flex-start | flex-end | left | right;
-    // <overflow-position> = true | safe
+    // <overflow-position> = unsafe | safe
 
     CSSParserValue* value = m_valueList->current();
     if (!value)
         return nullptr;
 
     // auto | <baseline-position>
-    if (value->id == CSSValueAuto || isBaselinePositionKeyword(value->id)) {
+    if (value->id == CSSValueNormal || isBaselinePositionKeyword(value->id)) {
         m_valueList->next();
         return CSSContentDistributionValue::create(CSSValueInvalid, value->id, CSSValueInvalid);
     }
@@ -4384,7 +4395,7 @@ bool CSSParser::parseFillImage(CSSParserValueList& valueList, RefPtr<CSSValue>& 
     return false;
 }
 
-RefPtr<CSSValue> CSSParser::parsePositionX(CSSParserValueList& valueList)
+RefPtr<CSSPrimitiveValue> CSSParser::parsePositionX(CSSParserValueList& valueList)
 {
     int id = valueList.current()->id;
     if (id == CSSValueLeft || id == CSSValueRight || id == CSSValueCenter) {
@@ -4401,7 +4412,7 @@ RefPtr<CSSValue> CSSParser::parsePositionX(CSSParserValueList& valueList)
     return nullptr;
 }
 
-RefPtr<CSSValue> CSSParser::parsePositionY(CSSParserValueList& valueList)
+RefPtr<CSSPrimitiveValue> CSSParser::parsePositionY(CSSParserValueList& valueList)
 {
     int id = valueList.current()->id;
     if (id == CSSValueTop || id == CSSValueBottom || id == CSSValueCenter) {
@@ -4481,7 +4492,7 @@ static bool isFillPositionKeyword(CSSValueID value)
     return value == CSSValueLeft || value == CSSValueTop || value == CSSValueBottom || value == CSSValueRight || value == CSSValueCenter;
 }
 
-void CSSParser::parse4ValuesFillPosition(CSSParserValueList& valueList, RefPtr<CSSValue>& value1, RefPtr<CSSValue>& value2, RefPtr<CSSPrimitiveValue>&& parsedValue1, RefPtr<CSSPrimitiveValue>&& parsedValue2)
+void CSSParser::parse4ValuesFillPosition(CSSParserValueList& valueList, RefPtr<CSSPrimitiveValue>& value1, RefPtr<CSSPrimitiveValue>& value2, RefPtr<CSSPrimitiveValue>&& parsedValue1, RefPtr<CSSPrimitiveValue>&& parsedValue2)
 {
     // [ left | right ] [ <percentage] | <length> ] && [ top | bottom ] [ <percentage> | <length> ]
     // In the case of 4 values <position> requires the second value to be a length or a percentage.
@@ -4529,7 +4540,7 @@ void CSSParser::parse4ValuesFillPosition(CSSParserValueList& valueList, RefPtr<C
 
     valueList.next();
 }
-void CSSParser::parse3ValuesFillPosition(CSSParserValueList& valueList, RefPtr<CSSValue>& value1, RefPtr<CSSValue>& value2, RefPtr<CSSPrimitiveValue>&& parsedValue1, RefPtr<CSSPrimitiveValue>&& parsedValue2)
+void CSSParser::parse3ValuesFillPosition(CSSParserValueList& valueList, RefPtr<CSSPrimitiveValue>& value1, RefPtr<CSSPrimitiveValue>& value2, RefPtr<CSSPrimitiveValue>&& parsedValue1, RefPtr<CSSPrimitiveValue>&& parsedValue2)
 {
     unsigned cumulativeFlags = 0;
     FillPositionFlag value3Flag = InvalidFillPosition;
@@ -4612,8 +4623,8 @@ void CSSParser::parse3ValuesFillPosition(CSSParserValueList& valueList, RefPtr<C
         value1.swap(value2);
 
 #ifndef NDEBUG
-    CSSPrimitiveValue& first = downcast<CSSPrimitiveValue>(*value1);
-    CSSPrimitiveValue& second = downcast<CSSPrimitiveValue>(*value2);
+    CSSPrimitiveValue& first = *value1;
+    CSSPrimitiveValue& second = *value2;
     ident1 = first.getPairValue()->first()->getValueID();
     ident2 = second.getPairValue()->first()->getValueID();
     ASSERT(ident1 == CSSValueLeft || ident1 == CSSValueRight);
@@ -4629,7 +4640,7 @@ inline bool CSSParser::isPotentialPositionValue(CSSParserValue& value)
     return validateUnit(valueWithCalculation, FPercent | FLength);
 }
 
-void CSSParser::parseFillPosition(CSSParserValueList& valueList, RefPtr<CSSValue>& value1, RefPtr<CSSValue>& value2)
+void CSSParser::parseFillPosition(CSSParserValueList& valueList, RefPtr<CSSPrimitiveValue>& value1, RefPtr<CSSPrimitiveValue>& value2)
 {
     unsigned numberOfValues = 0;
     for (unsigned i = valueList.currentIndex(); i < valueList.size(); ++i, ++numberOfValues) {
@@ -4676,8 +4687,8 @@ void CSSParser::parseFillPosition(CSSParserValueList& valueList, RefPtr<CSSValue
         return;
     }
 
-    RefPtr<CSSPrimitiveValue> parsedValue1 = downcast<CSSPrimitiveValue>(value1.get());
-    RefPtr<CSSPrimitiveValue> parsedValue2 = downcast<CSSPrimitiveValue>(value2.get());
+    RefPtr<CSSPrimitiveValue> parsedValue1 = value1;
+    RefPtr<CSSPrimitiveValue> parsedValue2 = value2;
 
     value1 = nullptr;
     value2 = nullptr;
@@ -4692,7 +4703,7 @@ void CSSParser::parseFillPosition(CSSParserValueList& valueList, RefPtr<CSSValue
         parse4ValuesFillPosition(valueList, value1, value2, WTFMove(parsedValue1), WTFMove(parsedValue2));
 }
 
-void CSSParser::parse2ValuesFillPosition(CSSParserValueList& valueList, RefPtr<CSSValue>& value1, RefPtr<CSSValue>& value2)
+void CSSParser::parse2ValuesFillPosition(CSSParserValueList& valueList, RefPtr<CSSPrimitiveValue>& value1, RefPtr<CSSPrimitiveValue>& value2)
 {
     CSSParserValue* value = valueList.current();
 
@@ -4903,10 +4914,15 @@ bool CSSParser::parseFillProperty(CSSPropertyID propId, CSSPropertyID& propId1, 
                     }
                     break;
                 case CSSPropertyBackgroundPosition:
-                case CSSPropertyWebkitMaskPosition:
-                    parseFillPosition(*m_valueList, currValue, currValue2);
+                case CSSPropertyWebkitMaskPosition: {
+                    RefPtr<CSSPrimitiveValue> value1;
+                    RefPtr<CSSPrimitiveValue> value2;
+                    parseFillPosition(*m_valueList, value1, value2);
+                    currValue = value1;
+                    currValue2 = value2;
                     // parseFillPosition advances the m_valueList pointer.
                     break;
+                }
                 case CSSPropertyBackgroundPositionX:
                 case CSSPropertyWebkitMaskPositionX: {
                     currValue = parsePositionX(*m_valueList);
@@ -5165,7 +5181,7 @@ Vector<double> CSSParser::parseKeyframeSelector(const String& selector) {
     return keys;
 }
 
-bool CSSParser::parseTransformOriginShorthand(RefPtr<CSSValue>& value1, RefPtr<CSSValue>& value2, RefPtr<CSSValue>& value3)
+bool CSSParser::parseTransformOriginShorthand(RefPtr<CSSPrimitiveValue>& value1, RefPtr<CSSPrimitiveValue>& value2, RefPtr<CSSValue>& value3)
 {
     parse2ValuesFillPosition(*m_valueList, value1, value2);
 
@@ -5532,38 +5548,51 @@ bool CSSParser::parseGridGapShorthand(bool important)
     if (!value)
         return false;
 
-    ValueWithCalculation columnValueWithCalculation(*value);
-    if (!validateUnit(columnValueWithCalculation, FLength | FNonNeg))
+    ValueWithCalculation rowValueWithCalculation(*value);
+    if (!validateUnit(rowValueWithCalculation, FLength | FNonNeg))
         return false;
 
-    RefPtr<CSSPrimitiveValue> columnGap = createPrimitiveNumericValue(columnValueWithCalculation);
+    RefPtr<CSSPrimitiveValue> rowGap = createPrimitiveNumericValue(rowValueWithCalculation);
 
     value = m_valueList->next();
     if (!value) {
-        addProperty(CSSPropertyWebkitGridColumnGap, columnGap, important);
-        addProperty(CSSPropertyWebkitGridRowGap, columnGap, important);
+        addProperty(CSSPropertyWebkitGridColumnGap, rowGap, important);
+        addProperty(CSSPropertyWebkitGridRowGap, rowGap, important);
         return true;
     }
 
-    ValueWithCalculation rowValueWithCalculation(*value);
-    if (!validateUnit(rowValueWithCalculation, FLength | FNonNeg))
+    ValueWithCalculation columnValueWithCalculation(*value);
+    if (!validateUnit(columnValueWithCalculation, FLength | FNonNeg))
         return false;
 
     if (m_valueList->next())
         return false;
 
-    RefPtr<CSSPrimitiveValue> rowGap = createPrimitiveNumericValue(rowValueWithCalculation);
+    RefPtr<CSSPrimitiveValue> columnGap = createPrimitiveNumericValue(columnValueWithCalculation);
 
-    addProperty(CSSPropertyWebkitGridColumnGap, columnGap, important);
     addProperty(CSSPropertyWebkitGridRowGap, rowGap, important);
+    addProperty(CSSPropertyWebkitGridColumnGap, columnGap, important);
 
     return true;
 }
 
-bool CSSParser::parseGridTemplateRowsAndAreas(PassRefPtr<CSSValue> templateColumns, bool important)
+RefPtr<CSSValue> CSSParser::parseGridTemplateColumns()
+{
+    if (!(m_valueList->current() && isForwardSlashOperator(*m_valueList->current()) && m_valueList->next()))
+        return nullptr;
+    if (auto columnsValue = parseGridTrackList()) {
+        if (m_valueList->current())
+            return nullptr;
+        return columnsValue;
+    }
+
+    return nullptr;
+}
+
+bool CSSParser::parseGridTemplateRowsAndAreasAndColumns(bool important)
 {
     // At least template-areas strings must be defined.
-    if (!m_valueList->current())
+    if (!m_valueList->current() || isForwardSlashOperator(*m_valueList->current()))
         return false;
 
     NamedGridAreaMap gridAreaMap;
@@ -5572,7 +5601,7 @@ bool CSSParser::parseGridTemplateRowsAndAreas(PassRefPtr<CSSValue> templateColum
     bool trailingIdentWasAdded = false;
     RefPtr<CSSValueList> templateRows = CSSValueList::createSpaceSeparated();
 
-    do {
+    while (m_valueList->current() && !isForwardSlashOperator(*m_valueList->current())) {
         // Handle leading <custom-ident>*.
         if (m_valueList->current()->unit == CSSParserValue::ValueList) {
             if (trailingIdentWasAdded) {
@@ -5588,7 +5617,7 @@ bool CSSParser::parseGridTemplateRowsAndAreas(PassRefPtr<CSSValue> templateColum
         ++rowCount;
 
         // Handle template-rows's track-size.
-        if (m_valueList->current() && m_valueList->current()->unit != CSSParserValue::ValueList && m_valueList->current()->unit != CSSPrimitiveValue::CSS_STRING) {
+        if (m_valueList->current() && m_valueList->current()->unit != CSSParserValue::Operator && m_valueList->current()->unit != CSSParserValue::ValueList && m_valueList->current()->unit != CSSPrimitiveValue::CSS_STRING) {
             RefPtr<CSSValue> value = parseGridTrackSize(*m_valueList);
             if (!value)
                 return false;
@@ -5600,18 +5629,25 @@ bool CSSParser::parseGridTemplateRowsAndAreas(PassRefPtr<CSSValue> templateColum
         trailingIdentWasAdded = false;
         if (m_valueList->current() && m_valueList->current()->unit == CSSParserValue::ValueList)
             trailingIdentWasAdded = parseGridLineNames(*m_valueList, *templateRows);
-    } while (m_valueList->current());
+    }
 
     // [<track-list> /]?
-    if (templateColumns)
-        addProperty(CSSPropertyWebkitGridTemplateColumns, templateColumns, important);
-    else
-        addProperty(CSSPropertyWebkitGridTemplateColumns, CSSValuePool::singleton().createIdentifierValue(CSSValueNone), important);
+    RefPtr<CSSValue> templateColumns = nullptr;
+    if (m_valueList->current()) {
+        ASSERT(isForwardSlashOperator(*m_valueList->current()));
+        templateColumns = parseGridTemplateColumns();
+        if (!templateColumns)
+            return false;
+        // The template-columns <track-list> can't be 'none'.
+        if (templateColumns->isPrimitiveValue() && downcast<CSSPrimitiveValue>(*templateColumns).getValueID() == CSSValueNone)
+            return false;
+    }
 
-    // [<line-names>? <string> [<track-size> <line-names>]? ]+
+    addProperty(CSSPropertyWebkitGridTemplateRows, templateRows.release(), important);
+    addProperty(CSSPropertyWebkitGridTemplateColumns, templateColumns ? templateColumns.release() : CSSValuePool::singleton().createIdentifierValue(CSSValueNone), important);
+
     RefPtr<CSSValue> templateAreas = CSSGridTemplateAreasValue::create(gridAreaMap, rowCount, columnCount);
     addProperty(CSSPropertyWebkitGridTemplateAreas, templateAreas.release(), important);
-    addProperty(CSSPropertyWebkitGridTemplateRows, templateRows.release(), important);
 
     return true;
 }
@@ -5635,32 +5671,29 @@ bool CSSParser::parseGridTemplateShorthand(bool important)
         return true;
     }
 
-    unsigned index = 0;
-    RefPtr<CSSValue> columnsValue = firstValueIsNone ? CSSValuePool::singleton().createIdentifierValue(CSSValueNone) : parseGridTrackList();
+    // 2- <grid-template-rows> / <grid-template-columns> syntax.
+    RefPtr<CSSValue> rowsValue;
+    if (firstValueIsNone)
+        rowsValue = CSSValuePool::singleton().createIdentifierValue(CSSValueNone);
+    else
+        rowsValue = parseGridTrackList();
 
-    // 2- <grid-template-columns> / <grid-template-columns> syntax.
-    if (columnsValue) {
-        if (!(m_valueList->current() && isForwardSlashOperator(*m_valueList->current()) && m_valueList->next()))
+    if (rowsValue) {
+        auto columnsValue = parseGridTemplateColumns();
+        if (!columnsValue)
             return false;
-        index = m_valueList->currentIndex();
-        if (RefPtr<CSSValue> rowsValue = parseGridTrackList()) {
-            if (m_valueList->current())
-                return false;
-            addProperty(CSSPropertyWebkitGridTemplateColumns, columnsValue.release(), important);
-            addProperty(CSSPropertyWebkitGridTemplateRows, rowsValue.release(), important);
-            addProperty(CSSPropertyWebkitGridTemplateAreas, CSSValuePool::singleton().createIdentifierValue(CSSValueNone), important);
-            return true;
-        }
+
+        addProperty(CSSPropertyWebkitGridTemplateColumns, columnsValue.release(), important);
+        addProperty(CSSPropertyWebkitGridTemplateRows, rowsValue.release(), important);
+        addProperty(CSSPropertyWebkitGridTemplateAreas, CSSValuePool::singleton().createIdentifierValue(CSSValueNone), important);
+        return true;
     }
 
 
-    // 3- [<track-list> /]? [<line-names>? <string> [<track-size> <line-names>]? ]+ syntax.
-    // The template-columns <track-list> can't be 'none'.
-    if (firstValueIsNone)
-        return false;
+    // 3- [<line-names>? <string> <track-size>? <line-names>? ]+ syntax.
     // It requires to rewind parsing due to previous syntax failures.
-    m_valueList->setCurrentIndex(index);
-    return parseGridTemplateRowsAndAreas(columnsValue, important);
+    m_valueList->setCurrentIndex(0);
+    return parseGridTemplateRowsAndAreasAndColumns(important);
 }
 
 bool CSSParser::parseGridShorthand(bool important)
@@ -5691,14 +5724,14 @@ bool CSSParser::parseGridShorthand(bool important)
     RefPtr<CSSValue> autoRowsValue;
 
     if (m_valueList->current()) {
-        autoColumnsValue = parseGridTrackSize(*m_valueList);
-        if (!autoColumnsValue)
+        autoRowsValue = parseGridTrackSize(*m_valueList);
+        if (!autoRowsValue)
             return false;
         if (m_valueList->current()) {
             if (!isForwardSlashOperator(*m_valueList->current()) || !m_valueList->next())
                 return false;
-            autoRowsValue = parseGridTrackSize(*m_valueList);
-            if (!autoRowsValue)
+            autoColumnsValue = parseGridTrackSize(*m_valueList);
+            if (!autoColumnsValue)
                 return false;
         }
         if (m_valueList->current())
@@ -5710,8 +5743,8 @@ bool CSSParser::parseGridShorthand(bool important)
     }
 
     // if <grid-auto-rows> value is omitted, it is set to the value specified for grid-auto-columns.
-    if (!autoRowsValue)
-        autoRowsValue = autoColumnsValue;
+    if (!autoColumnsValue)
+        autoColumnsValue = autoRowsValue;
 
     addProperty(CSSPropertyWebkitGridAutoColumns, autoColumnsValue.release(), important);
     addProperty(CSSPropertyWebkitGridAutoRows, autoRowsValue.release(), important);
@@ -5808,6 +5841,28 @@ bool CSSParser::parseGridLineNames(CSSParserValueList& inputList, CSSValueList& 
     return true;
 }
 
+static bool allTracksAreFixedSized(CSSValueList& valueList)
+{
+    for (auto& value : valueList) {
+        if (is<CSSGridLineNamesValue>(value))
+            continue;
+        // The auto-repeat value holds a <fixed-size> = <fixed-breadth> | minmax( <fixed-breadth>, <track-breadth> )
+        if (is<CSSGridAutoRepeatValue>(value)) {
+            if (!allTracksAreFixedSized(downcast<CSSValueList>(value.get())))
+                return false;
+            continue;
+        }
+        ASSERT(value->isPrimitiveValue() || (value->isFunctionValue() && downcast<CSSFunctionValue>(value.get()).arguments()));
+        const CSSPrimitiveValue& primitiveValue = value->isPrimitiveValue()
+            ? downcast<CSSPrimitiveValue>(value.get())
+            : downcast<CSSPrimitiveValue>(*downcast<CSSFunctionValue>(value.get()).arguments()->item(0));
+        CSSValueID valueID = primitiveValue.getValueID();
+        if (valueID == CSSValueWebkitMinContent || valueID == CSSValueWebkitMaxContent || valueID == CSSValueAuto || primitiveValue.isFlex())
+            return false;
+    }
+    return true;
+}
+
 RefPtr<CSSValue> CSSParser::parseGridTrackList()
 {
     CSSParserValue* value = m_valueList->current();
@@ -5823,14 +5878,19 @@ RefPtr<CSSValue> CSSParser::parseGridTrackList()
         parseGridLineNames(*m_valueList, *values);
 
     bool seenTrackSizeOrRepeatFunction = false;
+    bool seenAutoRepeat = false;
     while (CSSParserValue* currentValue = m_valueList->current()) {
         if (isForwardSlashOperator(*currentValue))
             break;
         if (currentValue->unit == CSSParserValue::Function && equalLettersIgnoringASCIICase(currentValue->function->name, "repeat(")) {
-            if (!parseGridTrackRepeatFunction(*values))
+            bool isAutoRepeat;
+            if (!parseGridTrackRepeatFunction(*values, isAutoRepeat))
                 return nullptr;
+            if (isAutoRepeat && seenAutoRepeat)
+                return nullptr;
+            seenAutoRepeat = seenAutoRepeat || isAutoRepeat;
         } else {
-            RefPtr<CSSValue> value = parseGridTrackSize(*m_valueList);
+            RefPtr<CSSValue> value = parseGridTrackSize(*m_valueList, seenAutoRepeat ? FixedSizeOnly : AllowAll);
             if (!value)
                 return nullptr;
             values->append(value.releaseNonNull());
@@ -5846,24 +5906,33 @@ RefPtr<CSSValue> CSSParser::parseGridTrackList()
     if (!seenTrackSizeOrRepeatFunction)
         return nullptr;
 
+    // <auto-repeat> requires definite minimum track sizes in order to compute the number of repetitions.
+    // The above while loop detects those appearances after the <auto-repeat> but not the ones before.
+    if (seenAutoRepeat && !allTracksAreFixedSized(*values))
+        return nullptr;
+
     return values;
 }
 
-bool CSSParser::parseGridTrackRepeatFunction(CSSValueList& list)
+bool CSSParser::parseGridTrackRepeatFunction(CSSValueList& list, bool& isAutoRepeat)
 {
     CSSParserValueList* arguments = m_valueList->current()->function->args.get();
-    if (!arguments || arguments->size() < 3)
+    if (!arguments || arguments->size() < 3 || !isComma(arguments->valueAt(1)))
         return false;
 
     ValueWithCalculation firstValueWithCalculation(*arguments->valueAt(0));
-    if (!validateUnit(firstValueWithCalculation, FPositiveInteger) || !isComma(arguments->valueAt(1)))
+    CSSValueID firstValueID = firstValueWithCalculation.value().id;
+    isAutoRepeat = firstValueID == CSSValueAutoFill || firstValueID == CSSValueAutoFit;
+    if (!isAutoRepeat && !validateUnit(firstValueWithCalculation, FPositiveInteger))
         return false;
 
     // If arguments->valueAt(0)->fValue > SIZE_MAX then repetitions becomes 0 during the type casting, that's why we
     // clamp it down to kGridMaxTracks before the type casting.
-    unsigned repetitions = clampTo<unsigned>(parsedDouble(firstValueWithCalculation), 0, kGridMaxTracks);
+    // The number of repetitions for <auto-repeat> is not important at parsing level
+    // because it will be computed later, let's set it to 1.
+    unsigned repetitions = isAutoRepeat ? 1 : clampTo<unsigned>(parsedDouble(firstValueWithCalculation), 0, kGridMaxTracks);
 
-    RefPtr<CSSValueList> repeatedValues = CSSValueList::createSpaceSeparated();
+    RefPtr<CSSValueList> repeatedValues = isAutoRepeat ? CSSGridAutoRepeatValue::create(firstValueID).get() : CSSValueList::createSpaceSeparated();
     arguments->next(); // Skip the repetition count.
     arguments->next(); // Skip the comma.
 
@@ -5873,8 +5942,12 @@ bool CSSParser::parseGridTrackRepeatFunction(CSSValueList& list)
         parseGridLineNames(*arguments, *repeatedValues);
 
     unsigned numberOfTracks = 0;
+    TrackSizeRestriction restriction = isAutoRepeat ? FixedSizeOnly : AllowAll;
     while (arguments->current()) {
-        RefPtr<CSSValue> trackSize = parseGridTrackSize(*arguments);
+        if (isAutoRepeat && numberOfTracks)
+            return false;
+
+        RefPtr<CSSValue> trackSize = parseGridTrackSize(*arguments, restriction);
         if (!trackSize)
             return false;
 
@@ -5904,7 +5977,7 @@ bool CSSParser::parseGridTrackRepeatFunction(CSSValueList& list)
     return true;
 }
 
-RefPtr<CSSValue> CSSParser::parseGridTrackSize(CSSParserValueList& inputList)
+RefPtr<CSSValue> CSSParser::parseGridTrackSize(CSSParserValueList& inputList, TrackSizeRestriction restriction)
 {
     CSSParserValue& currentValue = *inputList.current();
     inputList.next();
@@ -5918,7 +5991,7 @@ RefPtr<CSSValue> CSSParser::parseGridTrackSize(CSSParserValueList& inputList)
         if (!arguments || arguments->size() != 3 || !isComma(arguments->valueAt(1)))
             return nullptr;
 
-        RefPtr<CSSPrimitiveValue> minTrackBreadth = parseGridBreadth(*arguments->valueAt(0));
+        RefPtr<CSSPrimitiveValue> minTrackBreadth = parseGridBreadth(*arguments->valueAt(0), restriction);
         if (!minTrackBreadth)
             return nullptr;
 
@@ -5932,15 +6005,21 @@ RefPtr<CSSValue> CSSParser::parseGridTrackSize(CSSParserValueList& inputList)
         return CSSFunctionValue::create("minmax(", parsedArguments);
     }
 
-    return parseGridBreadth(currentValue);
+    return parseGridBreadth(currentValue, restriction);
 }
 
-RefPtr<CSSPrimitiveValue> CSSParser::parseGridBreadth(CSSParserValue& value)
+RefPtr<CSSPrimitiveValue> CSSParser::parseGridBreadth(CSSParserValue& value, TrackSizeRestriction restriction)
 {
-    if (value.id == CSSValueWebkitMinContent || value.id == CSSValueWebkitMaxContent || value.id == CSSValueAuto)
+    if (value.id == CSSValueWebkitMinContent || value.id == CSSValueWebkitMaxContent || value.id == CSSValueAuto) {
+        if (restriction == FixedSizeOnly)
+            return nullptr;
         return CSSValuePool::singleton().createIdentifierValue(value.id);
+    }
 
     if (value.unit == CSSPrimitiveValue::CSS_FR) {
+        if (restriction == FixedSizeOnly)
+            return nullptr;
+
         double flexValue = value.fValue;
 
         // Fractional unit is a non-negative dimension.
@@ -6217,24 +6296,24 @@ bool CSSParser::parseGridTemplateAreasRow(NamedGridAreaMap& gridAreaMap, const u
 
         auto gridAreaIterator = gridAreaMap.find(gridAreaName);
         if (gridAreaIterator == gridAreaMap.end())
-            gridAreaMap.add(gridAreaName, GridCoordinate(GridSpan(rowCount, rowCount + 1), GridSpan(currentColumn, lookAheadColumn)));
+            gridAreaMap.add(gridAreaName, GridArea(GridSpan::translatedDefiniteGridSpan(rowCount, rowCount + 1), GridSpan::translatedDefiniteGridSpan(currentColumn, lookAheadColumn)));
         else {
-            GridCoordinate& gridCoordinate = gridAreaIterator->value;
+            GridArea& gridArea = gridAreaIterator->value;
 
             // The following checks test that the grid area is a single filled-in rectangle.
             // 1. The new row is adjacent to the previously parsed row.
-            if (rowCount != gridCoordinate.rows.resolvedFinalPosition.toInt())
+            if (rowCount != gridArea.rows.endLine())
                 return false;
 
             // 2. The new area starts at the same position as the previously parsed area.
-            if (currentColumn != gridCoordinate.columns.resolvedInitialPosition.toInt())
+            if (currentColumn != gridArea.columns.startLine())
                 return false;
 
             // 3. The new area ends at the same position as the previously parsed area.
-            if (lookAheadColumn != gridCoordinate.columns.resolvedFinalPosition.toInt())
+            if (lookAheadColumn != gridArea.columns.endLine())
                 return false;
 
-            ++gridCoordinate.rows.resolvedFinalPosition;
+            gridArea.rows = GridSpan::translatedDefiniteGridSpan(gridArea.rows.startLine(), gridArea.rows.endLine() + 1);
         }
         currentColumn = lookAheadColumn - 1;
     }
@@ -6530,12 +6609,12 @@ RefPtr<CSSBasicShape> CSSParser::parseBasicShapeCircle(CSSParserValueList& args)
         }
 
         if (argument->id == CSSValueAt && args.next()) {
-            RefPtr<CSSValue> centerX;
-            RefPtr<CSSValue> centerY;
+            RefPtr<CSSPrimitiveValue> centerX;
+            RefPtr<CSSPrimitiveValue> centerY;
             parseFillPosition(args, centerX, centerY);
             if (centerX && centerY && !args.current()) {
-                shape->setCenterX(downcast<CSSPrimitiveValue>(centerX.get()));
-                shape->setCenterY(downcast<CSSPrimitiveValue>(centerY.get()));
+                shape->setCenterX(centerX);
+                shape->setCenterY(centerY);
             } else
                 return nullptr;
         } else
@@ -6577,14 +6656,14 @@ RefPtr<CSSBasicShape> CSSParser::parseBasicShapeEllipse(CSSParserValueList& args
         if (argument->id != CSSValueAt || !args.next()) // expecting ellipse(.. at <position>)
             return nullptr;
 
-        RefPtr<CSSValue> centerX;
-        RefPtr<CSSValue> centerY;
+        RefPtr<CSSPrimitiveValue> centerX;
+        RefPtr<CSSPrimitiveValue> centerY;
         parseFillPosition(args, centerX, centerY);
         if (!centerX || !centerY || args.current())
             return nullptr;
 
-        shape->setCenterX(downcast<CSSPrimitiveValue>(centerX.get()));
-        shape->setCenterY(downcast<CSSPrimitiveValue>(centerY.get()));
+        shape->setCenterX(centerX);
+        shape->setCenterY(centerY);
     }
 
     return shape;
@@ -8965,8 +9044,8 @@ bool CSSParser::parseDeprecatedRadialGradient(CSSParserValueList& valueList, Ref
     bool expectComma = false;
 
     // Optional background-position
-    RefPtr<CSSValue> centerX;
-    RefPtr<CSSValue> centerY;
+    RefPtr<CSSPrimitiveValue> centerX;
+    RefPtr<CSSPrimitiveValue> centerY;
     // parse2ValuesFillPosition advances the args next pointer.
     parse2ValuesFillPosition(*args, centerX, centerY);
     argument = args->current();
@@ -8983,11 +9062,11 @@ bool CSSParser::parseDeprecatedRadialGradient(CSSParserValueList& valueList, Ref
             return false;
     }
 
-    result->setFirstX(downcast<CSSPrimitiveValue>(centerX.get()));
-    result->setSecondX(downcast<CSSPrimitiveValue>(centerX.get()));
+    result->setFirstX(centerX);
+    result->setSecondX(centerX);
     // CSS3 radial gradients always share the same start and end point.
-    result->setFirstY(downcast<CSSPrimitiveValue>(centerY.get()));
-    result->setSecondY(downcast<CSSPrimitiveValue>(centerY.get()));
+    result->setFirstY(centerY);
+    result->setSecondY(centerY);
 
     RefPtr<CSSPrimitiveValue> shapeValue;
     RefPtr<CSSPrimitiveValue> sizeValue;
@@ -9236,8 +9315,8 @@ bool CSSParser::parseRadialGradient(CSSParserValueList& valueList, RefPtr<CSSVal
 
     // Second part of grammar, the center-position clause:
     // at <position>
-    RefPtr<CSSValue> centerX;
-    RefPtr<CSSValue> centerY;
+    RefPtr<CSSPrimitiveValue> centerX;
+    RefPtr<CSSPrimitiveValue> centerY;
     if (argument->unit == CSSPrimitiveValue::CSS_IDENT && equalLettersIgnoringASCIICase(*argument, "at")) {
         argument = args->next();
         if (!argument)
@@ -9251,11 +9330,11 @@ bool CSSParser::parseRadialGradient(CSSParserValueList& valueList, RefPtr<CSSVal
         if (!argument)
             return false;
 
-        result->setFirstX(downcast<CSSPrimitiveValue>(centerX.get()));
-        result->setFirstY(downcast<CSSPrimitiveValue>(centerY.get()));
+        result->setFirstX(centerX);
+        result->setFirstY(centerY);
         // Right now, CSS radial gradients have the same start and end centers.
-        result->setSecondX(downcast<CSSPrimitiveValue>(centerX.get()));
-        result->setSecondY(downcast<CSSPrimitiveValue>(centerY.get()));
+        result->setSecondX(centerX);
+        result->setSecondY(centerY);
     }
 
     if (shapeValue || sizeValue || horizontalSize || centerX || centerY)
@@ -10199,7 +10278,7 @@ bool CSSParser::parseRegionThread(CSSPropertyID propId, bool important)
 }
 #endif
 
-bool CSSParser::parseTransformOrigin(CSSPropertyID propId, CSSPropertyID& propId1, CSSPropertyID& propId2, CSSPropertyID& propId3, RefPtr<CSSValue>& value, RefPtr<CSSValue>& value2, RefPtr<CSSValue>& value3)
+bool CSSParser::parseTransformOrigin(CSSPropertyID propId, CSSPropertyID& propId1, CSSPropertyID& propId2, CSSPropertyID& propId3, RefPtr<CSSPrimitiveValue>& value, RefPtr<CSSPrimitiveValue>& value2, RefPtr<CSSValue>& value3)
 {
     propId1 = propId;
     propId2 = propId;
@@ -10244,7 +10323,7 @@ bool CSSParser::parseTransformOrigin(CSSPropertyID propId, CSSPropertyID& propId
     return value;
 }
 
-bool CSSParser::parsePerspectiveOrigin(CSSPropertyID propId, CSSPropertyID& propId1, CSSPropertyID& propId2, RefPtr<CSSValue>& value, RefPtr<CSSValue>& value2)
+bool CSSParser::parsePerspectiveOrigin(CSSPropertyID propId, CSSPropertyID& propId1, CSSPropertyID& propId2, RefPtr<CSSPrimitiveValue>& value, RefPtr<CSSPrimitiveValue>& value2)
 {
     propId1 = propId;
     propId2 = propId;
@@ -11865,6 +11944,12 @@ inline bool CSSParser::detectFunctionTypeToken(int length)
             return true;
         }
 #endif
+#if ENABLE(SHADOW_DOM)
+        if (isEqualToCSSIdentifier(name, "host")) {
+            m_token = HOSTFUNCTION;
+            return true;
+        }
+#endif
         return false;
 
     case 7:
@@ -11872,6 +11957,12 @@ inline bool CSSParser::detectFunctionTypeToken(int length)
             m_token = MATCHESFUNCTION;
             return true;
         }
+#if ENABLE(SHADOW_DOM)
+        if (isEqualToCSSIdentifier(name, "slotted")) {
+            m_token = SLOTTEDFUNCTION;
+            return true;
+        }
+#endif
         return false;
 
     case 9:

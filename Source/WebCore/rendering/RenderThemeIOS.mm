@@ -27,20 +27,25 @@
 
 #if PLATFORM(IOS)
 
+#import "BitmapImage.h"
 #import "CSSPrimitiveValue.h"
 #import "CSSToLengthConversionData.h"
 #import "CSSValueKeywords.h"
 #import "CoreTextSPI.h"
 #import "DateComponents.h"
 #import "Document.h"
+#import "File.h"
 #import "FloatRoundedRect.h"
 #import "FontCache.h"
 #import "FontCascade.h"
 #import "Frame.h"
+#import "FrameSelection.h"
 #import "FrameView.h"
+#import "GeometryUtilities.h"
 #import "Gradient.h"
 #import "GraphicsContext.h"
 #import "GraphicsContextCG.h"
+#import "HTMLAttachmentElement.h"
 #import "HTMLInputElement.h"
 #import "HTMLNames.h"
 #import "HTMLSelectElement.h"
@@ -49,7 +54,9 @@
 #import "NodeRenderStyle.h"
 #import "Page.h"
 #import "PaintInfo.h"
+#import "PathUtilities.h"
 #import "PlatformLocale.h"
+#import "RenderAttachment.h"
 #import "RenderObject.h"
 #import "RenderProgress.h"
 #import "RenderStyle.h"
@@ -57,6 +64,7 @@
 #import "RenderView.h"
 #import "SoftLinking.h"
 #import "UIKitSPI.h"
+#import "UTIUtilities.h"
 #import "UserAgentScripts.h"
 #import "UserAgentStyleSheets.h"
 #import "WebCoreThreadRun.h"
@@ -66,9 +74,14 @@
 #import <wtf/RefPtr.h>
 #import <wtf/StdLibExtras.h>
 
+SOFT_LINK_FRAMEWORK(MobileCoreServices)
+SOFT_LINK_CLASS(MobileCoreServices, LSDocumentProxy)
+
 SOFT_LINK_FRAMEWORK(UIKit)
 SOFT_LINK_CLASS(UIKit, UIApplication)
 SOFT_LINK_CLASS(UIKit, UIColor)
+SOFT_LINK_CLASS(UIKit, UIDocumentInteractionController)
+SOFT_LINK_CLASS(UIKit, UIImage)
 SOFT_LINK_CONSTANT(UIKit, UIContentSizeCategoryDidChangeNotification, CFStringRef)
 #define UIContentSizeCategoryDidChangeNotification getUIContentSizeCategoryDidChangeNotification()
 
@@ -79,6 +92,8 @@ SOFT_LINK_CONSTANT(UIKit, UIContentSizeCategoryDidChangeNotification, CFStringRe
 @end
 
 namespace WebCore {
+
+using namespace HTMLNames;
 
 const float ControlBaseHeight = 20;
 const float ControlBaseFontSize = 11;
@@ -513,11 +528,11 @@ const float MenuListArrowWidth = 7;
 const float MenuListArrowHeight = 6;
 const float MenuListButtonPaddingRight = 19;
 
-int RenderThemeIOS::popupInternalPaddingRight(RenderStyle& style) const
+LengthBox RenderThemeIOS::popupInternalPaddingBox(const RenderStyle& style) const
 {
     if (style.appearance() == MenulistButtonPart)
-        return MenuListButtonPaddingRight + style.borderTopWidth();
-    return 0;
+        return { 0, static_cast<int>(MenuListButtonPaddingRight + style.borderTopWidth()), 0, 0 };
+    return { 0, 0, 0, 0 };
 }
 
 void RenderThemeIOS::adjustRoundBorderRadius(RenderStyle& style, RenderBox& box)
@@ -550,20 +565,18 @@ static void adjustSelectListButtonStyle(RenderStyle& style, Element& element)
     
 class RenderThemeMeasureTextClient : public MeasureTextClient {
 public:
-    RenderThemeMeasureTextClient(const FontCascade& font, RenderObject& renderObject, const RenderStyle& style)
+    RenderThemeMeasureTextClient(const FontCascade& font, const RenderStyle& style)
         : m_font(font)
-        , m_renderObject(renderObject)
         , m_style(style)
     {
     }
-    virtual float measureText(const String& string) const override
+    float measureText(const String& string) const override
     {
-        TextRun run = RenderBlock::constructTextRun(&m_renderObject, m_font, string, m_style, AllowTrailingExpansion | ForbidLeadingExpansion, DefaultTextRunFlags);
+        TextRun run = RenderBlock::constructTextRun(string, m_style, AllowTrailingExpansion | ForbidLeadingExpansion, DefaultTextRunFlags);
         return m_font.width(run);
     }
 private:
     const FontCascade& m_font;
-    RenderObject& m_renderObject;
     const RenderStyle& m_style;
 };
 
@@ -584,11 +597,7 @@ static void adjustInputElementButtonStyle(RenderStyle& style, HTMLInputElement& 
     // Enforce the width and set the box-sizing to content-box to not conflict with the padding.
     FontCascade font = style.fontCascade();
     
-    RenderObject* renderer = inputElement.renderer();
-    if (font.primaryFont().isSVGFont() && !renderer)
-        return;
-    
-    float maximumWidth = localizedDateCache().maximumWidthForDateType(dateType, font, RenderThemeMeasureTextClient(font, *renderer, style));
+    float maximumWidth = localizedDateCache().maximumWidthForDateType(dateType, font, RenderThemeMeasureTextClient(font, style));
 
     ASSERT(maximumWidth >= 0);
 
@@ -1321,6 +1330,351 @@ Color RenderThemeIOS::systemColor(CSSValueID cssValueID) const
     return addResult.iterator->value;
 }
 
+#if ENABLE(ATTACHMENT_ELEMENT)
+
+const CGSize attachmentSize = { 160, 119 };
+
+const CGFloat attachmentBorderRadius = 16;
+static Color attachmentBorderColor() { return Color(204, 204, 204); }
+
+static Color attachmentProgressColor() { return Color(222, 222, 222); }
+const CGFloat attachmentProgressBorderThickness = 3;
+
+const CGFloat attachmentProgressSize = 36;
+const CGFloat attachmentIconSize = 48;
+
+const CGFloat attachmentItemMargin = 8;
+
+const CGFloat attachmentTitleMaximumWidth = 140;
+const CFIndex attachmentTitleMaximumLineCount = 2;
+
+static RetainPtr<CTFontRef> attachmentActionFont()
+{
+    RetainPtr<CTFontDescriptorRef> fontDescriptor = adoptCF(CTFontDescriptorCreateWithTextStyle(kCTUIFontTextStyleShortFootnote, RenderThemeIOS::contentSizeCategory(), 0));
+    RetainPtr<CTFontDescriptorRef> emphasizedFontDescriptor = adoptCF(CTFontDescriptorCreateCopyWithAttributes(fontDescriptor.get(),
+        (CFDictionaryRef)@{
+            (id)kCTFontDescriptorTextStyleAttribute: (id)kCTFontDescriptorTextStyleEmphasized
+    }));
+    return adoptCF(CTFontCreateWithFontDescriptor(emphasizedFontDescriptor.get(), 0, nullptr));
 }
+
+static UIColor *attachmentActionColor(const RenderAttachment& attachment)
+{
+    return [getUIColorClass() colorWithCGColor:cachedCGColor(attachment.style().visitedDependentColor(CSSPropertyColor))];
+}
+
+static RetainPtr<CTFontRef> attachmentTitleFont()
+{
+    RetainPtr<CTFontDescriptorRef> fontDescriptor = adoptCF(CTFontDescriptorCreateWithTextStyle(kCTUIFontTextStyleShortCaption1, RenderThemeIOS::contentSizeCategory(), 0));
+    return adoptCF(CTFontCreateWithFontDescriptor(fontDescriptor.get(), 0, nullptr));
+}
+
+static UIColor *attachmentTitleColor() { return [getUIColorClass() systemGrayColor]; }
+
+static RetainPtr<CTFontRef> attachmentSubtitleFont() { return attachmentTitleFont(); }
+static UIColor *attachmentSubtitleColor() { return [getUIColorClass() systemGrayColor]; }
+
+struct AttachmentInfo {
+    explicit AttachmentInfo(const RenderAttachment&);
+
+    FloatRect iconRect;
+    FloatRect attachmentRect;
+    FloatRect progressRect;
+
+    BOOL hasProgress { NO };
+    float progress;
+
+    RetainPtr<UIImage> icon;
+
+    int baseline { 0 };
+
+    struct LabelLine {
+        FloatRect rect;
+        RetainPtr<CTLineRef> line;
+    };
+    Vector<LabelLine> lines;
+
+    CGFloat contentYOrigin { 0 };
+
+private:
+    void buildTitleLines(const RenderAttachment&);
+    void buildSingleLine(const String&, CTFontRef, UIColor *);
+
+    void addLine(CTLineRef);
+};
+
+void AttachmentInfo::addLine(CTLineRef line)
+{
+    CGRect lineBounds = CTLineGetBoundsWithOptions(line, kCTLineBoundsExcludeTypographicLeading);
+    CGFloat trailingWhitespaceWidth = CTLineGetTrailingWhitespaceWidth(line);
+    CGFloat lineWidthIgnoringTrailingWhitespace = lineBounds.size.width - trailingWhitespaceWidth;
+    CGFloat lineHeight = CGCeiling(lineBounds.size.height + lineBounds.origin.y);
+
+    CGFloat xOffset = (attachmentRect.width() / 2) - (lineWidthIgnoringTrailingWhitespace / 2);
+    LabelLine labelLine;
+    labelLine.line = line;
+    labelLine.rect = FloatRect(xOffset, 0, lineWidthIgnoringTrailingWhitespace, lineHeight);
+
+    lines.append(labelLine);
+}
+
+void AttachmentInfo::buildTitleLines(const RenderAttachment& attachment)
+{
+    RetainPtr<CTFontRef> font = attachmentTitleFont();
+
+    String title = attachment.attachmentElement().attachmentTitle();
+    if (title.isEmpty())
+        return;
+
+    NSDictionary *textAttributes = @{
+        (id)kCTFontAttributeName: (id)font.get(),
+        (id)kCTForegroundColorAttributeName: attachmentTitleColor()
+    };
+    RetainPtr<NSAttributedString> attributedTitle = adoptNS([[NSAttributedString alloc] initWithString:title attributes:textAttributes]);
+    RetainPtr<CTFramesetterRef> titleFramesetter = adoptCF(CTFramesetterCreateWithAttributedString((CFAttributedStringRef)attributedTitle.get()));
+
+    CFRange fitRange;
+    CGSize titleTextSize = CTFramesetterSuggestFrameSizeWithConstraints(titleFramesetter.get(), CFRangeMake(0, 0), nullptr, CGSizeMake(attachmentTitleMaximumWidth, CGFLOAT_MAX), &fitRange);
+
+    RetainPtr<CGPathRef> titlePath = adoptCF(CGPathCreateWithRect(CGRectMake(0, 0, titleTextSize.width, titleTextSize.height), nullptr));
+    RetainPtr<CTFrameRef> titleFrame = adoptCF(CTFramesetterCreateFrame(titleFramesetter.get(), fitRange, titlePath.get(), nullptr));
+
+    CFArrayRef ctLines = CTFrameGetLines(titleFrame.get());
+    CFIndex lineCount = CFArrayGetCount(ctLines);
+    if (!lineCount)
+        return;
+
+    // Lay out and record the first (attachmentTitleMaximumLineCount - 1) lines.
+    CFIndex lineIndex = 0;
+    for (; lineIndex < std::min(attachmentTitleMaximumLineCount - 1, lineCount); ++lineIndex) {
+        CTLineRef line = (CTLineRef)CFArrayGetValueAtIndex(ctLines, lineIndex);
+        addLine(line);
+    }
+
+    if (lineIndex == lineCount)
+        return;
+
+    // We had text that didn't fit in the first (attachmentTitleMaximumLineCount - 1) lines.
+    // Combine it into one last line, and center-truncate it.
+    CTLineRef firstRemainingLine = (CTLineRef)CFArrayGetValueAtIndex(ctLines, lineIndex);
+    CFIndex remainingRangeStart = CTLineGetStringRange(firstRemainingLine).location;
+    NSRange remainingRange = NSMakeRange(remainingRangeStart, [attributedTitle length] - remainingRangeStart);
+    NSAttributedString *remainingString = [attributedTitle attributedSubstringFromRange:remainingRange];
+    RetainPtr<CTLineRef> remainingLine = adoptCF(CTLineCreateWithAttributedString((CFAttributedStringRef)remainingString));
+    RetainPtr<NSAttributedString> ellipsisString = adoptNS([[NSAttributedString alloc] initWithString:@"\u2026" attributes:textAttributes]);
+    RetainPtr<CTLineRef> ellipsisLine = adoptCF(CTLineCreateWithAttributedString((CFAttributedStringRef)ellipsisString.get()));
+    RetainPtr<CTLineRef> truncatedLine = adoptCF(CTLineCreateTruncatedLine(remainingLine.get(), attachmentTitleMaximumWidth, kCTLineTruncationMiddle, ellipsisLine.get()));
+
+    if (!truncatedLine)
+        truncatedLine = remainingLine;
+
+    addLine(truncatedLine.get());
+}
+
+void AttachmentInfo::buildSingleLine(const String& text, CTFontRef font, UIColor *color)
+{
+    if (text.isEmpty())
+        return;
+
+    NSDictionary *textAttributes = @{
+        (id)kCTFontAttributeName: (id)font,
+        (id)kCTForegroundColorAttributeName: color
+    };
+    RetainPtr<NSAttributedString> attributedText = adoptNS([[NSAttributedString alloc] initWithString:text attributes:textAttributes]);
+
+    addLine(adoptCF(CTLineCreateWithAttributedString((CFAttributedStringRef)attributedText.get())).get());
+}
+
+static BOOL getAttachmentProgress(const RenderAttachment& attachment, float& progress)
+{
+    String progressString = attachment.attachmentElement().fastGetAttribute(progressAttr);
+    if (progressString.isEmpty())
+        return NO;
+    bool validProgress;
+    progress = std::max<float>(std::min<float>(progressString.toFloat(&validProgress), 1), 0);
+    return validProgress;
+}
+
+static RetainPtr<UIImage> iconForAttachment(const RenderAttachment& attachment, FloatSize& size)
+{
+    String MIMEType = attachment.attachmentElement().attachmentType();
+
+    String fileName;
+    if (File* file = attachment.attachmentElement().file())
+        fileName = file->name();
+
+    if (fileName.isEmpty())
+        fileName = attachment.attachmentElement().attachmentTitle();
+
+    RetainPtr<UIImage> result;
+
+    RetainPtr<UIDocumentInteractionController> documentInteractionController = adoptNS([[getUIDocumentInteractionControllerClass() alloc] init]);
+    [documentInteractionController setName:fileName];
+    [documentInteractionController setUTI:static_cast<NSString *>(mimeTypeFromUTITree(MIMEType.createCFString().get()).get())];
+
+    NSArray *icons = [documentInteractionController icons];
+    if (!icons.count)
+        return nil;
+
+    result = icons.lastObject;
+
+    BOOL useHeightForClosestMatch = [result size].height > [result size].width;
+    CGFloat bestMatchRatio = -1;
+
+    for (UIImage *icon in icons) {
+        CGFloat iconSize = useHeightForClosestMatch ? icon.size.height : icon.size.width;
+
+        CGFloat matchRatio = (attachmentIconSize / iconSize) - 1.0f;
+        if (matchRatio < 0.3f) {
+            matchRatio = CGFAbs(matchRatio);
+            if ((bestMatchRatio == -1) || (matchRatio < bestMatchRatio)) {
+                result = icon;
+                bestMatchRatio = matchRatio;
+            }
+        }
+    }
+
+    CGFloat iconAspect = [result size].width / [result size].height;
+    size = largestRectWithAspectRatioInsideRect(iconAspect, FloatRect(0, 0, attachmentIconSize, attachmentIconSize)).size();
+
+    return result;
+}
+
+AttachmentInfo::AttachmentInfo(const RenderAttachment& attachment)
+{
+    attachmentRect = FloatRect(0, 0, attachmentSize.width, attachmentSize.height);
+
+    hasProgress = getAttachmentProgress(attachment, progress);
+
+    String action = attachment.attachmentElement().fastGetAttribute(actionAttr);
+    String subtitle = attachment.attachmentElement().fastGetAttribute(subtitleAttr);
+
+    CGFloat yOffset = 0;
+
+    if (hasProgress) {
+        progressRect = FloatRect((attachmentRect.width() / 2) - (attachmentProgressSize / 2), 0, attachmentProgressSize, attachmentProgressSize);
+        yOffset += attachmentProgressSize + attachmentItemMargin;
+    }
+
+    if (action.isEmpty() && !hasProgress) {
+        FloatSize iconSize;
+        icon = iconForAttachment(attachment, iconSize);
+        if (icon) {
+            iconRect = FloatRect(FloatPoint((attachmentRect.width() / 2) - (iconSize.width() / 2), 0), iconSize);
+            yOffset += iconRect.height() + attachmentItemMargin;
+        }
+    } else
+        buildSingleLine(action, attachmentActionFont().get(), attachmentActionColor(attachment));
+
+    buildTitleLines(attachment);
+    buildSingleLine(subtitle, attachmentSubtitleFont().get(), attachmentSubtitleColor());
+
+    if (!lines.isEmpty()) {
+        for (auto& line : lines) {
+            line.rect.setY(yOffset);
+            yOffset += line.rect.height() + attachmentItemMargin;
+        }
+    }
+
+    yOffset -= attachmentItemMargin;
+
+    contentYOrigin = (attachmentRect.height() / 2) - (yOffset / 2);
+}
+
+LayoutSize RenderThemeIOS::attachmentIntrinsicSize(const RenderAttachment&) const
+{
+    return LayoutSize(FloatSize(attachmentSize));
+}
+
+int RenderThemeIOS::attachmentBaseline(const RenderAttachment& attachment) const
+{
+    AttachmentInfo info(attachment);
+    return info.baseline;
+}
+
+static void paintAttachmentIcon(GraphicsContext& context, AttachmentInfo& info)
+{
+    if (!info.icon)
+        return;
+
+    RefPtr<Image> iconImage = BitmapImage::create([info.icon CGImage]);
+    if (!iconImage)
+        return;
+
+    context.drawImage(*iconImage, info.iconRect);
+}
+
+static void paintAttachmentText(GraphicsContext& context, AttachmentInfo& info)
+{
+    for (const auto& line : info.lines) {
+        GraphicsContextStateSaver saver(context);
+
+        context.translate(toFloatSize(line.rect.minXMaxYCorner()));
+        context.scale(FloatSize(1, -1));
+
+        CGContextSetTextMatrix(context.platformContext(), CGAffineTransformIdentity);
+        CTLineDraw(line.line.get(), context.platformContext());
+    }
+}
+
+static void paintAttachmentProgress(GraphicsContext& context, AttachmentInfo& info)
+{
+    GraphicsContextStateSaver saver(context);
+
+    context.setStrokeThickness(attachmentProgressBorderThickness);
+    context.setStrokeColor(attachmentProgressColor());
+    context.setFillColor(attachmentProgressColor());
+    context.strokeEllipse(info.progressRect);
+
+    FloatPoint center = info.progressRect.center();
+
+    Path progressPath;
+    progressPath.moveTo(center);
+    progressPath.addLineTo(FloatPoint(center.x(), info.progressRect.y()));
+    progressPath.addArc(center, info.progressRect.width() / 2, -M_PI_2, info.progress * 2 * M_PI - M_PI_2, 0);
+    progressPath.closeSubpath();
+    context.fillPath(progressPath);
+}
+
+static void paintAttachmentBorder(GraphicsContext& context, AttachmentInfo& info)
+{
+    Path borderPath;
+    borderPath.addRoundedRect(info.attachmentRect, FloatSize(attachmentBorderRadius, attachmentBorderRadius));
+    context.setStrokeColor(attachmentBorderColor());
+    context.setStrokeThickness(1);
+    context.strokePath(borderPath);
+}
+
+bool RenderThemeIOS::paintAttachment(const RenderObject& renderer, const PaintInfo& paintInfo, const IntRect& paintRect)
+{
+    if (!is<RenderAttachment>(renderer))
+        return false;
+
+    const RenderAttachment& attachment = downcast<RenderAttachment>(renderer);
+
+    AttachmentInfo info(attachment);
+
+    GraphicsContext& context = paintInfo.context();
+    GraphicsContextStateSaver saver(context);
+
+    context.translate(toFloatSize(paintRect.location()));
+
+    paintAttachmentBorder(context, info);
+
+    context.translate(FloatSize(0, info.contentYOrigin));
+
+    if (info.hasProgress)
+        paintAttachmentProgress(context, info);
+    else if (info.icon)
+        paintAttachmentIcon(context, info);
+
+    paintAttachmentText(context, info);
+
+    return true;
+}
+
+#endif // ENABLE(ATTACHMENT_ELEMENT)
+
+} // namespace WebCore
 
 #endif //PLATFORM(IOS)

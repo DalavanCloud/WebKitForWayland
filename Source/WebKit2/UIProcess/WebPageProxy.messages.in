@@ -69,7 +69,7 @@ messages -> WebPageProxy {
     RootViewToAccessibilityScreen(WebCore::IntRect rect) -> (WebCore::IntRect screenFrame)
 #endif
 
-    RunBeforeUnloadConfirmPanel(String message, uint64_t frameID) -> (bool shouldClose)
+    RunBeforeUnloadConfirmPanel(String message, uint64_t frameID) -> (bool shouldClose) Delayed
     PageDidScroll()
     RunOpenPanel(uint64_t frameID, struct WebCore::FileChooserSettings parameters)
     PrintFrame(uint64_t frameID) -> ()
@@ -174,7 +174,7 @@ messages -> WebPageProxy {
     TouchesCallback(WebCore::IntPoint point, uint32_t touches, uint64_t callbackID)
     AutocorrectionDataCallback(Vector<WebCore::FloatRect> textRects, String fontName, double fontSize, uint64_t traits, uint64_t callbackID)
     AutocorrectionContextCallback(String beforeText, String markedText, String selectedText, String afterText, uint64_t location, uint64_t length, uint64_t callbackID)
-    DictationContextCallback(String selectedText, String beforeText, String afterText, uint64_t callbackID)
+    SelectionContextCallback(String selectedText, String beforeText, String afterText, uint64_t callbackID)
     InterpretKeyEvent(struct WebKit::EditorState state, bool isCharEvent) -> (bool handled)
     DidReceivePositionInformation(struct WebKit::InteractionInformationAtPosition information)
     SaveImageToLibrary(WebKit::SharedMemory::Handle handle, uint64_t size)
@@ -264,8 +264,8 @@ messages -> WebPageProxy {
     
 #if ENABLE(MEDIA_STREAM)
     # MediaSteam messages
-    RequestUserMediaPermissionForFrame(uint64_t userMediaID, uint64_t frameID, String originIdentifier, Vector<String> audioDeviceUIDs, Vector<String> videoDeviceUIDs)
-    CheckUserMediaPermissionForFrame(uint64_t userMediaID, uint64_t frameID, String originIdentifier)
+    RequestUserMediaPermissionForFrame(uint64_t userMediaID, uint64_t frameID, String userMediaDocumentOriginIdentifier, String topLevelDocumentOriginIdentifier, Vector<String> audioDeviceUIDs, Vector<String> videoDeviceUIDs)
+    CheckUserMediaPermissionForFrame(uint64_t userMediaID, uint64_t frameID, String userMediaDocumentOriginIdentifier, String topLevelDocumentOriginIdentifier)
 #endif
 
     # Notification messages
@@ -277,17 +277,17 @@ messages -> WebPageProxy {
 
     # Spelling and grammar messages
 #if USE(UNIFIED_TEXT_CHECKING)  
-    CheckTextOfParagraph(String text, uint64_t checkingTypes) -> (Vector<WebCore::TextCheckingResult> results)
+    CheckTextOfParagraph(String text, uint64_t checkingTypes, int32_t insertionPoint) -> (Vector<WebCore::TextCheckingResult> results)
 #endif
     CheckSpellingOfString(String text) -> (int32_t misspellingLocation, int32_t misspellingLength)
     CheckGrammarOfString(String text) -> (Vector<WebCore::GrammarDetail> results, int32_t badGrammarLocation, int32_t badGrammarLength)
     SpellingUIIsShowing() -> (bool isShowing)
     UpdateSpellingUIWithMisspelledWord(String misspelledWord)
     UpdateSpellingUIWithGrammarString(String badGrammarPhrase, struct WebCore::GrammarDetail grammarDetail)
-    GetGuessesForWord(String word, String context) -> (Vector<String> guesses)
+    GetGuessesForWord(String word, String context, int32_t insertionPoint) -> (Vector<String> guesses)
     LearnWord(String word);
     IgnoreWord(String word);
-    RequestCheckingOfString(uint64_t requestID, WebCore::TextCheckingRequestData request)
+    RequestCheckingOfString(uint64_t requestID, WebCore::TextCheckingRequestData request, int32_t insertionPoint)
 
     # Drag and drop messages
 #if ENABLE(DRAG_SUPPORT)
@@ -358,7 +358,7 @@ messages -> WebPageProxy {
 #if PLATFORM(IOS)
     DynamicViewportUpdateChangedTarget(double newTargetScale, WebCore::FloatPoint newScrollPosition, uint64_t dynamicViewportSizeUpdateID)
     CouldNotRestorePageState()
-    RestorePageState(WebCore::FloatRect exposedRect, double scale)
+    RestorePageState(WebCore::FloatPoint scrollPosition, WebCore::FloatPoint scrollOrigin, WebCore::FloatSize obscuredInsetOnSave, double scale)
     RestorePageCenterAndScale(WebCore::FloatPoint unobscuredCenter, double scale)
     DidGetTapHighlightGeometries(uint64_t requestID, WebCore::Color color, Vector<WebCore::FloatQuad> geometries, WebCore::IntSize topLeftRadius, WebCore::IntSize topRightRadius, WebCore::IntSize bottomLeftRadius, WebCore::IntSize bottomRightRadius)
 
@@ -451,4 +451,8 @@ messages -> WebPageProxy {
 #endif
 
     DidRestoreScrollPosition()
+
+#if PLATFORM(MAC)
+    DidHandleAcceptedCandidate()
+#endif
 }

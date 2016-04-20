@@ -24,11 +24,11 @@
 
 #include "ActiveDOMObject.h"
 #include "EventListener.h"
-#include "EventTarget.h"
 #include "FormData.h"
 #include "ResourceResponse.h"
 #include "ScriptWrappable.h"
 #include "ThreadableLoaderClient.h"
+#include "XMLHttpRequestEventTarget.h"
 #include "XMLHttpRequestProgressEventThrottle.h"
 #include <wtf/text/AtomicStringHash.h>
 #include <wtf/text/StringBuilder.h>
@@ -49,7 +49,7 @@ class SharedBuffer;
 class TextResourceDecoder;
 class ThreadableLoader;
 
-class XMLHttpRequest final : public ScriptWrappable, public RefCounted<XMLHttpRequest>, public EventTargetWithInlineData, private ThreadableLoaderClient, public ActiveDOMObject {
+class XMLHttpRequest final : public RefCounted<XMLHttpRequest>, public XMLHttpRequestEventTarget, private ThreadableLoaderClient, public ActiveDOMObject {
     WTF_MAKE_FAST_ALLOCATED;
 public:
     static Ref<XMLHttpRequest> create(ScriptExecutionContext&);
@@ -78,8 +78,8 @@ public:
 
     virtual void didReachTimeout();
 
-    virtual EventTargetInterface eventTargetInterface() const override { return XMLHttpRequestEventTargetInterfaceType; }
-    virtual ScriptExecutionContext* scriptExecutionContext() const override { return ActiveDOMObject::scriptExecutionContext(); }
+    EventTargetInterface eventTargetInterface() const override { return XMLHttpRequestEventTargetInterfaceType; }
+    ScriptExecutionContext* scriptExecutionContext() const override { return ActiveDOMObject::scriptExecutionContext(); }
 
     const URL& url() const { return m_url; }
     String statusText() const;
@@ -154,8 +154,8 @@ private:
     void stop() override;
     const char* activeDOMObjectName() const override;
 
-    virtual void refEventTarget() override { ref(); }
-    virtual void derefEventTarget() override { deref(); }
+    void refEventTarget() override { ref(); }
+    void derefEventTarget() override { deref(); }
 
     Document* document() const;
     SecurityOrigin* securityOrigin() const;
@@ -164,12 +164,12 @@ private:
     bool usesDashboardBackwardCompatibilityMode() const;
 #endif
 
-    virtual void didSendData(unsigned long long bytesSent, unsigned long long totalBytesToBeSent) override;
-    virtual void didReceiveResponse(unsigned long identifier, const ResourceResponse&) override;
-    virtual void didReceiveData(const char* data, int dataLength) override;
-    virtual void didFinishLoading(unsigned long identifier, double finishTime) override;
-    virtual void didFail(const ResourceError&) override;
-    virtual void didFailRedirectCheck() override;
+    void didSendData(unsigned long long bytesSent, unsigned long long totalBytesToBeSent) override;
+    void didReceiveResponse(unsigned long identifier, const ResourceResponse&) override;
+    void didReceiveData(const char* data, int dataLength) override;
+    void didFinishLoading(unsigned long identifier, double finishTime) override;
+    void didFail(const ResourceError&) override;
+    void didFailRedirectCheck() override;
 
     bool responseIsXML() const;
 

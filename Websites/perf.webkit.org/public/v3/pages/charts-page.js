@@ -7,6 +7,7 @@ class ChartsPage extends PageWithHeading {
         this._paneList = [];
         this._paneListChanged = false;
         this._mainDomain = null;
+        this._currentRepositoryId = null;
 
         toolbar.setAddPaneCallback(this.insertPaneAfter.bind(this));
     }
@@ -36,6 +37,13 @@ class ChartsPage extends PageWithHeading {
         return state;
     }
 
+    static createStateForConfigurationList(configurationList, startTime)
+    {
+        console.assert(configurationList instanceof Array);
+        var state = {paneList: configurationList};
+        return state;
+    }
+
     open(state)
     {
         this.toolbar().setNumberOfDaysCallback(this.setNumberOfDaysFromToolbar.bind(this));
@@ -53,6 +61,10 @@ class ChartsPage extends PageWithHeading {
             state['zoom'] = this._mainDomain;
         if (serializedPaneList.length)
             state['paneList'] = serializedPaneList;
+
+        var repository = this._currentRepositoryId;
+        if (repository)
+            state['repository'] = this._currentRepositoryId;
 
         return state;
     }
@@ -72,9 +84,14 @@ class ChartsPage extends PageWithHeading {
 
         this._updateDomainsFromSerializedState(state);
 
+        this._currentRepositoryId = parseInt(state['repository']);
+        var currentRepository = Repository.findById(this._currentRepositoryId);
+
         console.assert(this._paneList.length == paneList.length);
-        for (var i = 0; i < this._paneList.length; i++)
+        for (var i = 0; i < this._paneList.length; i++) {
             this._paneList[i].updateFromSerializedState(state.paneList[i], isOpen);
+            this._paneList[i].setOpenRepository(currentRepository);
+        }
     }
 
     _updateDomainsFromSerializedState(state)
@@ -166,6 +183,14 @@ class ChartsPage extends PageWithHeading {
     {
         if (shouldUpdateState)
             this.scheduleUrlStateUpdate();
+    }
+
+    setOpenRepository(repository)
+    {
+        this._currentRepositoryId = repository ? repository.id() : null;
+        for (var pane of this._paneList)
+            pane.setOpenRepository(repository);
+        this.scheduleUrlStateUpdate();
     }
 
     _updateOverviewDomain()

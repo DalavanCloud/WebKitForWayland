@@ -39,10 +39,11 @@
 #include "DFGSlowPathGenerator.h"
 #include "DFGSpeculativeJIT.h"
 #include "DFGThunks.h"
+#include "JSCInlines.h"
 #include "JSCJSValueInlines.h"
 #include "LinkBuffer.h"
 #include "MaxFrameExtentForSlowPathCall.h"
-#include "JSCInlines.h"
+#include "StructureStubInfo.h"
 #include "VM.h"
 
 namespace JSC { namespace DFG {
@@ -56,6 +57,11 @@ JITCompiler::JITCompiler(Graph& dfg)
 {
     if (shouldDumpDisassembly() || m_graph.m_vm.m_perBytecodeProfiler)
         m_disassembler = std::make_unique<Disassembler>(dfg);
+#if ENABLE(FTL_JIT)
+    m_jitCode->tierUpInLoopHierarchy = WTFMove(m_graph.m_plan.tierUpInLoopHierarchy);
+    for (unsigned tierUpBytecode : m_graph.m_plan.tierUpAndOSREnterBytecodes)
+        m_jitCode->tierUpEntryTriggers.add(tierUpBytecode, 0);
+#endif
 }
 
 JITCompiler::~JITCompiler()
@@ -109,6 +115,14 @@ void JITCompiler::compileSetupRegistersForEntry()
 {
     emitSaveCalleeSaves();
     emitMaterializeTagCheckRegisters();    
+}
+
+void JITCompiler::compileEntryExecutionFlag()
+{
+#if ENABLE(FTL_JIT)
+    if (m_graph.m_plan.canTierUpAndOSREnter())
+        store8(TrustedImm32(0), &m_jitCode->neverExecutedEntry);
+#endif // ENABLE(FTL_JIT)
 }
 
 void JITCompiler::compileBody()
@@ -313,8 +327,6 @@ void JITCompiler::link(LinkBuffer& linkBuffer)
 
 void JITCompiler::compile()
 {
-    SamplingRegion samplingRegion("DFG Backend");
-
     setStartOfCode();
     compileEntry();
     m_speculative = std::make_unique<SpeculativeJIT>(*this);
@@ -326,6 +338,7 @@ void JITCompiler::compile()
     addPtr(TrustedImm32(m_graph.stackPointerOffset() * sizeof(Register)), GPRInfo::callFrameRegister, stackPointerRegister);
     checkStackPointerAlignment();
     compileSetupRegistersForEntry();
+    compileEntryExecutionFlag();
     compileBody();
     setEndOfMainPath();
 
@@ -373,8 +386,6 @@ void JITCompiler::compile()
 
 void JITCompiler::compileFunction()
 {
-    SamplingRegion samplingRegion("DFG Backend");
-    
     setStartOfCode();
     compileEntry();
 
@@ -392,6 +403,7 @@ void JITCompiler::compileFunction()
     checkStackPointerAlignment();
 
     compileSetupRegistersForEntry();
+    compileEntryExecutionFlag();
 
     // === Function body code generation ===
     m_speculative = std::make_unique<SpeculativeJIT>(*this);

@@ -100,6 +100,7 @@ static CachedResource* createResource(CachedResource::Type type, ResourceRequest
 #endif
     case CachedResource::FontResource:
         return new CachedFont(request, sessionID);
+    case CachedResource::MediaResource:
     case CachedResource::RawResource:
     case CachedResource::MainResource:
         return new CachedRawResource(request, type, sessionID);
@@ -161,7 +162,7 @@ CachedResource* CachedResourceLoader::cachedResource(const URL& resourceURL) con
 
 Frame* CachedResourceLoader::frame() const
 {
-    return m_documentLoader ? m_documentLoader->frame() : 0;
+    return m_documentLoader ? m_documentLoader->frame() : nullptr;
 }
 
 SessionID CachedResourceLoader::sessionID() const
@@ -269,6 +270,11 @@ CachedResourceHandle<CachedResource> CachedResourceLoader::requestLinkResource(C
 }
 #endif
 
+CachedResourceHandle<CachedRawResource> CachedResourceLoader::requestMedia(CachedResourceRequest& request)
+{
+    return downcast<CachedRawResource>(requestResource(CachedResource::MediaResource, request).get());
+}
+
 CachedResourceHandle<CachedRawResource> CachedResourceLoader::requestRawResource(CachedResourceRequest& request)
 {
     return downcast<CachedRawResource>(requestResource(CachedResource::RawResource, request).get());
@@ -282,7 +288,11 @@ CachedResourceHandle<CachedRawResource> CachedResourceLoader::requestMainResourc
 static MixedContentChecker::ContentType contentTypeFromResourceType(CachedResource::Type type)
 {
     switch (type) {
+    // https://w3c.github.io/webappsec-mixed-content/#category-optionally-blockable
+    // Editor's Draft, 11 February 2016
+    // 3.1. Optionally-blockable Content
     case CachedResource::ImageResource:
+    case CachedResource::MediaResource:
             return MixedContentChecker::ContentType::ActiveCanWarn;
 
     case CachedResource::CSSStyleSheet:
@@ -337,6 +347,7 @@ bool CachedResourceLoader::checkInsecureContent(CachedResource::Type type, const
 #if ENABLE(VIDEO_TRACK)
     case CachedResource::TextTrackResource:
 #endif
+    case CachedResource::MediaResource:
     case CachedResource::RawResource:
     case CachedResource::ImageResource:
 #if ENABLE(SVG_FONTS)
@@ -384,6 +395,7 @@ bool CachedResourceLoader::canRequest(CachedResource::Type type, const URL& url,
 #if ENABLE(SVG_FONTS)
     case CachedResource::SVGFontResource:
 #endif
+    case CachedResource::MediaResource:
     case CachedResource::FontResource:
     case CachedResource::RawResource:
 #if ENABLE(LINK_PREFETCH)
@@ -446,12 +458,13 @@ bool CachedResourceLoader::canRequest(CachedResource::Type type, const URL& url,
     case CachedResource::LinkSubresource:
 #endif
         break;
+    case CachedResource::MediaResource:
 #if ENABLE(VIDEO_TRACK)
     case CachedResource::TextTrackResource:
+#endif
         if (!m_document->contentSecurityPolicy()->allowMediaFromSource(url, skipContentSecurityPolicyCheck))
             return false;
         break;
-#endif
     }
 
     // SVG Images have unique security rules that prevent all subresource requests except for data urls.
@@ -542,8 +555,8 @@ CachedResourceHandle<CachedResource> CachedResourceLoader::requestResource(Cache
         return nullptr;
 
 #if ENABLE(CONTENT_EXTENSIONS)
-    if (frame() && frame()->mainFrame().page() && frame()->mainFrame().page()->userContentController() && m_documentLoader) {
-        if (frame()->mainFrame().page()->userContentController()->processContentExtensionRulesForLoad(request.mutableResourceRequest(), toResourceType(type), *m_documentLoader) == ContentExtensions::BlockedStatus::Blocked) {
+    if (frame() && frame()->mainFrame().page() && m_documentLoader) {
+        if (frame()->mainFrame().page()->userContentProvider().processContentExtensionRulesForLoad(request.mutableResourceRequest(), toResourceType(type), *m_documentLoader) == ContentExtensions::BlockedStatus::Blocked) {
             if (type == CachedResource::Type::MainResource) {
                 auto resource = createResource(type, request.mutableResourceRequest(), request.charset(), sessionID());
                 ASSERT(resource);
@@ -742,7 +755,7 @@ CachedResourceLoader::RevalidationPolicy CachedResourceLoader::determineRevalida
 
     // FIXME: We should use the same cache policy for all resource types. The raw resource policy is overly strict
     //        while the normal subresource policy is too loose.
-    if (existingResource->isMainOrRawResource()) {
+    if (existingResource->isMainOrMediaOrRawResource() && frame()) {
         bool strictPolicyDisabled = frame()->loader().isStrictRawResourceValidationPolicyDisabledForTesting();
         bool canReuseRawResource = strictPolicyDisabled || downcast<CachedRawResource>(*existingResource).canReuse(request);
         if (!canReuseRawResource)
@@ -913,13 +926,19 @@ void CachedResourceLoader::reloadImagesIfNotDeferred()
 
 CachePolicy CachedResourceLoader::cachePolicy(CachedResource::Type type) const
 {
-    if (!frame())
+    Frame* frame = this->frame();
+    if (!frame)
         return CachePolicyVerify;
 
     if (type != CachedResource::MainResource)
-        return frame()->loader().subresourceCachePolicy();
-    
-    switch (frame()->loader().loadType()) {
+        return frame->loader().subresourceCachePolicy();
+
+    if (Page* page = frame->page()) {
+        if (page->isResourceCachingDisabled())
+            return CachePolicyReload;
+    }
+
+    switch (frame->loader().loadType()) {
     case FrameLoadType::ReloadFromOrigin:
     case FrameLoadType::Reload:
         return CachePolicyReload;

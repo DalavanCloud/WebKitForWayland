@@ -28,9 +28,13 @@
 
 #if ENABLE(INDEXED_DATABASE)
 
-#include "IDBTransactionImpl.h"
+#include "IDBTransaction.h"
 
 namespace WebCore {
+
+IDBTransactionInfo::IDBTransactionInfo()
+{
+}
 
 IDBTransactionInfo::IDBTransactionInfo(const IDBResourceIdentifier& identifier)
     : m_identifier(identifier)
@@ -77,7 +81,7 @@ IDBTransactionInfo IDBTransactionInfo::isolatedCopy() const
         result.m_objectStores.uncheckedAppend(objectStore.isolatedCopy());
 
     if (m_originalDatabaseInfo)
-        result.m_originalDatabaseInfo = std::make_unique<IDBDatabaseInfo>(*m_originalDatabaseInfo);
+        result.m_originalDatabaseInfo = std::make_unique<IDBDatabaseInfo>(*m_originalDatabaseInfo, IDBDatabaseInfo::IsolatedCopy);
 
     return result;
 }

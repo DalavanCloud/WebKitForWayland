@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -43,16 +43,20 @@ using namespace WebCore;
 
 namespace WebKit {
 
-#if USE(NETWORK_SESSION)
-Download::Download(DownloadManager& downloadManager, DownloadID downloadID)
+#if USE(NETWORK_SESSION) && PLATFORM(COCOA)
+Download::Download(DownloadManager& downloadManager, DownloadID downloadID, NSURLSessionDownloadTask* download, const String& suggestedName)
 #else
-Download::Download(DownloadManager& downloadManager, DownloadID downloadID, const ResourceRequest& request)
+Download::Download(DownloadManager& downloadManager, DownloadID downloadID, const ResourceRequest& request, const String& suggestedName)
 #endif
     : m_downloadManager(downloadManager)
     , m_downloadID(downloadID)
 #if !USE(NETWORK_SESSION)
     , m_request(request)
 #endif
+#if USE(NETWORK_SESSION) && PLATFORM(COCOA)
+    , m_download(download)
+#endif
+    , m_suggestedName(suggestedName)
 {
     ASSERT(m_downloadID.downloadID());
 
@@ -66,15 +70,10 @@ Download::~Download()
     m_downloadManager.didDestroyDownload();
 }
 
-#if USE(NETWORK_SESSION)
-void Download::didStart(const ResourceRequest& request)
-{
-    send(Messages::DownloadProxy::DidStart(request));
-}
-#else
+#if !USE(NETWORK_SESSION)
 void Download::didStart()
 {
-    send(Messages::DownloadProxy::DidStart(m_request));
+    send(Messages::DownloadProxy::DidStart(m_request, m_suggestedName));
 }
 #endif
 
@@ -104,6 +103,7 @@ bool Download::shouldDecodeSourceDataOfMIMEType(const String& mimeType)
     return result;
 }
 
+#if !USE(NETWORK_SESSION)
 String Download::decideDestinationWithSuggestedFilename(const String& filename, bool& allowOverwrite)
 {
     String destination;
@@ -117,6 +117,7 @@ String Download::decideDestinationWithSuggestedFilename(const String& filename, 
 
     return destination;
 }
+#endif
 
 void Download::didCreateDestination(const String& path)
 {

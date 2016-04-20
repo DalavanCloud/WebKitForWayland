@@ -51,7 +51,7 @@ public:
     }
     virtual ~RepaintIndicatorLayerClient() { }
 private:
-    virtual void notifyAnimationEnded(const GraphicsLayer* layer, const String&) override
+    void notifyAnimationEnded(const GraphicsLayer* layer, const String&) override
     {
         m_inspectorClient.animationEndedForLayer(layer);
     }
@@ -191,6 +191,11 @@ void WebInspectorClient::didSetSearchingForNode(bool enabled)
         m_page->disableInspectorNodeSearch();
 }
 #endif
+
+void WebInspectorClient::elementSelectionChanged(bool active)
+{
+    m_page->inspector()->elementSelectionChanged(active);
+}
 
 void WebInspectorClient::pageOverlayDestroyed(PageOverlay&)
 {

@@ -31,8 +31,7 @@
 #include "DOMWindow.h"
 #include "DatabaseProvider.h"
 #include "Document.h"
-#include "IDBFactoryImpl.h"
-#include "LegacyFactory.h"
+#include "IDBFactory.h"
 #include "Page.h"
 #include "SecurityOrigin.h"
 
@@ -94,9 +93,9 @@ void DOMWindowIndexedDatabase::willDetachGlobalObjectFromFrame()
     DOMWindowProperty::willDetachGlobalObjectFromFrame();
 }
 
-IDBFactory* DOMWindowIndexedDatabase::indexedDB(DOMWindow* window)
+IDBFactory* DOMWindowIndexedDatabase::indexedDB(DOMWindow& window)
 {
-    return from(window)->indexedDB();
+    return from(&window)->indexedDB();
 }
 
 IDBFactory* DOMWindowIndexedDatabase::indexedDB()
@@ -112,12 +111,8 @@ IDBFactory* DOMWindowIndexedDatabase::indexedDB()
     if (!m_window->isCurrentlyDisplayedInFrame())
         return nullptr;
 
-    if (!m_idbFactory) {
-        if (page->databaseProvider().supportsModernIDB())
-            m_idbFactory = IDBClient::IDBFactory::create(page->idbConnection());
-        else
-            m_idbFactory = LegacyFactory::create(page->databaseProvider().idbFactoryBackend());
-    }
+    if (!m_idbFactory)
+        m_idbFactory = IDBFactory::create(page->idbConnection());
 
     return m_idbFactory.get();
 }

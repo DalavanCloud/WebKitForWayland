@@ -27,12 +27,13 @@
 #include "MemoryPressureHandler.h"
 
 #include "CSSValuePool.h"
+#include "Chrome.h"
+#include "ChromeClient.h"
 #include "Document.h"
 #include "FontCache.h"
-#include "FontCascade.h"
 #include "GCController.h"
 #include "HTMLMediaElement.h"
-#include "JSDOMWindow.h"
+#include "InspectorInstrumentation.h"
 #include "MemoryCache.h"
 #include "Page.h"
 #include "PageCache.h"
@@ -93,11 +94,6 @@ void MemoryPressureHandler::releaseNoncriticalMemory()
     }
 
     {
-        ReliefLogger log("Clearing JS string cache");
-        JSDOMWindow::commonVM().stringCache.clear();
-    }
-
-    {
         ReliefLogger log("Prune MemoryCache dead resources");
         MemoryCache::singleton().pruneDeadResourcesToSize(0);
     }
@@ -119,7 +115,7 @@ void MemoryPressureHandler::releaseCriticalMemory(Synchronous synchronous)
 
     {
         ReliefLogger log("Prune MemoryCache live resources");
-        MemoryCache::singleton().pruneLiveResourcesToSize(0);
+        MemoryCache::singleton().pruneLiveResourcesToSize(0, /*shouldDestroyDecodedDataForAllLiveResources*/ true);
     }
 
     {
@@ -140,11 +136,6 @@ void MemoryPressureHandler::releaseCriticalMemory(Synchronous synchronous)
         GCController::singleton().deleteAllCode();
     }
 
-    {
-        ReliefLogger log("Invalidate font cache");
-        FontCache::singleton().invalidate();
-    }
-
 #if ENABLE(VIDEO)
     {
         ReliefLogger log("Dropping buffered data from paused media elements");
@@ -160,6 +151,11 @@ void MemoryPressureHandler::releaseCriticalMemory(Synchronous synchronous)
         GCController::singleton().garbageCollectNow();
     } else
         GCController::singleton().garbageCollectNowIfNotDoneRecently();
+
+    // We reduce tiling coverage while under memory pressure, so make sure to drop excess tiles ASAP.
+    Page::forEachPage([](Page& page) {
+        page.chrome().client().scheduleCompositingLayerFlush();
+    });
 }
 
 void MemoryPressureHandler::releaseMemory(Critical critical, Synchronous synchronous)
@@ -180,6 +176,37 @@ void MemoryPressureHandler::releaseMemory(Critical critical, Synchronous synchro
 #endif
         WTF::releaseFastMallocFreeMemory();
     }
+
+#if ENABLE(RESOURCE_USAGE)
+    Page::forEachPage([&](Page& page) {
+        InspectorInstrumentation::didHandleMemoryPressure(page, critical);
+    });
+#endif
+}
+
+void MemoryPressureHandler::ReliefLogger::logMemoryUsageChange()
+{
+#if !LOG_ALWAYS_DISABLED
+#define STRING_SPECIFICATION "%{public}s"
+#define MEMORYPRESSURE_LOG(...) LOG_ALWAYS(true, __VA_ARGS__)
+#else
+#define STRING_SPECIFICATION "%s"
+#define MEMORYPRESSURE_LOG(...) WTFLogAlways(__VA_ARGS__)
+#endif
+
+    size_t currentMemory = platformMemoryUsage();
+    if (currentMemory == static_cast<size_t>(-1) || m_initialMemory == static_cast<size_t>(-1)) {
+        MEMORYPRESSURE_LOG("Memory pressure relief: " STRING_SPECIFICATION ": (Unable to get dirty memory information for process)", m_logString);
+        return;
+    }
+
+    long memoryDiff = currentMemory - m_initialMemory;
+    if (memoryDiff < 0)
+        MEMORYPRESSURE_LOG("Memory pressure relief: " STRING_SPECIFICATION ": -dirty %ld bytes (from %lu to %lu)", m_logString, (memoryDiff * -1), m_initialMemory, currentMemory);
+    else if (memoryDiff > 0)
+        MEMORYPRESSURE_LOG("Memory pressure relief: " STRING_SPECIFICATION ": +dirty %ld bytes (from %lu to %lu)", m_logString, memoryDiff, m_initialMemory, currentMemory);
+    else
+        MEMORYPRESSURE_LOG("Memory pressure relief: " STRING_SPECIFICATION ": =dirty (at %lu bytes)", m_logString, currentMemory);
 }
 
 #if !PLATFORM(COCOA) && !OS(LINUX) && !PLATFORM(WIN)
@@ -188,7 +215,6 @@ void MemoryPressureHandler::uninstall() { }
 void MemoryPressureHandler::holdOff(unsigned) { }
 void MemoryPressureHandler::respondToMemoryPressure(Critical, Synchronous) { }
 void MemoryPressureHandler::platformReleaseMemory(Critical) { }
-void MemoryPressureHandler::ReliefLogger::platformLog() { }
 size_t MemoryPressureHandler::ReliefLogger::platformMemoryUsage() { return 0; }
 #endif
 

@@ -133,10 +133,10 @@ static inline CSSValueID unicodeBidiAttributeForDirAuto(HTMLElement& element)
 
 unsigned HTMLElement::parseBorderWidthAttribute(const AtomicString& value) const
 {
-    unsigned borderWidth = 0;
-    if (value.isEmpty() || !parseHTMLNonNegativeInteger(value, borderWidth))
-        return hasTagName(tableTag) ? 1 : borderWidth;
-    return borderWidth;
+    if (Optional<int> borderWidth = parseHTMLNonNegativeInteger(value))
+        return borderWidth.value();
+
+    return hasTagName(tableTag) ? 1 : 0;
 }
 
 void HTMLElement::applyBorderAttributeToStyle(const AtomicString& value, MutableStyleProperties& style)
@@ -327,6 +327,7 @@ HTMLElement::EventHandlerNameMap HTMLElement::createEventHandlerNameMap()
         &ontimeupdateAttr,
         &ontouchcancelAttr,
         &ontouchendAttr,
+        &ontouchforcechangeAttr,
         &ontouchmoveAttr,
         &ontouchstartAttr,
         &ontransitionendAttr,
@@ -451,13 +452,10 @@ void HTMLElement::parseAttribute(const QualifiedName& name, const AtomicString& 
     }
 
     if (name == tabindexAttr) {
-        int tabIndex = 0;
         if (value.isEmpty())
             clearTabIndexExplicitlyIfNeeded();
-        else if (parseHTMLInteger(value, tabIndex)) {
-            // Clamp tab index to a 16-bit value to match Firefox's behavior.
-            setTabIndexExplicitly(std::max(-0x8000, std::min(tabIndex, 0x7FFF)));
-        }
+        else if (Optional<int> tabIndex = parseHTMLInteger(value))
+            setTabIndexExplicitly(tabIndex.value());
         return;
     }
 
@@ -698,7 +696,7 @@ void HTMLElement::insertAdjacentHTML(const String& where, const String& markup, 
     Element* contextElement = contextElementForInsertion(where, this, ec);
     if (!contextElement)
         return;
-    RefPtr<DocumentFragment> fragment = createFragmentForInnerOuterHTML(markup, contextElement, AllowScriptingContent, ec);
+    RefPtr<DocumentFragment> fragment = createFragmentForInnerOuterHTML(*contextElement, markup, AllowScriptingContent, ec);
     if (!fragment)
         return;
     insertAdjacent(where, fragment.releaseNonNull(), ec);
@@ -809,7 +807,7 @@ void HTMLElement::setSpellcheck(bool enable)
 
 void HTMLElement::click()
 {
-    dispatchSimulatedClick(nullptr, SendNoEvents, DoNotShowPressedLook);
+    dispatchSimulatedClickForBindings(nullptr);
 }
 
 void HTMLElement::accessKeyAction(bool sendMouseEvents)
@@ -822,7 +820,7 @@ String HTMLElement::title() const
     return fastGetAttribute(titleAttr);
 }
 
-short HTMLElement::tabIndex() const
+int HTMLElement::tabIndex() const
 {
     if (supportsFocus())
         return Element::tabIndex();

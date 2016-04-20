@@ -33,12 +33,14 @@ namespace WebCore {
 class HTMLTableCellElement : public HTMLTablePartElement {
 public:
     int cellIndex() const;
-    int colSpan() const;
-    int rowSpan() const;
+    unsigned colSpan() const;
+    unsigned colSpanForBindings() const;
+    unsigned rowSpan() const;
+    unsigned rowSpanForBindings() const;
 
     void setCellIndex(int);
-    void setColSpan(int);
-    void setRowSpan(int);
+    void setColSpanForBindings(unsigned);
+    void setRowSpanForBindings(unsigned);
 
     String abbr() const;
     String axis() const;
@@ -50,14 +52,14 @@ public:
 protected:
     HTMLTableCellElement(const QualifiedName&, Document&);
 
-    virtual void parseAttribute(const QualifiedName&, const AtomicString&) override;
-    virtual bool isPresentationAttribute(const QualifiedName&) const override;
-    virtual void collectStyleForPresentationAttribute(const QualifiedName&, const AtomicString&, MutableStyleProperties&) override;
-    virtual const StyleProperties* additionalPresentationAttributeStyle() override;
+    void parseAttribute(const QualifiedName&, const AtomicString&) override;
+    bool isPresentationAttribute(const QualifiedName&) const override;
+    void collectStyleForPresentationAttribute(const QualifiedName&, const AtomicString&, MutableStyleProperties&) override;
+    const StyleProperties* additionalPresentationAttributeStyle() const override;
 
-    virtual bool isURLAttribute(const Attribute&) const override;
+    bool isURLAttribute(const Attribute&) const override;
 
-    virtual void addSubresourceAttributeURLs(ListHashSet<URL>&) const override;
+    void addSubresourceAttributeURLs(ListHashSet<URL>&) const override;
 };
 
 } // namespace WebCore

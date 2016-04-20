@@ -38,7 +38,7 @@ class AudioContext;
     
 class OfflineAudioDestinationNode : public AudioDestinationNode {
 public:
-    static Ref<OfflineAudioDestinationNode> create(AudioContext* context, AudioBuffer* renderTarget)
+    static Ref<OfflineAudioDestinationNode> create(AudioContext& context, AudioBuffer* renderTarget)
     {
         return adoptRef(*new OfflineAudioDestinationNode(context, renderTarget));     
     }
@@ -46,17 +46,17 @@ public:
     virtual ~OfflineAudioDestinationNode();
     
     // AudioNode   
-    virtual void initialize() override;
-    virtual void uninitialize() override;
+    void initialize() override;
+    void uninitialize() override;
 
     // AudioDestinationNode
-    virtual void enableInput(const String&) override { }
-    virtual void startRendering() override;
+    void enableInput(const String&) override { }
+    void startRendering() override;
 
-    virtual float sampleRate() const override { return m_renderTarget->sampleRate(); }
+    float sampleRate() const override { return m_renderTarget->sampleRate(); }
 
 private:
-    OfflineAudioDestinationNode(AudioContext*, AudioBuffer* renderTarget);
+    OfflineAudioDestinationNode(AudioContext&, AudioBuffer* renderTarget);
 
     // This AudioNode renders into this AudioBuffer.
     RefPtr<AudioBuffer> m_renderTarget;

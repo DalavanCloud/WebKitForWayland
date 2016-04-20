@@ -92,6 +92,7 @@ ExitMode mayExit(Graph& graph, Node* node)
     case SetArgument:
     case JSConstant:
     case DoubleConstant:
+    case LazyJSConstant:
     case Int52Constant:
     case MovHint:
     case SetLocal:
@@ -130,6 +131,7 @@ ExitMode mayExit(Graph& graph, Node* node)
     case StoreBarrier:
     case PutByOffset:
     case PutClosureVar:
+    case RecordRegExpCachedResult:
         break;
 
     case StrCat:
@@ -142,7 +144,6 @@ ExitMode mayExit(Graph& graph, Node* node)
     case MaterializeCreateActivation:
     case MaterializeNewObject:
     case NewFunction:
-    case NewArrowFunction:
     case NewGeneratorFunction:
     case NewStringObject:
     case CreateActivation:

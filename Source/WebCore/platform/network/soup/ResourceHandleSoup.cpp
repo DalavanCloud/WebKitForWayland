@@ -136,17 +136,17 @@ public:
     }
 #endif // SOUP_CHECK_VERSION(2, 49, 91)
 
-    virtual void didReceiveResponse(ResourceHandle*, const ResourceResponse& response) override
+    void didReceiveResponse(ResourceHandle*, const ResourceResponse& response) override
     {
         m_response = response;
     }
 
-    virtual void didReceiveData(ResourceHandle*, const char* /* data */, unsigned /* length */, int) override
+    void didReceiveData(ResourceHandle*, const char* /* data */, unsigned /* length */, int) override
     {
         ASSERT_NOT_REACHED();
     }
 
-    virtual void didReceiveBuffer(ResourceHandle*, PassRefPtr<SharedBuffer> buffer, int /* encodedLength */) override
+    void didReceiveBuffer(ResourceHandle*, PassRefPtr<SharedBuffer> buffer, int /* encodedLength */) override
     {
         // This pattern is suggested by SharedBuffer.h.
         const char* segment;
@@ -157,26 +157,26 @@ public:
         }
     }
 
-    virtual void didFinishLoading(ResourceHandle*, double) override
+    void didFinishLoading(ResourceHandle*, double) override
     {
         if (g_main_loop_is_running(m_mainLoop.get()))
             g_main_loop_quit(m_mainLoop.get());
         m_finished = true;
     }
 
-    virtual void didFail(ResourceHandle* handle, const ResourceError& error) override
+    void didFail(ResourceHandle* handle, const ResourceError& error) override
     {
         m_error = error;
         didFinishLoading(handle, 0);
     }
 
-    virtual void didReceiveAuthenticationChallenge(ResourceHandle*, const AuthenticationChallenge& challenge) override
+    void didReceiveAuthenticationChallenge(ResourceHandle*, const AuthenticationChallenge& challenge) override
     {
         // We do not handle authentication for synchronous XMLHttpRequests.
         challenge.authenticationClient()->receivedRequestToContinueWithoutCredential(challenge);
     }
 
-    virtual bool shouldUseCredentialStorage(ResourceHandle*) override
+    bool shouldUseCredentialStorage(ResourceHandle*) override
     {
         return m_storedCredentials == AllowStoredCredentials;
     }
@@ -769,30 +769,30 @@ static bool addFileToSoupMessageBody(SoupMessage* message, const String& fileNam
 
 static bool blobIsOutOfDate(const BlobDataItem& blobItem)
 {
-    ASSERT(blobItem.type == BlobDataItem::File);
-    if (!isValidFileTime(blobItem.file->expectedModificationTime()))
+    ASSERT(blobItem.type() == BlobDataItem::Type::File);
+    if (!isValidFileTime(blobItem.file()->expectedModificationTime()))
         return false;
 
     time_t fileModificationTime;
-    if (!getFileModificationTime(blobItem.file->path(), fileModificationTime))
+    if (!getFileModificationTime(blobItem.file()->path(), fileModificationTime))
         return true;
 
-    return fileModificationTime != static_cast<time_t>(blobItem.file->expectedModificationTime());
+    return fileModificationTime != static_cast<time_t>(blobItem.file()->expectedModificationTime());
 }
 
 static void addEncodedBlobItemToSoupMessageBody(SoupMessage* message, const BlobDataItem& blobItem, unsigned long& totalBodySize)
 {
-    if (blobItem.type == BlobDataItem::Data) {
+    if (blobItem.type() == BlobDataItem::Type::Data) {
         totalBodySize += blobItem.length();
-        soup_message_body_append(message->request_body, SOUP_MEMORY_TEMPORARY, blobItem.data->data() + blobItem.offset(), blobItem.length());
+        soup_message_body_append(message->request_body, SOUP_MEMORY_TEMPORARY, blobItem.data().data()->data() + blobItem.offset(), blobItem.length());
         return;
     }
 
-    ASSERT(blobItem.type == BlobDataItem::File);
+    ASSERT(blobItem.type() == BlobDataItem::Type::File);
     if (blobIsOutOfDate(blobItem))
         return;
 
-    addFileToSoupMessageBody(message, blobItem.file->path(), blobItem.offset(), blobItem.length() == BlobDataItem::toEndOfFile ? 0 : blobItem.length(),  totalBodySize);
+    addFileToSoupMessageBody(message, blobItem.file()->path(), blobItem.offset(), blobItem.length() == BlobDataItem::toEndOfFile ? 0 : blobItem.length(),  totalBodySize);
 }
 
 static void addEncodedBlobToSoupMessageBody(SoupMessage* message, const FormDataElement& element, unsigned long& totalBodySize)

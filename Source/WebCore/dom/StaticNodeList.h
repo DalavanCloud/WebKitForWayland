@@ -39,11 +39,11 @@ namespace WebCore {
 
 class WEBCORE_EXPORT StaticNodeList final : public NodeList {
 public:
-    static PassRefPtr<StaticNodeList> adopt(Vector<Ref<Node>>& nodes)
+    static Ref<StaticNodeList> adopt(Vector<Ref<Node>>& nodes)
     {
-        RefPtr<StaticNodeList> nodeList = adoptRef(new StaticNodeList);
+        Ref<StaticNodeList> nodeList = adoptRef(*new StaticNodeList);
         nodeList->m_nodes.swap(nodes);
-        return nodeList.release();
+        return nodeList;
     }
 
     static Ref<StaticNodeList> createEmpty()
@@ -51,8 +51,8 @@ public:
         return adoptRef(*new StaticNodeList);
     }
 
-    virtual unsigned length() const override;
-    virtual Node* item(unsigned index) const override;
+    unsigned length() const override;
+    Node* item(unsigned index) const override;
 
 private:
     StaticNodeList() { }
@@ -74,8 +74,8 @@ public:
         return adoptRef(*new StaticElementList);
     }
 
-    virtual unsigned length() const override;
-    virtual Element* item(unsigned index) const override;
+    unsigned length() const override;
+    Element* item(unsigned index) const override;
 
 private:
     StaticElementList()

@@ -40,6 +40,7 @@
 #include "GeometryUtilities.h"
 #include "GraphicsContext.h"
 #include "HTMLNames.h"
+#include "HTMLParserIdioms.h"
 #include "ImageData.h"
 #include "MIMETypeRegistry.h"
 #include "Page.h"
@@ -155,14 +156,14 @@ void HTMLCanvasElement::removeObserver(CanvasObserver& observer)
     m_observers.remove(&observer);
 }
 
-void HTMLCanvasElement::setHeight(int value)
+void HTMLCanvasElement::setHeight(unsigned value)
 {
-    setIntegralAttribute(heightAttr, value);
+    setAttributeWithoutSynchronization(heightAttr, AtomicString::number(limitToOnlyHTMLNonNegative(value, DefaultHeight)));
 }
 
-void HTMLCanvasElement::setWidth(int value)
+void HTMLCanvasElement::setWidth(unsigned value)
 {
-    setIntegralAttribute(widthAttr, value);
+    setAttributeWithoutSynchronization(widthAttr, AtomicString::number(limitToOnlyHTMLNonNegative(value, DefaultWidth)));
 }
 
 #if ENABLE(WEBGL)
@@ -295,7 +296,7 @@ bool HTMLCanvasElement::is3dType(const String& type)
     // Retain support for the legacy "webkit-3d" name.
     return type == "webgl" || type == "experimental-webgl"
 #if ENABLE(WEBGL2)
-        || type == "experimental-webgl2"
+        || type == "webgl2"
 #endif
         || type == "webkit-3d";
 }
@@ -305,9 +306,13 @@ void HTMLCanvasElement::didDraw(const FloatRect& rect)
 {
     clearCopiedImage();
 
+    FloatRect dirtyRect = rect;
     if (RenderBox* ro = renderBox()) {
         FloatRect destRect = ro->contentBoxRect();
-        FloatRect r = mapRect(rect, FloatRect(0, 0, size().width(), size().height()), destRect);
+        // Inflate dirty rect to cover antialiasing on image buffers.
+        if (drawingContext() && drawingContext()->shouldAntialias())
+            dirtyRect.inflate(1);
+        FloatRect r = mapRect(dirtyRect, FloatRect(0, 0, size().width(), size().height()), destRect);
         r.intersect(destRect);
         if (r.isEmpty() || m_dirtyRect.contains(r))
             return;
@@ -315,8 +320,7 @@ void HTMLCanvasElement::didDraw(const FloatRect& rect)
         m_dirtyRect.unite(r);
         ro->repaintRectangle(enclosingIntRect(m_dirtyRect));
     }
-
-    notifyObserversCanvasChanged(rect);
+    notifyObserversCanvasChanged(dirtyRect);
 }
 
 void HTMLCanvasElement::notifyObserversCanvasChanged(const FloatRect& rect)
@@ -330,16 +334,10 @@ void HTMLCanvasElement::reset()
     if (m_ignoreReset)
         return;
 
-    bool ok;
     bool hadImageBuffer = hasCreatedImageBuffer();
 
-    int w = getAttribute(widthAttr).toInt(&ok);
-    if (!ok || w < 0)
-        w = DefaultWidth;
-
-    int h = getAttribute(heightAttr).toInt(&ok);
-    if (!ok || h < 0)
-        h = DefaultHeight;
+    int w = limitToOnlyHTMLNonNegative(fastGetAttribute(widthAttr), DefaultWidth);
+    int h = limitToOnlyHTMLNonNegative(fastGetAttribute(heightAttr), DefaultHeight);
 
     if (m_contextStateSaver) {
         // Reset to the initial graphics context state.
@@ -491,6 +489,9 @@ String HTMLCanvasElement::toDataURL(const String& mimeType, const double* qualit
         ec = SECURITY_ERR;
         return String();
     }
+
+    if (mimeType == "image/webp")
+        return ASCIILiteral("data:image/webp;base64,");
 
     if (m_size.isEmpty() || !buffer())
         return ASCIILiteral("data:,");

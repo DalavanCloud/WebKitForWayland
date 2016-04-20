@@ -53,7 +53,6 @@ class VisibleSelection;
 
 // Functions returning Node
 
-Node* highestAncestor(Node*);
 Node* highestEditableRoot(const Position&, EditableType = ContentIsEditable);
 
 Node* highestEnclosingNodeOfType(const Position&, bool (*nodeIsOfType)(const Node*),
@@ -209,9 +208,9 @@ VisiblePosition visiblePositionForIndexUsingCharacterIterator(Node*, int index);
     
 WEBCORE_EXPORT Ref<HTMLElement> createDefaultParagraphElement(Document&);
 Ref<HTMLElement> createBreakElement(Document&);
-PassRefPtr<HTMLElement> createOrderedListElement(Document&);
-PassRefPtr<HTMLElement> createUnorderedListElement(Document&);
-PassRefPtr<HTMLElement> createListItemElement(Document&);
+Ref<HTMLElement> createOrderedListElement(Document&);
+Ref<HTMLElement> createUnorderedListElement(Document&);
+Ref<HTMLElement> createListItemElement(Document&);
 Ref<HTMLElement> createHTMLElement(Document&, const QualifiedName&);
 Ref<HTMLElement> createHTMLElement(Document&, const AtomicString&);
 
@@ -224,7 +223,7 @@ Node* enclosingListChild(Node*);
 // -------------------------------------------------------------------------
 
 Ref<Element> createTabSpanElement(Document&);
-Ref<Element> createTabSpanElement(Document&, PassRefPtr<Node> tabTextNode);
+Ref<Element> createTabSpanElement(Document&, RefPtr<Node>&& tabTextNode);
 Ref<Element> createTabSpanElement(Document&, const String& tabText);
 Ref<Element> createBlockPlaceholderElement(Document&);
 
@@ -270,6 +269,7 @@ const String& nonBreakingSpaceString();
 
 RenderBlock* rendererForCaretPainting(Node*);
 LayoutRect localCaretRectInRendererForCaretPainting(const VisiblePosition&, RenderBlock*&);
+LayoutRect localCaretRectInRendererForRect(LayoutRect&, Node*, RenderObject*, RenderBlock*&);
 IntRect absoluteBoundsForLocalCaretRect(RenderBlock* rendererForCaretPainting, const LayoutRect&);
 
 }

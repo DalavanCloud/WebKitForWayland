@@ -23,23 +23,19 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#include "LargeChunk.h"
 #include "ObjectType.h"
+
+#include "Chunk.h"
+#include "Object.h"
 
 namespace bmalloc {
 
 ObjectType objectType(void* object)
 {
-    if (isSmallOrMedium(object)) {
-        if (isSmall(object))
-            return Small;
-        return Medium;
-    }
+    if (isXLarge(object))
+        return ObjectType::XLarge;
     
-    if (!isXLarge(object))
-        return Large;
-    
-    return XLarge;
+    return Object(object).chunk()->objectType();
 }
 
 } // namespace bmalloc

@@ -1,6 +1,6 @@
 /*
  *  Copyright (C) 1999-2000 Harri Porten (porten@kde.org)
- *  Copyright (C) 2004-2008, 2012-2013, 2015 Apple Inc. All rights reserved.
+ *  Copyright (C) 2004-2008, 2012-2013, 2015-2016 Apple Inc. All rights reserved.
  *  Copyright (C) 2006 Bjoern Graf (bjoern.graf@gmail.com)
  *
  *  This library is free software; you can redistribute it and/or
@@ -23,6 +23,7 @@
 #include "config.h"
 
 #include "ArrayPrototype.h"
+#include "BuiltinExecutableCreator.h"
 #include "ButterflyInlines.h"
 #include "BytecodeGenerator.h"
 #include "CodeBlock.h"
@@ -32,6 +33,9 @@
 #include "Disassembler.h"
 #include "Exception.h"
 #include "ExceptionHelpers.h"
+#include "GetterSetter.h"
+#include "HeapProfiler.h"
+#include "HeapSnapshotBuilder.h"
 #include "HeapStatistics.h"
 #include "InitializeThreading.h"
 #include "Interpreter.h"
@@ -49,10 +53,11 @@
 #include "JSWASMModule.h"
 #include "ProfilerDatabase.h"
 #include "SamplingProfiler.h"
-#include "SamplingTool.h"
+#include "ShadowChicken.h"
 #include "StackVisitor.h"
 #include "StructureInlines.h"
 #include "StructureRareDataInlines.h"
+#include "SuperSampler.h"
 #include "TestRunnerUtils.h"
 #include "TypeProfilerLog.h"
 #include "WASMModuleParser.h"
@@ -102,6 +107,10 @@
 
 #if PLATFORM(EFL)
 #include <Ecore.h>
+#endif
+
+#if !defined(PATH_MAX)
+#define PATH_MAX 4096
 #endif
 
 using namespace JSC;
@@ -414,7 +423,7 @@ public:
         return JSObject::getOwnPropertySlotByIndex(thisObject, exec, index, slot);
     }
 
-    static NO_RETURN_DUE_TO_CRASH void put(JSCell*, ExecState*, PropertyName, JSValue, PutPropertySlot&)
+    static NO_RETURN_DUE_TO_CRASH bool put(JSCell*, ExecState*, PropertyName, JSValue, PutPropertySlot&)
     {
         RELEASE_ASSERT_NOT_REACHED();
     }
@@ -465,12 +474,62 @@ private:
     Vector<int> m_vector;
 };
 
+class SimpleObject : public JSNonFinalObject {
+public:
+    SimpleObject(VM& vm, Structure* structure)
+        : Base(vm, structure)
+    {
+    }
+
+    typedef JSNonFinalObject Base;
+    static const bool needsDestruction = false;
+
+    static SimpleObject* create(VM& vm, JSGlobalObject* globalObject)
+    {
+        Structure* structure = createStructure(vm, globalObject, jsNull());
+        SimpleObject* simpleObject = new (NotNull, allocateCell<SimpleObject>(vm.heap, sizeof(SimpleObject))) SimpleObject(vm, structure);
+        simpleObject->finishCreation(vm);
+        return simpleObject;
+    }
+
+    static void visitChildren(JSCell* cell, SlotVisitor& visitor)
+    {
+        SimpleObject* thisObject = jsCast<SimpleObject*>(cell);
+        ASSERT_GC_OBJECT_INHERITS(thisObject, info());
+        Base::visitChildren(thisObject, visitor);
+        visitor.append(&thisObject->m_hiddenValue);
+    }
+
+    static Structure* createStructure(VM& vm, JSGlobalObject* globalObject, JSValue prototype)
+    {
+        return Structure::create(vm, globalObject, prototype, TypeInfo(ObjectType, StructureFlags), info());
+    }
+
+    JSValue hiddenValue()
+    {
+        return m_hiddenValue.get();
+    }
+
+    void setHiddenValue(VM& vm, JSValue value)
+    {
+        ASSERT(value.isCell());
+        m_hiddenValue.set(vm, this, value);
+    }
+
+    DECLARE_INFO;
+
+private:
+    WriteBarrier<JSC::Unknown> m_hiddenValue;
+};
+
+
 const ClassInfo Element::s_info = { "Element", &Base::s_info, 0, CREATE_METHOD_TABLE(Element) };
 const ClassInfo Masquerader::s_info = { "Masquerader", &Base::s_info, 0, CREATE_METHOD_TABLE(Masquerader) };
 const ClassInfo Root::s_info = { "Root", &Base::s_info, 0, CREATE_METHOD_TABLE(Root) };
 const ClassInfo ImpureGetter::s_info = { "ImpureGetter", &Base::s_info, 0, CREATE_METHOD_TABLE(ImpureGetter) };
 const ClassInfo CustomGetter::s_info = { "CustomGetter", &Base::s_info, 0, CREATE_METHOD_TABLE(CustomGetter) };
 const ClassInfo RuntimeArray::s_info = { "RuntimeArray", &Base::s_info, 0, CREATE_METHOD_TABLE(RuntimeArray) };
+const ClassInfo SimpleObject::s_info = { "SimpleObject", &Base::s_info, 0, CREATE_METHOD_TABLE(SimpleObject) };
 
 ElementHandleOwner* Element::handleOwner()
 {
@@ -495,14 +554,19 @@ static EncodedJSValue JSC_HOST_CALL functionCreateProxy(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionCreateRuntimeArray(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionCreateImpureGetter(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionCreateCustomGetterObject(ExecState*);
+static EncodedJSValue JSC_HOST_CALL functionCreateBuiltin(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionSetImpureGetterDelegate(ExecState*);
 
 static EncodedJSValue JSC_HOST_CALL functionSetElementRoot(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionCreateRoot(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionCreateElement(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionGetElement(ExecState*);
+static EncodedJSValue JSC_HOST_CALL functionCreateSimpleObject(ExecState*);
+static EncodedJSValue JSC_HOST_CALL functionGetHiddenValue(ExecState*);
+static EncodedJSValue JSC_HOST_CALL functionSetHiddenValue(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionPrint(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionDebug(ExecState*);
+static EncodedJSValue JSC_HOST_CALL functionDataLogValue(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionDescribe(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionDescribeArray(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionJSCStack(ExecState*);
@@ -512,6 +576,7 @@ static EncodedJSValue JSC_HOST_CALL functionEdenGC(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionForceGCSlowPaths(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionHeapSize(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionAddressOf(ExecState*);
+static EncodedJSValue JSC_HOST_CALL functionGetGetterSetter(ExecState*);
 #ifndef NDEBUG
 static EncodedJSValue JSC_HOST_CALL functionDumpCallFrame(ExecState*);
 #endif
@@ -555,6 +620,7 @@ static EncodedJSValue JSC_HOST_CALL functionLoadWebAssembly(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionLoadModule(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionCheckModuleSyntax(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionPlatformSupportsSamplingProfiler(ExecState*);
+static EncodedJSValue JSC_HOST_CALL functionGenerateHeapSnapshot(ExecState*);
 #if ENABLE(SAMPLING_PROFILER)
 static EncodedJSValue JSC_HOST_CALL functionStartSamplingProfiler(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionSamplingProfilerStackTraces(ExecState*);
@@ -564,6 +630,8 @@ static EncodedJSValue JSC_HOST_CALL functionSamplingProfilerStackTraces(ExecStat
 static EncodedJSValue JSC_HOST_CALL functionSetSamplingFlags(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionClearSamplingFlags(ExecState*);
 #endif
+
+static EncodedJSValue JSC_HOST_CALL functionShadowChickenFunctionsOnStack(ExecState*);
 
 struct Script {
     bool isFile;
@@ -667,7 +735,8 @@ protected:
     void finishCreation(VM& vm, const Vector<String>& arguments)
     {
         Base::finishCreation(vm);
-        
+
+        addFunction(vm, "dataLogValue", functionDataLogValue, 1);
         addFunction(vm, "debug", functionDebug, 1);
         addFunction(vm, "describe", functionDescribe, 1);
         addFunction(vm, "describeArray", functionDescribeArray, 1);
@@ -680,6 +749,7 @@ protected:
         addFunction(vm, "forceGCSlowPaths", functionForceGCSlowPaths, 0);
         addFunction(vm, "gcHeapSize", functionHeapSize, 0);
         addFunction(vm, "addressOf", functionAddressOf, 1);
+        addFunction(vm, "getGetterSetter", functionGetGetterSetter, 2);
 #ifndef NDEBUG
         addFunction(vm, "dumpCallFrame", functionDumpCallFrame, 0);
 #endif
@@ -703,10 +773,15 @@ protected:
         addFunction(vm, "setSamplingFlags", functionSetSamplingFlags, 1);
         addFunction(vm, "clearSamplingFlags", functionClearSamplingFlags, 1);
 #endif
+        addFunction(vm, "shadowChickenFunctionsOnStack", functionShadowChickenFunctionsOnStack, 0);
         addConstructableFunction(vm, "Root", functionCreateRoot, 0);
         addConstructableFunction(vm, "Element", functionCreateElement, 1);
         addFunction(vm, "getElement", functionGetElement, 1);
         addFunction(vm, "setElementRoot", functionSetElementRoot, 2);
+        
+        addConstructableFunction(vm, "SimpleObject", functionCreateSimpleObject, 0);
+        addFunction(vm, "getHiddenValue", functionGetHiddenValue, 1);
+        addFunction(vm, "setHiddenValue", functionSetHiddenValue, 2);
         
         putDirectNativeFunction(vm, this, Identifier::fromString(&vm, "DFGTrue"), 0, functionFalse1, DFGTrueIntrinsic, DontEnum);
         putDirectNativeFunction(vm, this, Identifier::fromString(&vm, "OSRExit"), 0, functionUndefined1, OSRExitIntrinsic, DontEnum);
@@ -724,6 +799,7 @@ protected:
 
         addFunction(vm, "createImpureGetter", functionCreateImpureGetter, 1);
         addFunction(vm, "createCustomGetterObject", functionCreateCustomGetterObject, 0);
+        addFunction(vm, "createBuiltin", functionCreateBuiltin, 2);
         addFunction(vm, "setImpureGetterDelegate", functionSetImpureGetterDelegate, 2);
 
         addFunction(vm, "dumpTypesForAllVariables", functionDumpTypesForAllVariables , 0);
@@ -747,17 +823,21 @@ protected:
         addFunction(vm, "checkModuleSyntax", functionCheckModuleSyntax, 1);
 
         addFunction(vm, "platformSupportsSamplingProfiler", functionPlatformSupportsSamplingProfiler, 0);
+        addFunction(vm, "generateHeapSnapshot", functionGenerateHeapSnapshot, 0);
 #if ENABLE(SAMPLING_PROFILER)
         addFunction(vm, "startSamplingProfiler", functionStartSamplingProfiler, 0);
         addFunction(vm, "samplingProfilerStackTraces", functionSamplingProfilerStackTraces, 0);
 #endif
 
-        JSArray* array = constructEmptyArray(globalExec(), 0);
-        for (size_t i = 0; i < arguments.size(); ++i)
-            array->putDirectIndex(globalExec(), i, jsString(globalExec(), arguments[i]));
-        putDirect(vm, Identifier::fromString(globalExec(), "arguments"), array);
-        
+        if (!arguments.isEmpty()) {
+            JSArray* array = constructEmptyArray(globalExec(), 0);
+            for (size_t i = 0; i < arguments.size(); ++i)
+                array->putDirectIndex(globalExec(), i, jsString(globalExec(), arguments[i]));
+            putDirect(vm, Identifier::fromString(globalExec(), "arguments"), array);
+        }
+
         putDirect(vm, Identifier::fromString(globalExec(), "console"), jsUndefined());
+        putDirect(vm, vm.propertyNames->printPrivateName, JSFunction::create(vm, this, 1, vm.propertyNames->printPrivateName.string(), functionPrint));
     }
 
     void addFunction(VM& vm, const char* name, NativeFunction function, unsigned arguments)
@@ -777,7 +857,7 @@ protected:
 };
 
 const ClassInfo GlobalObject::s_info = { "global", &JSGlobalObject::s_info, nullptr, CREATE_METHOD_TABLE(GlobalObject) };
-const GlobalObjectMethodTable GlobalObject::s_globalObjectMethodTable = { &allowsAccessFrom, &supportsLegacyProfiling, &supportsRichSourceInfo, &shouldInterruptScript, &javaScriptRuntimeFlags, 0, &shouldInterruptScriptBeforeTimeout, &moduleLoaderResolve, &moduleLoaderFetch, nullptr, nullptr, nullptr };
+const GlobalObjectMethodTable GlobalObject::s_globalObjectMethodTable = { &allowsAccessFrom, &supportsLegacyProfiling, &supportsRichSourceInfo, &shouldInterruptScript, &javaScriptRuntimeFlags, 0, &shouldInterruptScriptBeforeTimeout, &moduleLoaderResolve, &moduleLoaderFetch, nullptr, nullptr, nullptr, nullptr };
 
 
 GlobalObject::GlobalObject(VM& vm, Structure* structure)
@@ -1057,6 +1137,12 @@ EncodedJSValue JSC_HOST_CALL functionDebug(ExecState* exec)
     return JSValue::encode(jsUndefined());
 }
 
+EncodedJSValue JSC_HOST_CALL functionDataLogValue(ExecState* exec)
+{
+    dataLog("value is: ", exec->argument(0), "\n");
+    return JSValue::encode(jsUndefined());
+}
+
 EncodedJSValue JSC_HOST_CALL functionDescribe(ExecState* exec)
 {
     if (exec->argumentCount() < 1)
@@ -1081,7 +1167,7 @@ public:
     {
     }
 
-    StackVisitor::Status operator()(StackVisitor& visitor)
+    StackVisitor::Status operator()(StackVisitor& visitor) const
     {
         m_trace.append(String::format("    %zu   %s\n", visitor->index(), visitor->toString().utf8().data()));
         return StackVisitor::Continue;
@@ -1111,23 +1197,51 @@ EncodedJSValue JSC_HOST_CALL functionCreateRoot(ExecState* exec)
 EncodedJSValue JSC_HOST_CALL functionCreateElement(ExecState* exec)
 {
     JSLockHolder lock(exec);
-    JSValue arg = exec->argument(0);
-    return JSValue::encode(Element::create(exec->vm(), exec->lexicalGlobalObject(), arg.isNull() ? nullptr : jsCast<Root*>(exec->argument(0))));
+    Root* root = jsDynamicCast<Root*>(exec->argument(0));
+    if (!root)
+        return JSValue::encode(jsUndefined());
+    return JSValue::encode(Element::create(exec->vm(), exec->lexicalGlobalObject(), root));
 }
 
 EncodedJSValue JSC_HOST_CALL functionGetElement(ExecState* exec)
 {
     JSLockHolder lock(exec);
-    Element* result = jsCast<Root*>(exec->argument(0).asCell())->element();
+    Root* root = jsDynamicCast<Root*>(exec->argument(0));
+    if (!root)
+        return JSValue::encode(jsUndefined());
+    Element* result = root->element();
     return JSValue::encode(result ? result : jsUndefined());
 }
 
 EncodedJSValue JSC_HOST_CALL functionSetElementRoot(ExecState* exec)
 {
     JSLockHolder lock(exec);
-    Element* element = jsCast<Element*>(exec->argument(0));
-    Root* root = jsCast<Root*>(exec->argument(1));
-    element->setRoot(exec->vm(), root);
+    Element* element = jsDynamicCast<Element*>(exec->argument(0));
+    Root* root = jsDynamicCast<Root*>(exec->argument(1));
+    if (element && root)
+        element->setRoot(exec->vm(), root);
+    return JSValue::encode(jsUndefined());
+}
+
+EncodedJSValue JSC_HOST_CALL functionCreateSimpleObject(ExecState* exec)
+{
+    JSLockHolder lock(exec);
+    return JSValue::encode(SimpleObject::create(exec->vm(), exec->lexicalGlobalObject()));
+}
+
+EncodedJSValue JSC_HOST_CALL functionGetHiddenValue(ExecState* exec)
+{
+    JSLockHolder lock(exec);
+    SimpleObject* simpleObject = jsCast<SimpleObject*>(exec->argument(0).asCell());
+    return JSValue::encode(simpleObject->hiddenValue());
+}
+
+EncodedJSValue JSC_HOST_CALL functionSetHiddenValue(ExecState* exec)
+{
+    JSLockHolder lock(exec);
+    SimpleObject* simpleObject = jsCast<SimpleObject*>(exec->argument(0).asCell());
+    JSValue value = exec->argument(1);
+    simpleObject->setHiddenValue(exec->vm(), value);
     return JSValue::encode(jsUndefined());
 }
 
@@ -1138,7 +1252,7 @@ EncodedJSValue JSC_HOST_CALL functionCreateProxy(ExecState* exec)
     if (!target.isObject())
         return JSValue::encode(jsUndefined());
     JSObject* jsTarget = asObject(target.asCell());
-    Structure* structure = JSProxy::createStructure(exec->vm(), exec->lexicalGlobalObject(), jsTarget->prototype());
+    Structure* structure = JSProxy::createStructure(exec->vm(), exec->lexicalGlobalObject(), jsTarget->getPrototypeDirect(), ImpureProxyType);
     JSProxy* proxy = JSProxy::create(exec->vm(), structure, jsTarget);
     return JSValue::encode(proxy);
 }
@@ -1233,6 +1347,30 @@ EncodedJSValue JSC_HOST_CALL functionAddressOf(ExecState* exec)
     return returnValue;
 }
 
+static EncodedJSValue JSC_HOST_CALL functionGetGetterSetter(ExecState* exec)
+{
+    JSValue value = exec->argument(0);
+    if (!value.isObject())
+        return JSValue::encode(jsUndefined());
+
+    JSValue property = exec->argument(1);
+    if (!property.isString())
+        return JSValue::encode(jsUndefined());
+
+    Identifier ident = Identifier::fromString(&exec->vm(), property.toString(exec)->value(exec));
+
+    PropertySlot slot(value, PropertySlot::InternalMethodType::VMInquiry);
+    value.getPropertySlot(exec, ident, slot);
+
+    JSValue result;
+    if (slot.isCacheableGetter())
+        result = slot.getterSetter();
+    else
+        result = jsNull();
+
+    return JSValue::encode(result);
+}
+
 EncodedJSValue JSC_HOST_CALL functionVersion(ExecState*)
 {
     // We need this function for compatibility with the Mozilla JS tests but for now
@@ -1243,6 +1381,8 @@ EncodedJSValue JSC_HOST_CALL functionVersion(ExecState*)
 EncodedJSValue JSC_HOST_CALL functionRun(ExecState* exec)
 {
     String fileName = exec->argument(0).toString(exec)->value(exec);
+    if (exec->hadException())
+        return JSValue::encode(jsUndefined());
     Vector<char> script;
     if (!fetchScriptFromLocalFileSystem(fileName, script))
         return JSValue::encode(exec->vm().throwException(exec, createError(exec, ASCIILiteral("Could not open file."))));
@@ -1272,6 +1412,8 @@ EncodedJSValue JSC_HOST_CALL functionRun(ExecState* exec)
 EncodedJSValue JSC_HOST_CALL functionLoad(ExecState* exec)
 {
     String fileName = exec->argument(0).toString(exec)->value(exec);
+    if (exec->hadException())
+        return JSValue::encode(jsUndefined());
     Vector<char> script;
     if (!fetchScriptFromLocalFileSystem(fileName, script))
         return JSValue::encode(exec->vm().throwException(exec, createError(exec, ASCIILiteral("Could not open file."))));
@@ -1288,6 +1430,8 @@ EncodedJSValue JSC_HOST_CALL functionLoad(ExecState* exec)
 EncodedJSValue JSC_HOST_CALL functionReadFile(ExecState* exec)
 {
     String fileName = exec->argument(0).toString(exec)->value(exec);
+    if (exec->hadException())
+        return JSValue::encode(jsUndefined());
     Vector<char> script;
     if (!fillBufferWithContentsOfFile(fileName, script))
         return JSValue::encode(exec->vm().throwException(exec, createError(exec, ASCIILiteral("Could not open file."))));
@@ -1298,6 +1442,8 @@ EncodedJSValue JSC_HOST_CALL functionReadFile(ExecState* exec)
 EncodedJSValue JSC_HOST_CALL functionCheckSyntax(ExecState* exec)
 {
     String fileName = exec->argument(0).toString(exec)->value(exec);
+    if (exec->hadException())
+        return JSValue::encode(jsUndefined());
     Vector<char> script;
     if (!fetchScriptFromLocalFileSystem(fileName, script))
         return JSValue::encode(exec->vm().throwException(exec, createError(exec, ASCIILiteral("Could not open file."))));
@@ -1337,6 +1483,11 @@ EncodedJSValue JSC_HOST_CALL functionClearSamplingFlags(ExecState* exec)
     return JSValue::encode(jsNull());
 }
 #endif
+
+EncodedJSValue JSC_HOST_CALL functionShadowChickenFunctionsOnStack(ExecState* exec)
+{
+    return JSValue::encode(exec->vm().shadowChicken().functionsOnStack(exec));
+}
 
 EncodedJSValue JSC_HOST_CALL functionReadline(ExecState* exec)
 {
@@ -1565,6 +1716,8 @@ EncodedJSValue JSC_HOST_CALL functionIs32BitPlatform(ExecState*)
 EncodedJSValue JSC_HOST_CALL functionLoadWebAssembly(ExecState* exec)
 {
     String fileName = exec->argument(0).toString(exec)->value(exec);
+    if (exec->hadException())
+        return JSValue::encode(jsUndefined());
     Vector<char> buffer;
     if (!fillBufferWithContentsOfFile(fileName, buffer))
         return JSValue::encode(exec->vm().throwException(exec, createError(exec, ASCIILiteral("Could not open file."))));
@@ -1584,6 +1737,8 @@ EncodedJSValue JSC_HOST_CALL functionLoadWebAssembly(ExecState* exec)
 EncodedJSValue JSC_HOST_CALL functionLoadModule(ExecState* exec)
 {
     String fileName = exec->argument(0).toString(exec)->value(exec);
+    if (exec->hadException())
+        return JSValue::encode(jsUndefined());
     Vector<char> script;
     if (!fetchScriptFromLocalFileSystem(fileName, script))
         return JSValue::encode(exec->vm().throwException(exec, createError(exec, ASCIILiteral("Could not open file."))));
@@ -1605,9 +1760,27 @@ EncodedJSValue JSC_HOST_CALL functionLoadModule(ExecState* exec)
     return JSValue::encode(jsUndefined());
 }
 
+EncodedJSValue JSC_HOST_CALL functionCreateBuiltin(ExecState* exec)
+{
+    if (exec->argumentCount() < 1 || !exec->argument(0).isString())
+        return JSValue::encode(jsUndefined());
+
+    String functionText = exec->argument(0).toString(exec)->value(exec);
+    if (exec->hadException())
+        return JSValue::encode(JSValue());
+
+    VM& vm = exec->vm();
+    const SourceCode& source = makeSource(functionText);
+    JSFunction* func = JSFunction::createBuiltinFunction(vm, createBuiltinExecutable(vm, source, Identifier::fromString(&vm, "foo"), ConstructorKind::None, ConstructAbility::CannotConstruct)->link(vm, source), exec->lexicalGlobalObject());
+
+    return JSValue::encode(func);
+}
+
 EncodedJSValue JSC_HOST_CALL functionCheckModuleSyntax(ExecState* exec)
 {
     String source = exec->argument(0).toString(exec)->value(exec);
+    if (exec->hadException())
+        return JSValue::encode(jsUndefined());
 
     StopWatch stopWatch;
     stopWatch.start();
@@ -1628,6 +1801,19 @@ EncodedJSValue JSC_HOST_CALL functionPlatformSupportsSamplingProfiler(ExecState*
 #else
     return JSValue::encode(JSValue(JSC::JSValue::JSFalse));
 #endif
+}
+
+EncodedJSValue JSC_HOST_CALL functionGenerateHeapSnapshot(ExecState* exec)
+{
+    JSLockHolder lock(exec);
+
+    HeapSnapshotBuilder snapshotBuilder(exec->vm().ensureHeapProfiler());
+    snapshotBuilder.buildSnapshot();
+
+    String jsonString = snapshotBuilder.json();
+    EncodedJSValue result = JSValue::encode(JSONParse(exec, jsonString));
+    RELEASE_ASSERT(!exec->hadException());
+    return result;
 }
 
 #if ENABLE(SAMPLING_PROFILER)
@@ -1685,14 +1871,7 @@ int main(int argc, char** argv)
     fesetenv( &env );
 #endif
 
-#if OS(WINDOWS) && (defined(_M_X64) || defined(__x86_64__))
-    // The VS2013 runtime has a bug where it mis-detects AVX-capable processors
-    // if the feature has been disabled in firmware. This causes us to crash
-    // in some of the math functions. For now, we disable those optimizations
-    // because Microsoft is not going to fix the problem in VS2013.
-    // FIXME: http://webkit.org/b/141449: Remove this workaround when we switch to VS2015+.
-    _set_FMA3_enable(0);
-
+#if OS(WINDOWS)
     // Cygwin calls ::SetErrorMode(SEM_FAILCRITICALERRORS), which we will inherit. This is bad for
     // testing/debugging, as it causes the post-mortem debugger not to be invoked. We reset the
     // error mode here to work around Cygwin's behavior. See <http://webkit.org/b/55222>.
@@ -1801,8 +1980,6 @@ static bool runWithScripts(GlobalObject* globalObject, const Vector<Script>& scr
             fileName = ASCIILiteral("[Command Line]");
         }
 
-        vm.startSampling();
-
         if (module) {
             if (!promise)
                 promise = loadAndEvaluateModule(globalObject->globalExec(), jscSource(scriptBuffer, fileName));
@@ -1818,20 +1995,9 @@ static bool runWithScripts(GlobalObject* globalObject, const Vector<Script>& scr
             dumpException(globalObject, evaluationException);
         }
 
-        vm.stopSampling();
         globalObject->globalExec()->clearException();
     }
 
-#if ENABLE(SAMPLING_FLAGS)
-    SamplingFlags::stop();
-#endif
-#if ENABLE(SAMPLING_REGIONS)
-    SamplingRegion::dump();
-#endif
-    vm.dumpSampleData(globalObject->globalExec());
-#if ENABLE(SAMPLING_COUNTERS)
-    AbstractSamplingCounter::dump();
-#endif
 #if ENABLE(REGEXP_TRACING)
     vm.dumpRegExpTrace();
 #endif
@@ -2091,6 +2257,8 @@ int jscmain(int argc, char** argv)
         JSLockHolder locker(vm);
         vm->heap.collectAllGarbage();
     }
+
+    printSuperSamplerState();
 
     return result;
 }

@@ -688,34 +688,34 @@ void PDFPlugin::destroyScrollbar(ScrollbarOrientation orientation)
     }
 }
 
-IntRect PDFPlugin::convertFromScrollbarToContainingView(const Scrollbar* scrollbar, const IntRect& scrollbarRect) const
+IntRect PDFPlugin::convertFromScrollbarToContainingView(const Scrollbar& scrollbar, const IntRect& scrollbarRect) const
 {
     IntRect rect = scrollbarRect;
-    rect.move(scrollbar->location() - pluginView()->location());
+    rect.move(scrollbar.location() - pluginView()->location());
 
     return pluginView()->frame()->view()->convertFromRendererToContainingView(pluginView()->pluginElement()->renderer(), rect);
 }
 
-IntRect PDFPlugin::convertFromContainingViewToScrollbar(const Scrollbar* scrollbar, const IntRect& parentRect) const
+IntRect PDFPlugin::convertFromContainingViewToScrollbar(const Scrollbar& scrollbar, const IntRect& parentRect) const
 {
     IntRect rect = pluginView()->frame()->view()->convertFromContainingViewToRenderer(pluginView()->pluginElement()->renderer(), parentRect);
-    rect.move(pluginView()->location() - scrollbar->location());
+    rect.move(pluginView()->location() - scrollbar.location());
 
     return rect;
 }
 
-IntPoint PDFPlugin::convertFromScrollbarToContainingView(const Scrollbar* scrollbar, const IntPoint& scrollbarPoint) const
+IntPoint PDFPlugin::convertFromScrollbarToContainingView(const Scrollbar& scrollbar, const IntPoint& scrollbarPoint) const
 {
     IntPoint point = scrollbarPoint;
-    point.move(scrollbar->location() - pluginView()->location());
+    point.move(scrollbar.location() - pluginView()->location());
 
     return pluginView()->frame()->view()->convertFromRendererToContainingView(pluginView()->pluginElement()->renderer(), point);
 }
 
-IntPoint PDFPlugin::convertFromContainingViewToScrollbar(const Scrollbar* scrollbar, const IntPoint& parentPoint) const
+IntPoint PDFPlugin::convertFromContainingViewToScrollbar(const Scrollbar& scrollbar, const IntPoint& parentPoint) const
 {
     IntPoint point = pluginView()->frame()->view()->convertFromContainingViewToRenderer(pluginView()->pluginElement()->renderer(), parentPoint);
-    point.move(pluginView()->location() - scrollbar->location());
+    point.move(pluginView()->location() - scrollbar.location());
     
     return point;
 }
@@ -828,7 +828,7 @@ void PDFPlugin::addArchiveResource()
     ResourceResponse synthesizedResponse(response.get());
 
     RefPtr<ArchiveResource> resource = ArchiveResource::create(SharedBuffer::wrapCFData(m_data.get()), m_sourceURL, "application/pdf", String(), String(), synthesizedResponse);
-    pluginView()->frame()->document()->loader()->addArchiveResource(resource.release());
+    pluginView()->frame()->document()->loader()->addArchiveResource(resource.releaseNonNull());
 }
 
 static void jsPDFDocInitialize(JSContextRef ctx, JSObjectRef object)
@@ -1091,6 +1091,14 @@ bool PDFPlugin::initialize(const Parameters& parameters)
     return true;
 }
 
+void PDFPlugin::willDetatchRenderer()
+{
+    if (webFrame()) {
+        if (FrameView* frameView = webFrame()->coreFrame()->view())
+            frameView->removeScrollableArea(this);
+    }
+}
+
 void PDFPlugin::destroy()
 {
     m_pdfLayerController.get().delegate = 0;
@@ -1269,14 +1277,19 @@ void PDFPlugin::didEvaluateJavaScript(uint64_t, const WTF::String&)
     
 static NSUInteger modifierFlagsFromWebEvent(const WebEvent& event)
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     return (event.shiftKey() ? NSShiftKeyMask : 0)
         | (event.controlKey() ? NSControlKeyMask : 0)
         | (event.altKey() ? NSAlternateKeyMask : 0)
         | (event.metaKey() ? NSCommandKeyMask : 0);
+#pragma clang diagnostic pop
 }
     
 static bool getEventTypeFromWebEvent(const WebEvent& event, NSEventType& eventType)
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     switch (event.type()) {
     case WebEvent::KeyDown:
         eventType = NSKeyDown;
@@ -1323,6 +1336,7 @@ static bool getEventTypeFromWebEvent(const WebEvent& event, NSEventType& eventTy
     default:
         return false;
     }
+#pragma clang diagnostic pop
 }
     
 NSEvent *PDFPlugin::nsEventForWebMouseEvent(const WebMouseEvent& event)
@@ -1553,11 +1567,11 @@ void PDFPlugin::setScrollOffset(const ScrollOffset& offset)
     [CATransaction commit];
 }
 
-void PDFPlugin::invalidateScrollbarRect(Scrollbar* scrollbar, const IntRect& rect)
+void PDFPlugin::invalidateScrollbarRect(Scrollbar& scrollbar, const IntRect& rect)
 {
-    if (scrollbar == horizontalScrollbar())
+    if (&scrollbar == horizontalScrollbar())
         [m_horizontalScrollbarLayer setNeedsDisplay];
-    else if (scrollbar == verticalScrollbar())
+    else if (&scrollbar == verticalScrollbar())
         [m_verticalScrollbarLayer setNeedsDisplay];
 }
 
@@ -1770,8 +1784,10 @@ PDFSelection *PDFPlugin::nextMatchForString(const String& target, BOOL searchFor
     if (startInSelection && [foundSelection isEqual:initialSelection])
         foundSelection = [document findString:target fromSelection:initialSelection withOptions:options];
 
-    if (!foundSelection && wrapSearch)
-        foundSelection = [document findString:target fromSelection:nil withOptions:options];
+    if (!foundSelection && wrapSearch) {
+        auto emptySelection = adoptNS([[pdfSelectionClass() alloc] initWithDocument:document]);
+        foundSelection = [document findString:target fromSelection:emptySelection.get() withOptions:options];
+    }
 
     return foundSelection;
 }

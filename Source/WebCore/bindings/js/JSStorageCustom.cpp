@@ -57,13 +57,11 @@ bool JSStorage::deleteProperty(JSCell* cell, ExecState* exec, PropertyName prope
     // Only perform the custom delete if the object doesn't have a native property by this name.
     // Since hasProperty() would end up calling canGetItemsForName() and be fooled, we need to check
     // the native property slots manually.
-    PropertySlot slot(thisObject);
-    if (getStaticValueSlot<JSStorage, Base>(exec, *s_info.staticPropHashTable, thisObject, propertyName, slot)) {
-        if (Optional<uint32_t> index = parseIndex(propertyName))
-            return Base::deletePropertyByIndex(thisObject, exec, index.value());
-        return Base::deleteProperty(thisObject, exec, propertyName);
-    }
-    JSValue prototype = thisObject->prototype();
+    PropertySlot slot(thisObject, PropertySlot::InternalMethodType::GetOwnProperty);
+
+    static_assert(!hasStaticPropertyTable, "This function does not handle static instance properties");
+
+    JSValue prototype = thisObject->getPrototypeDirect();
     if (prototype.isObject() && asObject(prototype)->getPropertySlot(exec, propertyName, slot))
         return Base::deleteProperty(thisObject, exec, propertyName);
 
@@ -78,10 +76,7 @@ bool JSStorage::deleteProperty(JSCell* cell, ExecState* exec, PropertyName prope
 
 bool JSStorage::deletePropertyByIndex(JSCell* cell, ExecState* exec, unsigned propertyName)
 {
-    JSStorage* thisObject = jsCast<JSStorage*>(cell);
-    PropertySlot slot(thisObject);
-    if (getStaticValueSlot<JSStorage, Base>(exec, *s_info.staticPropHashTable, thisObject, Identifier::from(exec, propertyName), slot))
-        return Base::deletePropertyByIndex(thisObject, exec, propertyName);
+    static_assert(!hasStaticPropertyTable, "This function does not handle static instance properties");
     return deleteProperty(cell, exec, Identifier::from(exec, propertyName));
 }
 
@@ -103,16 +98,15 @@ void JSStorage::getOwnPropertyNames(JSObject* object, ExecState* exec, PropertyN
     Base::getOwnPropertyNames(thisObject, exec, propertyNames, mode);
 }
 
-bool JSStorage::putDelegate(ExecState* exec, PropertyName propertyName, JSValue value, PutPropertySlot&)
+bool JSStorage::putDelegate(ExecState* exec, PropertyName propertyName, JSValue value, PutPropertySlot&, bool& putResult)
 {
     // Only perform the custom put if the object doesn't have a native property by this name.
     // Since hasProperty() would end up calling canGetItemsForName() and be fooled, we need to check
     // the native property slots manually.
-    PropertySlot slot(this);
-    if (getStaticValueSlot<JSStorage, Base>(exec, *s_info.staticPropHashTable, this, propertyName, slot))
-        return false;
+    PropertySlot slot(this, PropertySlot::InternalMethodType::GetOwnProperty);
+    static_assert(!hasStaticPropertyTable, "This function does not handle static instance properties");
 
-    JSValue prototype = this->prototype();
+    JSValue prototype = this->getPrototypeDirect();
     if (prototype.isObject() && asObject(prototype)->getPropertySlot(exec, propertyName, slot))
         return false;
 
@@ -120,13 +114,19 @@ bool JSStorage::putDelegate(ExecState* exec, PropertyName propertyName, JSValue 
         return false;
 
     String stringValue = value.toString(exec)->value(exec);
-    if (exec->hadException())
+    if (exec->hadException()) {
+        // The return value indicates whether putDelegate() should handle the put operation (which
+        // if true, tells the caller not to execute the generic put). It does not indicate whether
+        // putDelegate() did successfully complete the operation or not (which it didn't in this
+        // case due to the exception).
+        putResult = false;
         return true;
+    }
 
     ExceptionCode ec = 0;
     wrapped().setItem(propertyNameToString(propertyName), stringValue, ec);
     setDOMException(exec, ec);
-
+    putResult = !ec;
     return true;
 }
 

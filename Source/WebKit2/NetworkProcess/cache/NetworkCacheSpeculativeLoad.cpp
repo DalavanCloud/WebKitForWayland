@@ -63,9 +63,10 @@ SpeculativeLoad::~SpeculativeLoad()
     ASSERT(!m_networkLoad);
 }
 
-void SpeculativeLoad::willSendRedirectedRequest(const ResourceRequest& request, const ResourceRequest& redirectRequest, const ResourceResponse& redirectResponse)
+void SpeculativeLoad::willSendRedirectedRequest(const ResourceRequest&, const ResourceRequest& redirectRequest, const ResourceResponse& redirectResponse)
 {
     updateRedirectChainStatus(m_redirectChainCacheStatus, redirectResponse);
+    m_networkLoad->continueWillSendRequest(redirectRequest);
 }
 
 auto SpeculativeLoad::didReceiveResponse(const ResourceResponse& receivedResponse) -> ShouldContinueDidReceiveResponse
@@ -138,6 +139,10 @@ void SpeculativeLoad::didComplete()
     RELEASE_ASSERT(RunLoop::isMain());
 
     m_networkLoad = nullptr;
+
+    // Make sure speculatively revalidated resources do not get validated by the NetworkResourceLoader again.
+    if (m_cacheEntryForValidation)
+        m_cacheEntryForValidation->setNeedsValidation(false);
 
     m_completionHandler(WTFMove(m_cacheEntryForValidation));
 }

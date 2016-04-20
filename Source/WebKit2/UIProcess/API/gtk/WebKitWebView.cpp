@@ -241,61 +241,61 @@ public:
     }
 
 private:
-    virtual void willChangeIsLoading() override
+    void willChangeIsLoading() override
     {
         g_object_freeze_notify(G_OBJECT(m_webView));
     }
-    virtual void didChangeIsLoading() override
+    void didChangeIsLoading() override
     {
         webkitWebViewSetIsLoading(m_webView, getPage(m_webView)->pageLoadState().isLoading());
         g_object_thaw_notify(G_OBJECT(m_webView));
     }
 
-    virtual void willChangeTitle() override
+    void willChangeTitle() override
     {
         g_object_freeze_notify(G_OBJECT(m_webView));
     }
-    virtual void didChangeTitle() override
+    void didChangeTitle() override
     {
         m_webView->priv->title = getPage(m_webView)->pageLoadState().title().utf8();
         g_object_notify(G_OBJECT(m_webView), "title");
         g_object_thaw_notify(G_OBJECT(m_webView));
     }
 
-    virtual void willChangeActiveURL() override
+    void willChangeActiveURL() override
     {
         g_object_freeze_notify(G_OBJECT(m_webView));
     }
-    virtual void didChangeActiveURL() override
+    void didChangeActiveURL() override
     {
         m_webView->priv->activeURI = getPage(m_webView)->pageLoadState().activeURL().utf8();
         g_object_notify(G_OBJECT(m_webView), "uri");
         g_object_thaw_notify(G_OBJECT(m_webView));
     }
 
-    virtual void willChangeHasOnlySecureContent() override { }
-    virtual void didChangeHasOnlySecureContent() override { }
+    void willChangeHasOnlySecureContent() override { }
+    void didChangeHasOnlySecureContent() override { }
 
-    virtual void willChangeEstimatedProgress() override
+    void willChangeEstimatedProgress() override
     {
         g_object_freeze_notify(G_OBJECT(m_webView));
     }
-    virtual void didChangeEstimatedProgress() override
+    void didChangeEstimatedProgress() override
     {
         g_object_notify(G_OBJECT(m_webView), "estimated-load-progress");
         g_object_thaw_notify(G_OBJECT(m_webView));
     }
 
-    virtual void willChangeCanGoBack() override { }
-    virtual void didChangeCanGoBack() override { }
-    virtual void willChangeCanGoForward() override { }
-    virtual void didChangeCanGoForward() override { }
-    virtual void willChangeNetworkRequestsInProgress() override { }
-    virtual void didChangeNetworkRequestsInProgress() override { }
-    virtual void willChangeCertificateInfo() override { }
-    virtual void didChangeCertificateInfo() override { }
-    virtual void willChangeWebProcessIsResponsive() override { }
-    virtual void didChangeWebProcessIsResponsive() override { }
+    void willChangeCanGoBack() override { }
+    void didChangeCanGoBack() override { }
+    void willChangeCanGoForward() override { }
+    void didChangeCanGoForward() override { }
+    void willChangeNetworkRequestsInProgress() override { }
+    void didChangeNetworkRequestsInProgress() override { }
+    void willChangeCertificateInfo() override { }
+    void didChangeCertificateInfo() override { }
+    void willChangeWebProcessIsResponsive() override { }
+    void didChangeWebProcessIsResponsive() override { }
 
     WebKitWebView* m_webView;
 };
@@ -1075,16 +1075,17 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
      *    %FALSE to propagate the event further.
      */
     signals[LOAD_FAILED] =
-        g_signal_new("load-failed",
-                     G_TYPE_FROM_CLASS(webViewClass),
-                     G_SIGNAL_RUN_LAST,
-                     G_STRUCT_OFFSET(WebKitWebViewClass, load_failed),
-                     g_signal_accumulator_true_handled, 0,
-                     webkit_marshal_BOOLEAN__ENUM_STRING_POINTER,
-                     G_TYPE_BOOLEAN, 3,
-                     WEBKIT_TYPE_LOAD_EVENT,
-                     G_TYPE_STRING,
-                     G_TYPE_POINTER);
+        g_signal_new(
+            "load-failed",
+            G_TYPE_FROM_CLASS(webViewClass),
+            G_SIGNAL_RUN_LAST,
+            G_STRUCT_OFFSET(WebKitWebViewClass, load_failed),
+            g_signal_accumulator_true_handled, 0,
+            g_cclosure_marshal_generic,
+            G_TYPE_BOOLEAN, 3,
+            WEBKIT_TYPE_LOAD_EVENT,
+            G_TYPE_STRING,
+            G_TYPE_ERROR | G_SIGNAL_TYPE_STATIC_SCOPE);
 
     /**
      * WebKitWebView::load-failed-with-tls-errors:
@@ -3453,8 +3454,8 @@ static inline uint64_t generateSnapshotCallbackID()
 /**
  * webkit_web_view_get_snapshot:
  * @web_view: a #WebKitWebView
- * @options: #WebKitSnapshotOptions for the snapshot
  * @region: the #WebKitSnapshotRegion for this snapshot
+ * @options: #WebKitSnapshotOptions for the snapshot
  * @cancellable: (allow-none): a #GCancellable
  * @callback: (scope async): a #GAsyncReadyCallback
  * @user_data: (closure): user data

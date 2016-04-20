@@ -1,3 +1,4 @@
+//@ skip if $hostOS == "windows"
 description("This test checks the behavior of Intl.Collator as described in the ECMAScript Internationalization API Specification (ECMA-402 2.0).");
 
 // 10.1 The Intl.Collator Constructor
@@ -43,6 +44,7 @@ var testCollator = function(collator, possibleOptionDifferences) {
 }
 
 // Locale is processed correctly.
+shouldBeTrue("testCollator(Intl.Collator(), [{locale: 'en-US'}])");
 shouldBeTrue("testCollator(Intl.Collator('en'), [{locale: 'en'}])");
 shouldBeTrue("testCollator(Intl.Collator('eN-uS'), [{locale: 'en-US'}])");
 shouldBeTrue("testCollator(Intl.Collator(['en', 'de']), [{locale: 'en'}])");

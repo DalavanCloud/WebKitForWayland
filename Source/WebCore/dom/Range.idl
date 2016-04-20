@@ -22,7 +22,9 @@
 [
     Constructor,
     ConstructorCallWith=Document,
-    ImplementationLacksVTable
+    UsePointersEvenForNonNullableObjectArguments,
+    ImplementationLacksVTable,
+    ExportMacro=WEBCORE_EXPORT,
 ] interface Range {
 
     readonly attribute Node startContainer;

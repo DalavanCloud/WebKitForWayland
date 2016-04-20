@@ -1,6 +1,6 @@
 /*
  *  Copyright (C) 1999-2000 Harri Porten (porten@kde.org)
- *  Copyright (C) 2007, 2008 Apple Inc. All rights reserved.
+ *  Copyright (C) 2007-2008, 2016 Apple Inc. All rights reserved.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -49,8 +49,8 @@ public:
     JS_EXPORT_PRIVATE static bool getOwnPropertySlot(JSObject*, ExecState*, PropertyName, PropertySlot&);
     JS_EXPORT_PRIVATE static bool getOwnPropertySlotByIndex(JSObject*, ExecState*, unsigned propertyName, PropertySlot&);
 
-    JS_EXPORT_PRIVATE static void put(JSCell*, ExecState*, PropertyName, JSValue, PutPropertySlot&);
-    JS_EXPORT_PRIVATE static void putByIndex(JSCell*, ExecState*, unsigned propertyName, JSValue, bool shouldThrow);
+    JS_EXPORT_PRIVATE static bool put(JSCell*, ExecState*, PropertyName, JSValue, PutPropertySlot&);
+    JS_EXPORT_PRIVATE static bool putByIndex(JSCell*, ExecState*, unsigned propertyName, JSValue, bool shouldThrow);
 
     JS_EXPORT_PRIVATE static bool deleteProperty(JSCell*, ExecState*, PropertyName);
     JS_EXPORT_PRIVATE static bool deletePropertyByIndex(JSCell*, ExecState*, unsigned propertyName);
@@ -80,6 +80,29 @@ inline StringObject* asStringObject(JSValue value)
 }
 
 JS_EXPORT_PRIVATE StringObject* constructString(VM&, JSGlobalObject*, JSValue);
+
+// Helper for producing a JSString for 'string', where 'string' was been produced by
+// calling ToString on 'originalValue'. In cases where 'originalValue' already was a
+// string primitive we can just use this, otherwise we need to allocate a new JSString.
+static inline JSString* jsStringWithReuse(ExecState* exec, JSValue originalValue, const String& string)
+{
+    if (originalValue.isString()) {
+        ASSERT(asString(originalValue)->value(exec) == string);
+        return asString(originalValue);
+    }
+    return jsString(exec, string);
+}
+
+// Helper that tries to use the JSString substring sharing mechanism if 'originalValue' is a JSString.
+static inline JSString* jsSubstring(ExecState* exec, JSValue originalValue, const String& string, unsigned offset, unsigned length)
+{
+    if (originalValue.isString()) {
+        ASSERT(asString(originalValue)->value(exec) == string);
+        return jsSubstring(exec, asString(originalValue), offset, length);
+    }
+    return jsSubstring(exec, string, offset, length);
+}
+
 
 } // namespace JSC
 

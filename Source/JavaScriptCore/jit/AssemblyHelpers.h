@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011, 2013-2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2011, 2013-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,6 +38,7 @@
 #include "MaxFrameExtentForSlowPathCall.h"
 #include "RegisterAtOffsetList.h"
 #include "RegisterSet.h"
+#include "SuperSampler.h"
 #include "TypeofType.h"
 #include "VM.h"
 
@@ -148,6 +149,9 @@ public:
         }
 #endif
     }
+    
+    // Note that this clobbers offset.
+    void loadProperty(GPRReg object, GPRReg offset, JSValueRegs result);
 
     void moveValueRegs(JSValueRegs srcRegs, JSValueRegs destRegs)
     {
@@ -213,7 +217,7 @@ public:
         }
     }
     
-    enum RestoreTagRegisterMode { UseExistingTagRegisterContents, CopySavedTagRegistersFromBaseFrame };
+    enum RestoreTagRegisterMode { UseExistingTagRegisterContents, CopyBaselineCalleeSavedRegistersFromBaseFrame };
 
     void emitSaveOrCopyCalleeSavesFor(CodeBlock* codeBlock, VirtualRegister offsetVirtualRegister, RestoreTagRegisterMode tagRegisterMode, GPRReg temp)
     {
@@ -222,6 +226,10 @@ public:
         RegisterAtOffsetList* calleeSaves = codeBlock->calleeSaveRegisters();
         RegisterSet dontSaveRegisters = RegisterSet(RegisterSet::stackRegisters(), RegisterSet::allFPRs());
         unsigned registerCount = calleeSaves->size();
+
+#if USE(JSVALUE64)
+        RegisterSet baselineCalleeSaves = RegisterSet::llintBaselineCalleeSaveRegisters();
+#endif
         
         for (unsigned i = 0; i < registerCount; i++) {
             RegisterAtOffset entry = calleeSaves->at(i);
@@ -234,8 +242,7 @@ public:
             UNUSED_PARAM(tagRegisterMode);
             UNUSED_PARAM(temp);
 #else
-            if (tagRegisterMode == CopySavedTagRegistersFromBaseFrame
-                && (entry.reg() == GPRInfo::tagTypeNumberRegister || entry.reg() == GPRInfo::tagMaskRegister)) {
+            if (tagRegisterMode == CopyBaselineCalleeSavedRegistersFromBaseFrame && baselineCalleeSaves.get(entry.reg())) {
                 registerToWrite = temp;
                 loadPtr(AssemblyHelpers::Address(GPRInfo::callFrameRegister, entry.offset()), registerToWrite);
             } else
@@ -819,28 +826,9 @@ public:
 #endif
     }
 
-    Jump branchIfToSpace(GPRReg storageGPR)
-    {
-        return branchTest32(Zero, storageGPR, TrustedImm32(CopyBarrierBase::spaceBits));
-    }
-
-    Jump branchIfNotToSpace(GPRReg storageGPR)
-    {
-        return branchTest32(NonZero, storageGPR, TrustedImm32(CopyBarrierBase::spaceBits));
-    }
-
-    void removeSpaceBits(GPRReg storageGPR)
-    {
-        andPtr(TrustedImmPtr(~static_cast<uintptr_t>(CopyBarrierBase::spaceBits)), storageGPR);
-    }
-
     Jump branchIfFastTypedArray(GPRReg baseGPR);
     Jump branchIfNotFastTypedArray(GPRReg baseGPR);
 
-    // Returns a jump to slow path for when we need to execute the barrier. Note that baseGPR and
-    // resultGPR must be different.
-    Jump loadTypedArrayVector(GPRReg baseGPR, GPRReg resultGPR);
-    
     static Address addressForByteOffset(ptrdiff_t byteOffset)
     {
         return Address(GPRInfo::callFrameRegister, byteOffset);
@@ -1022,6 +1010,9 @@ public:
 #endif
 
     void jitReleaseAssertNoException();
+
+    void incrementSuperSamplerCount();
+    void decrementSuperSamplerCount();
     
     void purifyNaN(FPRReg);
 
@@ -1034,16 +1025,16 @@ public:
         jitAssertIsJSDouble(gpr);
         return gpr;
     }
-    FPRReg unboxDoubleWithoutAssertions(GPRReg gpr, FPRReg fpr)
+    FPRReg unboxDoubleWithoutAssertions(GPRReg gpr, GPRReg resultGPR, FPRReg fpr)
     {
-        add64(GPRInfo::tagTypeNumberRegister, gpr);
-        move64ToDouble(gpr, fpr);
+        add64(GPRInfo::tagTypeNumberRegister, gpr, resultGPR);
+        move64ToDouble(resultGPR, fpr);
         return fpr;
     }
-    FPRReg unboxDouble(GPRReg gpr, FPRReg fpr)
+    FPRReg unboxDouble(GPRReg gpr, GPRReg resultGPR, FPRReg fpr)
     {
         jitAssertIsJSDouble(gpr);
-        return unboxDoubleWithoutAssertions(gpr, fpr);
+        return unboxDoubleWithoutAssertions(gpr, resultGPR, fpr);
     }
     
     void boxDouble(FPRReg fpr, JSValueRegs regs)
@@ -1051,10 +1042,9 @@ public:
         boxDouble(fpr, regs.gpr());
     }
 
-    void unboxDoubleNonDestructive(JSValueRegs regs, FPRReg destFPR, GPRReg scratchGPR, FPRReg)
+    void unboxDoubleNonDestructive(JSValueRegs regs, FPRReg destFPR, GPRReg resultGPR, FPRReg)
     {
-        move(regs.payloadGPR(), scratchGPR);
-        unboxDouble(scratchGPR, destFPR);
+        unboxDouble(regs.payloadGPR(), resultGPR, destFPR);
     }
 
     // Here are possible arrangements of source, target, scratch:
@@ -1222,29 +1212,7 @@ public:
         return argumentsStart(codeOrigin.inlineCallFrame);
     }
     
-    void emitLoadStructure(RegisterID source, RegisterID dest, RegisterID scratch)
-    {
-#if USE(JSVALUE64)
-        load32(MacroAssembler::Address(source, JSCell::structureIDOffset()), dest);
-        loadPtr(vm()->heap.structureIDTable().base(), scratch);
-        loadPtr(MacroAssembler::BaseIndex(scratch, dest, MacroAssembler::TimesEight), dest);
-#else
-        UNUSED_PARAM(scratch);
-        loadPtr(MacroAssembler::Address(source, JSCell::structureIDOffset()), dest);
-#endif
-    }
-
-    static void emitLoadStructure(AssemblyHelpers& jit, RegisterID base, RegisterID dest, RegisterID scratch)
-    {
-#if USE(JSVALUE64)
-        jit.load32(MacroAssembler::Address(base, JSCell::structureIDOffset()), dest);
-        jit.loadPtr(jit.vm()->heap.structureIDTable().base(), scratch);
-        jit.loadPtr(MacroAssembler::BaseIndex(scratch, dest, MacroAssembler::TimesEight), dest);
-#else
-        UNUSED_PARAM(scratch);
-        jit.loadPtr(MacroAssembler::Address(base, JSCell::structureIDOffset()), dest);
-#endif
-    }
+    void emitLoadStructure(RegisterID source, RegisterID dest, RegisterID scratch);
 
     void emitStoreStructureWithTypeInfo(TrustedImmPtr structure, RegisterID dest, RegisterID)
     {
@@ -1357,19 +1325,8 @@ public:
 
     Vector<BytecodeAndMachineOffset>& decodedCodeMapFor(CodeBlock*);
 
-    void makeSpaceOnStackForCCall()
-    {
-        unsigned stackOffset = WTF::roundUpToMultipleOf(stackAlignmentBytes(), maxFrameExtentForSlowPathCall);
-        if (stackOffset)
-            subPtr(TrustedImm32(stackOffset), stackPointerRegister);
-    }
-
-    void reclaimSpaceOnStackForCCall()
-    {
-        unsigned stackOffset = WTF::roundUpToMultipleOf(stackAlignmentBytes(), maxFrameExtentForSlowPathCall);
-        if (stackOffset)
-            addPtr(TrustedImm32(stackOffset), stackPointerRegister);
-    }
+    void makeSpaceOnStackForCCall();
+    void reclaimSpaceOnStackForCCall();
 
 #if USE(JSVALUE64)
     void emitRandomThunk(JSGlobalObject*, GPRReg scratch0, GPRReg scratch1, GPRReg scratch2, FPRReg result);

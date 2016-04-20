@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 1999-2000 Harri Porten (porten@kde.org)
  *  Copyright (C) 2001 Peter Kelly (pmk@post.com)
- *  Copyright (C) 2003-2009, 2013-2015 Apple Inc. All rights reserved.
+ *  Copyright (C) 2003-2009, 2013-2016 Apple Inc. All rights reserved.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -60,6 +60,7 @@ class FullGCActivityCallback;
 class GCActivityCallback;
 class GCAwareJITStubRoutine;
 class Heap;
+class HeapProfiler;
 class HeapRootVisitor;
 class HeapVerifier;
 class IncrementalSweeper;
@@ -111,8 +112,6 @@ public:
     void writeBarrier(const JSCell*, JSValue);
     void writeBarrier(const JSCell*, JSCell*);
 
-    JS_EXPORT_PRIVATE static void* copyBarrier(const JSCell* owner, void*& copiedSpacePointer);
-
     WriteBarrierBuffer& writeBarrierBuffer() { return m_writeBarrierBuffer; }
     void flushWriteBarrierBuffer(JSCell*);
 
@@ -162,6 +161,8 @@ public:
 
     void notifyIsSafeToCollect() { m_isSafeToCollect = true; }
     bool isSafeToCollect() const { return m_isSafeToCollect; }
+
+    JS_EXPORT_PRIVATE bool isHeapSnapshotting() const;
 
     JS_EXPORT_PRIVATE void collectAllGarbageIfNotDoneRecently();
     void collectAllGarbage() { collectAndSweep(FullCollection); }
@@ -285,7 +286,7 @@ private:
     static const size_t minExtraMemory = 256;
     
     class FinalizerOwner : public WeakHandleOwner {
-        virtual void finalize(Handle<Unknown>, void* context) override;
+        void finalize(Handle<Unknown>, void* context) override;
     };
 
     JS_EXPORT_PRIVATE bool isValidAllocation(size_t);
@@ -316,6 +317,7 @@ private:
     void visitStrongHandles(HeapRootVisitor&);
     void visitHandleStack(HeapRootVisitor&);
     void visitSamplingProfiler();
+    void visitShadowChicken();
     void traceCodeBlocksAndJITStubRoutines();
     void converge();
     void visitWeakHandles(HeapRootVisitor&);
@@ -341,6 +343,8 @@ private:
     void resumeCompilerThreads();
     void zombifyDeadObjects();
     void markDeadObjects();
+    void gatherExtraHeapSnapshotData(HeapProfiler&);
+    void removeDeadHeapSnapshotNodes(HeapProfiler&);
 
     void sweepAllLogicallyEmptyWeakBlocks();
     bool sweepNextLogicallyEmptyWeakBlock();

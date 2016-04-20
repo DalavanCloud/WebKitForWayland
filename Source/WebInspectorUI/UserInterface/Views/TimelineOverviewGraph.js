@@ -39,6 +39,7 @@ WebInspector.TimelineOverviewGraph = class TimelineOverviewGraph extends WebInsp
         this._selectedRecord = null;
         this._selectedRecordChanged = false;
         this._scheduledSelectedRecordLayoutUpdateIdentifier = undefined;
+        this._visible = true;
     }
 
     // Public
@@ -63,6 +64,9 @@ WebInspector.TimelineOverviewGraph = class TimelineOverviewGraph extends WebInsp
 
         if (timelineType === WebInspector.TimelineRecord.Type.Memory)
             return new WebInspector.MemoryTimelineOverviewGraph(timeline, timelineOverview);
+
+        if (timelineType === WebInspector.TimelineRecord.Type.HeapAllocations)
+            return new WebInspector.HeapAllocationsTimelineOverviewGraph(timeline, timelineOverview);
 
         throw new Error("Can't make a graph for an unknown timeline.");
     }
@@ -172,13 +176,21 @@ WebInspector.TimelineOverviewGraph = class TimelineOverviewGraph extends WebInsp
 
     shown()
     {
+        if (this._visible)
+            return;
+
         this._visible = true;
+        this.element.classList.toggle("hidden", !this._visible);
         this.updateLayout();
     }
 
     hidden()
     {
+        if (!this._visible)
+            return;
+
         this._visible = false;
+        this.element.classList.toggle("hidden", !this._visible);
     }
 
     reset()

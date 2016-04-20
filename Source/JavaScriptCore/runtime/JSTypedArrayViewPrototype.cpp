@@ -74,6 +74,14 @@ EncodedJSValue JSC_HOST_CALL typedArrayViewPrivateFuncLength(ExecState* exec)
     return JSValue::encode(jsNumber(thisObject->length()));
 }
 
+EncodedJSValue JSC_HOST_CALL typedArrayViewPrivateFuncGetOriginalConstructor(ExecState* exec)
+{
+    JSGlobalObject* globalObject = exec->lexicalGlobalObject();
+    TypedArrayType type = exec->uncheckedArgument(0).getObject()->classInfo()->typedArrayStorageType;
+    ASSERT(isTypedView(type));
+    return JSValue::encode(globalObject->typedArrayConstructor(type));
+}
+
 EncodedJSValue JSC_HOST_CALL typedArrayViewPrivateFuncSort(ExecState* exec)
 {
     JSValue thisValue = exec->argument(0);
@@ -142,6 +150,14 @@ static EncodedJSValue JSC_HOST_CALL typedArrayViewProtoFuncKeys(ExecState* exec)
     if (!thisValue.isObject())
         return throwVMError(exec, createTypeError(exec, "Receiver should be a typed array view but was not an object"));
     CALL_GENERIC_TYPEDARRAY_PROTOTYPE_FUNCTION(genericTypedArrayViewProtoFuncKeys);
+}
+
+static EncodedJSValue JSC_HOST_CALL typedArrayViewProtoGetterFuncBuffer(ExecState* exec)
+{
+    JSValue thisValue = exec->thisValue();
+    if (!thisValue.isObject())
+        return throwVMError(exec, createTypeError(exec, "Receiver should be a typed array view but was not an object"));
+    CALL_GENERIC_TYPEDARRAY_PROTOTYPE_FUNCTION(genericTypedArrayViewProtoGetterFuncBuffer);
 }
 
 static EncodedJSValue JSC_HOST_CALL typedArrayViewProtoGetterFuncLength(ExecState* exec)
@@ -247,6 +263,7 @@ void JSTypedArrayViewPrototype::finishCreation(VM& vm, JSGlobalObject* globalObj
 
     ASSERT(inherits(info()));
 
+    JSC_NATIVE_GETTER(vm.propertyNames->buffer, typedArrayViewProtoGetterFuncBuffer, DontEnum | ReadOnly | DontDelete);
     JSC_NATIVE_INTRINSIC_GETTER(vm.propertyNames->byteLength, typedArrayViewProtoGetterFuncByteLength, DontEnum | ReadOnly | DontDelete, TypedArrayByteLengthIntrinsic);
     JSC_NATIVE_INTRINSIC_GETTER(vm.propertyNames->byteOffset, typedArrayViewProtoGetterFuncByteOffset, DontEnum | ReadOnly | DontDelete, TypedArrayByteOffsetIntrinsic);
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("copyWithin", typedArrayViewProtoFuncCopyWithin, DontEnum, 2);

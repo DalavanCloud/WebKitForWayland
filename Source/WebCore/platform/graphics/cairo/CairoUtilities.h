@@ -44,6 +44,7 @@ class FloatPoint;
 class IntSize;
 class IntRect;
 class Path;
+class Region;
 
 void copyContextProperties(cairo_t* srcCr, cairo_t* dstCr);
 void setSourceRGBAFromColor(cairo_t*, const Color&);
@@ -55,7 +56,7 @@ cairo_operator_t toCairoOperator(CompositeOperator op);
 cairo_operator_t toCairoOperator(BlendMode blendOp);
 void drawPatternToCairoContext(cairo_t* cr, cairo_surface_t* image, const IntSize& imageSize, const FloatRect& tileRect,
                                const AffineTransform& patternTransform, const FloatPoint& phase, cairo_operator_t op, const FloatRect& destRect);
-PassRefPtr<cairo_surface_t> copyCairoImageSurface(cairo_surface_t*);
+RefPtr<cairo_surface_t> copyCairoImageSurface(cairo_surface_t*);
 
 void copyRectFromCairoSurfaceToContext(cairo_surface_t* from, cairo_t* to, const IntSize& offset, const IntRect&);
 void copyRectFromOneSurfaceToAnother(cairo_surface_t* from, cairo_surface_t* to, const IntSize& offset, const IntRect&, const IntSize& = IntSize(), cairo_operator_t = CAIRO_OPERATOR_OVER);
@@ -64,6 +65,8 @@ IntSize cairoSurfaceSize(cairo_surface_t*);
 void flipImageSurfaceVertically(cairo_surface_t*);
 void cairoSurfaceSetDeviceScale(cairo_surface_t*, double xScale, double yScale);
 void cairoSurfaceGetDeviceScale(cairo_surface_t*, double& xScale, double& yScale);
+
+RefPtr<cairo_region_t> toCairoRegion(const Region&);
 
 } // namespace WebCore
 

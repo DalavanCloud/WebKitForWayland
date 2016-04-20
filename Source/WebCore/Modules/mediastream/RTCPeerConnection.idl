@@ -31,14 +31,14 @@
  */
 
 [
-    Conditional=MEDIA_STREAM,
+    Conditional=WEB_RTC,
     ActiveDOMObject,
     CustomConstructor(Dictionary rtcConfiguration),
     ConstructorCallWith=ScriptExecutionContext,
     ConstructorRaisesException,
-    EventTarget,
     InterfaceName=webkitRTCPeerConnection,
-] interface RTCPeerConnection {
+    UsePointersEvenForNonNullableObjectArguments,
+] interface RTCPeerConnection : EventTarget {
 
     // Private functions called by runQueuedOperation() (RTCPeerConnectionInternals.js)
     [Private] Promise queuedCreateOffer(optional Dictionary offerOptions);
@@ -101,7 +101,7 @@
     //                                 RTCStatsCallback successCallback,
     //                                 RTCPeerConnectionErrorCallback errorCallback);
 
-    [RaisesException] RTCDataChannel createDataChannel([TreatNullAs=NullString, TreatUndefinedAs=NullString] DOMString label, optional Dictionary options);
+    [RaisesException] RTCDataChannel createDataChannel([TreatNullAs=EmptyString] DOMString label, optional Dictionary options);
 
     void close();
 
@@ -112,9 +112,4 @@
     attribute EventHandler oniceconnectionstatechange;
     attribute EventHandler onicegatheringstatechange;
     attribute EventHandler ondatachannel;
-
-    // EventTarget interface
-    void addEventListener(DOMString type, EventListener listener, optional boolean useCapture);
-    void removeEventListener(DOMString type, EventListener listener, optional boolean useCapture);
-    [RaisesException] boolean dispatchEvent(Event event);
 };

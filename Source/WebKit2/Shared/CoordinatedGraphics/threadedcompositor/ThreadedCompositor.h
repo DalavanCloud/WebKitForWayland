@@ -28,10 +28,8 @@
 
 #if USE(COORDINATED_GRAPHICS_THREADED)
 
-#include "CompositingManager.h"
 #include "CoordinatedGraphicsScene.h"
 #include "SimpleViewportController.h"
-#include <WebCore/GLContext.h>
 #include <WebCore/IntSize.h>
 #include <WebCore/TransformationMatrix.h>
 #include <wtf/Atomics.h>
@@ -41,12 +39,17 @@
 #include <wtf/Noncopyable.h>
 #include <wtf/ThreadSafeRefCounted.h>
 
+#if PLATFORM(WPE)
+#include "CompositingManager.h"
+#endif
+
 #if USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR)
 #include <WebCore/DisplayRefreshMonitor.h>
 #endif
 
 namespace WebCore {
 struct CoordinatedGraphicsState;
+class GLContext;
 }
 
 namespace WebKit {
@@ -54,9 +57,14 @@ namespace WebKit {
 class CompositingRunLoop;
 class CoordinatedGraphicsScene;
 class CoordinatedGraphicsSceneClient;
+class DisplayRefreshMonitor;
 class WebPage;
 
-class ThreadedCompositor : public ThreadSafeRefCounted<ThreadedCompositor>, public SimpleViewportController::Client, public CoordinatedGraphicsSceneClient, public CompositingManager::Client {
+class ThreadedCompositor : public ThreadSafeRefCounted<ThreadedCompositor>, public SimpleViewportController::Client, public CoordinatedGraphicsSceneClient
+#if PLATFORM(WPE)
+    , public CompositingManager::Client
+#endif
+    {
     WTF_MAKE_NONCOPYABLE(ThreadedCompositor);
     WTF_MAKE_FAST_ALLOCATED;
 public:
@@ -84,30 +92,34 @@ public:
     void scrollTo(const WebCore::IntPoint&);
     void scrollBy(const WebCore::IntSize&);
 
+#if USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR)
     RefPtr<WebCore::DisplayRefreshMonitor> createDisplayRefreshMonitor(PlatformDisplayID);
+#endif
 
 private:
     ThreadedCompositor(Client*, WebPage&);
 
     // CoordinatedGraphicsSceneClient
-    virtual void purgeBackingStores() override;
-    virtual void renderNextFrame() override;
-    virtual void updateViewport() override;
-    virtual void commitScrollOffset(uint32_t layerID, const WebCore::IntSize& offset) override;
+    void purgeBackingStores() override;
+    void renderNextFrame() override;
+    void updateViewport() override;
+    void commitScrollOffset(uint32_t layerID, const WebCore::IntSize& offset) override;
 
+#if PLATFORM(WPE)
     // CompositingManager::Client
     virtual void releaseBuffer(uint32_t) override;
     virtual void frameComplete() override;
+#endif
 
     void renderLayerTree();
     void scheduleDisplayImmediately();
-    virtual void didChangeVisibleRect() override;
+    void didChangeVisibleRect() override;
 
     bool ensureGLContext();
     WebCore::GLContext* glContext();
     SimpleViewportController* viewportController() { return m_viewportController.get(); }
 
-    void callOnCompositingThread(std::function<void()>);
+    void callOnCompositingThread(std::function<void()>&&);
     void createCompositingThread();
     void runCompositingThread();
     void terminateCompositingThread();
@@ -126,34 +138,22 @@ private:
     float m_deviceScaleFactor;
     uint64_t m_nativeSurfaceHandle;
 
-    std::unique_ptr<CompositingRunLoop> m_compositingRunLoop;
-
     ThreadIdentifier m_threadIdentifier;
     Condition m_initializeRunLoopCondition;
     Lock m_initializeRunLoopConditionLock;
     Condition m_terminateRunLoopCondition;
     Lock m_terminateRunLoopConditionLock;
 
+#if PLATFORM(WPE)
     std::unique_ptr<CompositingManager> m_compositingManager;
+#endif
 
 #if USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR)
-    class DisplayRefreshMonitor : public WebCore::DisplayRefreshMonitor {
-    public:
-        DisplayRefreshMonitor(ThreadedCompositor&);
-
-        virtual bool requestRefreshCallback() override;
-
-        bool requiresDisplayRefreshCallback();
-        void dispatchDisplayRefreshCallback();
-        void invalidate();
-
-    private:
-        void displayRefreshCallback();
-        RunLoop::Timer<DisplayRefreshMonitor> m_displayRefreshTimer;
-        ThreadedCompositor* m_compositor;
-    };
+    friend class DisplayRefreshMonitor;
     RefPtr<DisplayRefreshMonitor> m_displayRefreshMonitor;
 #endif
+
+    std::unique_ptr<CompositingRunLoop> m_compositingRunLoop;
 
     Atomic<bool> m_clientRendersNextFrame;
     Atomic<bool> m_coordinateUpdateCompletionWithClient;

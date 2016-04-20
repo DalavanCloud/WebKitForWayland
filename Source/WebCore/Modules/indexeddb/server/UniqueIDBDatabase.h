@@ -72,7 +72,7 @@ public:
         return adoptRef(*new UniqueIDBDatabase(server, identifier));
     }
 
-    ~UniqueIDBDatabase();
+    WEBCORE_EXPORT ~UniqueIDBDatabase();
 
     void openDatabaseConnection(IDBConnectionToClient&, const IDBRequestData&);
 
@@ -85,7 +85,7 @@ public:
     void clearObjectStore(UniqueIDBDatabaseTransaction&, uint64_t objectStoreIdentifier, ErrorCallback);
     void createIndex(UniqueIDBDatabaseTransaction&, const IDBIndexInfo&, ErrorCallback);
     void deleteIndex(UniqueIDBDatabaseTransaction&, uint64_t objectStoreIdentifier, const String& indexName, ErrorCallback);
-    void putOrAdd(const IDBRequestData&, const IDBKeyData&, const ThreadSafeDataBuffer& valueData, IndexedDB::ObjectStoreOverwriteMode, KeyDataCallback);
+    void putOrAdd(const IDBRequestData&, const IDBKeyData&, const IDBValue&, IndexedDB::ObjectStoreOverwriteMode, KeyDataCallback);
     void getRecord(const IDBRequestData&, const IDBKeyRangeData&, GetResultCallback);
     void getCount(const IDBRequestData&, const IDBKeyRangeData&, CountCallback);
     void deleteRecord(const IDBRequestData&, const IDBKeyRangeData&, ErrorCallback);
@@ -101,7 +101,6 @@ public:
     void enqueueTransaction(Ref<UniqueIDBDatabaseTransaction>&&);
 
     void handleDelete(IDBConnectionToClient&, const IDBRequestData&);
-    bool deletePending() const { return m_deletePending; }
 
     static JSC::VM& databaseThreadVM();
     static JSC::ExecState& databaseThreadExecState();
@@ -125,7 +124,7 @@ private:
     void inProgressTransactionCompleted(const IDBResourceIdentifier&);
 
     // Database thread operations
-    void deleteBackingStore();
+    void deleteBackingStore(const IDBDatabaseIdentifier&);
     void openBackingStore(const IDBDatabaseIdentifier&);
     void performCommitTransaction(uint64_t callbackIdentifier, const IDBResourceIdentifier& transactionIdentifier);
     void performAbortTransaction(uint64_t callbackIdentifier, const IDBResourceIdentifier& transactionIdentifier);
@@ -135,7 +134,7 @@ private:
     void performClearObjectStore(uint64_t callbackIdentifier, const IDBResourceIdentifier& transactionIdentifier, uint64_t objectStoreIdentifier);
     void performCreateIndex(uint64_t callbackIdentifier, const IDBResourceIdentifier& transactionIdentifier, const IDBIndexInfo&);
     void performDeleteIndex(uint64_t callbackIdentifier, const IDBResourceIdentifier& transactionIdentifier, uint64_t objectStoreIdentifier, uint64_t indexIdentifier);
-    void performPutOrAdd(uint64_t callbackIdentifier, const IDBResourceIdentifier& transactionIdentifier, uint64_t objectStoreIdentifier, const IDBKeyData&, const ThreadSafeDataBuffer& valueData, IndexedDB::ObjectStoreOverwriteMode);
+    void performPutOrAdd(uint64_t callbackIdentifier, const IDBResourceIdentifier& transactionIdentifier, uint64_t objectStoreIdentifier, const IDBKeyData&, const IDBValue&, IndexedDB::ObjectStoreOverwriteMode);
     void performGetRecord(uint64_t callbackIdentifier, const IDBResourceIdentifier& transactionIdentifier, uint64_t objectStoreIdentifier, const IDBKeyRangeData&);
     void performGetIndexRecord(uint64_t callbackIdentifier, const IDBResourceIdentifier& transactionIdentifier, uint64_t objectStoreIdentifier, uint64_t indexIdentifier, IndexedDB::IndexRecordType, const IDBKeyRangeData&);
     void performGetCount(uint64_t callbackIdentifier, const IDBResourceIdentifier& transactionIdentifier, uint64_t objectStoreIdentifier, uint64_t indexIdentifier, const IDBKeyRangeData&);
@@ -145,8 +144,8 @@ private:
     void performActivateTransactionInBackingStore(uint64_t callbackIdentifier, const IDBTransactionInfo&);
 
     // Main thread callbacks
-    void didDeleteBackingStore();
-    void didOpenBackingStore(const IDBDatabaseInfo&);
+    void didDeleteBackingStore(uint64_t deletedVersion);
+    void didOpenBackingStore(const IDBDatabaseInfo&, const IDBError&);
     void didPerformCreateObjectStore(uint64_t callbackIdentifier, const IDBError&, const IDBObjectStoreInfo&);
     void didPerformDeleteObjectStore(uint64_t callbackIdentifier, const IDBError&, uint64_t objectStoreIdentifier);
     void didPerformClearObjectStore(uint64_t callbackIdentifier, const IDBError&);
@@ -173,6 +172,7 @@ private:
     void performCountCallback(uint64_t callbackIdentifier, const IDBError&, uint64_t);
 
     bool hasAnyPendingCallbacks() const;
+    bool isCurrentlyInUse() const;
 
     void invokeOperationAndTransactionTimer();
     void operationAndTransactionTimerFired();
@@ -191,11 +191,13 @@ private:
     RefPtr<UniqueIDBDatabaseTransaction> m_versionChangeTransaction;
 
     bool m_isOpeningBackingStore { false };
+    IDBError m_backingStoreOpenError;
     std::unique_ptr<IDBBackingStore> m_backingStore;
     std::unique_ptr<IDBDatabaseInfo> m_databaseInfo;
     std::unique_ptr<IDBDatabaseInfo> m_mostRecentDeletedDatabaseInfo;
 
     bool m_backingStoreSupportsSimultaneousTransactions { false };
+    bool m_backingStoreIsEphemeral { false };
 
     HashMap<uint64_t, ErrorCallback> m_errorCallbacks;
     HashMap<uint64_t, KeyDataCallback> m_keyDataCallbacks;
@@ -212,7 +214,6 @@ private:
     HashCountedSet<uint64_t> m_objectStoreTransactionCounts;
     HashSet<uint64_t> m_objectStoreWriteTransactions;
 
-    bool m_deletePending { false };
     bool m_deleteBackingStoreInProgress { false };
 };
 

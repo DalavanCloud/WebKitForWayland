@@ -41,13 +41,18 @@ class Frame;
 class URL;
 class ResourceRequest;
 
+enum class ViolationReportType {
+    ContentSecurityPolicy,
+    XSSAuditor,
+};
+
 class PingLoader {
 public:
     static void loadImage(Frame&, const URL&);
     static void sendPing(Frame&, const URL& pingURL, const URL& destinationURL);
-    static void sendViolationReport(Frame&, const URL& reportURL, RefPtr<FormData>&& report);
+    static void sendViolationReport(Frame&, const URL& reportURL, RefPtr<FormData>&& report, ViolationReportType);
 
-private:
+protected:
     static void startPingLoad(Frame&, ResourceRequest&);
 };
 

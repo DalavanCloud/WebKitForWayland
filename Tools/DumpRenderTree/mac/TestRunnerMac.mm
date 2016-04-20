@@ -43,7 +43,6 @@
 #import <JavaScriptCore/JSStringRef.h>
 #import <JavaScriptCore/JSStringRefCF.h>
 #import <WebCore/GeolocationPosition.h>
-#import <WebCore/SoftLinking.h>
 #import <WebKit/DOMDocument.h>
 #import <WebKit/DOMElement.h>
 #import <WebKit/DOMHTMLInputElementPrivate.h>
@@ -79,6 +78,7 @@
 #import <wtf/RetainPtr.h>
 
 #if !PLATFORM(IOS)
+#import <WebCore/SoftLinking.h>
 #import <WebKit/WebIconDatabasePrivate.h>
 #endif
 
@@ -89,9 +89,9 @@
 #import <WebKit/WebDOMOperationsPrivate.h>
 #endif
 
+#if !PLATFORM(IOS)
 SOFT_LINK_STAGED_FRAMEWORK(WebInspectorUI, PrivateFrameworks, A)
 
-#if !PLATFORM(IOS)
 @interface CommandValidationTarget : NSObject <NSValidatedUserInterfaceItem>
 {
     SEL _action;
@@ -616,6 +616,11 @@ void TestRunner::setWindowIsKey(bool windowIsKey)
     [[mainFrame webView] _updateActiveState];
 }
 
+void TestRunner::setViewSize(double width, double height)
+{
+    [[mainFrame webView] setFrameSize:NSMakeSize(width, height)];
+}
+
 static void waitUntilDoneWatchdogFired(CFRunLoopTimerRef timer, void* info)
 {
     gTestRunner->waitToDumpWatchdogTimerFired();
@@ -785,6 +790,9 @@ void TestRunner::evaluateInWebInspector(JSStringRef script)
 
 JSStringRef TestRunner::inspectorTestStubURL()
 {
+#if PLATFORM(IOS)
+    return nullptr;
+#else
     // Call the soft link framework function to dlopen it, then CFBundleGetBundleWithIdentifier will work.
     WebInspectorUILibrary();
 
@@ -798,6 +806,7 @@ JSStringRef TestRunner::inspectorTestStubURL()
 
     CFStringRef urlString = CFURLGetString(url.get());
     return JSStringCreateWithCFString(urlString);
+#endif
 }
 
 typedef HashMap<unsigned, RetainPtr<WebScriptWorld> > WorldMap;

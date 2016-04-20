@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2011, 2012 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -43,9 +43,6 @@ WebProcessCreationParameters::WebProcessCreationParameters()
     , shouldEnableJIT(false)
     , shouldEnableFTLJIT(false)
 #endif
-#if PLATFORM(MAC)
-    , shouldEnableTabSuspension(false)
-#endif
     , memoryCacheDisabled(false)
 #if ENABLE(SERVICE_CONTROLS)
     , hasImageServices(false)
@@ -68,6 +65,8 @@ void WebProcessCreationParameters::encode(IPC::ArgumentEncoder& encoder) const
     encoder << applicationCacheDirectoryExtensionHandle;
     encoder << webSQLDatabaseDirectory;
     encoder << webSQLDatabaseDirectoryExtensionHandle;
+    encoder << mediaCacheDirectory;
+    encoder << mediaCacheDirectoryExtensionHandle;
 #if ENABLE(SECCOMP_FILTERS)
     encoder << cookieStorageDirectory;
 #endif
@@ -97,10 +96,11 @@ void WebProcessCreationParameters::encode(IPC::ArgumentEncoder& encoder) const
     encoder.encodeEnum(cacheModel);
     encoder << shouldAlwaysUseComplexTextCodePath;
     encoder << shouldEnableMemoryPressureReliefLogging;
+    encoder << shouldSuppressMemoryPressureHandler;
     encoder << shouldUseFontSmoothing;
+    encoder << resourceLoadStatisticsEnabled;
     encoder << fontWhitelist;
     encoder << iconDatabaseEnabled;
-    encoder << shouldRewriteConstAsVar;
     encoder << terminationTimeout;
     encoder << languages;
     encoder << textCheckerState;
@@ -120,10 +120,6 @@ void WebProcessCreationParameters::encode(IPC::ArgumentEncoder& encoder) const
     encoder << !!bundleParameterData;
     if (bundleParameterData)
         encoder << bundleParameterData->dataReference();
-#endif
-
-#if PLATFORM(MAC)
-    encoder << shouldEnableTabSuspension;
 #endif
 
 #if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
@@ -164,6 +160,10 @@ bool WebProcessCreationParameters::decode(IPC::ArgumentDecoder& decoder, WebProc
     if (!decoder.decode(parameters.webSQLDatabaseDirectory))
         return false;
     if (!decoder.decode(parameters.webSQLDatabaseDirectoryExtensionHandle))
+        return false;
+    if (!decoder.decode(parameters.mediaCacheDirectory))
+        return false;
+    if (!decoder.decode(parameters.mediaCacheDirectoryExtensionHandle))
         return false;
 #if ENABLE(SECCOMP_FILTERS)
     if (!decoder.decode(parameters.cookieStorageDirectory))
@@ -215,13 +215,15 @@ bool WebProcessCreationParameters::decode(IPC::ArgumentDecoder& decoder, WebProc
         return false;
     if (!decoder.decode(parameters.shouldEnableMemoryPressureReliefLogging))
         return false;
+    if (!decoder.decode(parameters.shouldSuppressMemoryPressureHandler))
+        return false;
     if (!decoder.decode(parameters.shouldUseFontSmoothing))
+        return false;
+    if (!decoder.decode(parameters.resourceLoadStatisticsEnabled))
         return false;
     if (!decoder.decode(parameters.fontWhitelist))
         return false;
     if (!decoder.decode(parameters.iconDatabaseEnabled))
-        return false;
-    if (!decoder.decode(parameters.shouldRewriteConstAsVar))
         return false;
     if (!decoder.decode(parameters.terminationTimeout))
         return false;
@@ -265,11 +267,6 @@ bool WebProcessCreationParameters::decode(IPC::ArgumentDecoder& decoder, WebProc
 
         parameters.bundleParameterData = API::Data::create(dataReference.data(), dataReference.size());
     }
-#endif
-
-#if PLATFORM(MAC)
-    if (!decoder.decode(parameters.shouldEnableTabSuspension))
-        return false;
 #endif
 
 #if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)

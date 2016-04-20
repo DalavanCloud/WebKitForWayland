@@ -35,6 +35,7 @@
 #include "JSDOMWindowCustom.h"
 #include "JSExceptionBase.h"
 #include "SecurityOrigin.h"
+#include <bytecode/CodeBlock.h>
 #include <inspector/ScriptCallStack.h>
 #include <inspector/ScriptCallStackFactory.h>
 #include <interpreter/Interpreter.h>
@@ -104,6 +105,13 @@ String valueToStringWithNullCheck(ExecState* exec, JSValue value)
 {
     if (value.isNull())
         return String();
+    return value.toString(exec)->value(exec);
+}
+
+String valueToStringTreatingNullAsEmptyString(ExecState* exec, JSValue value)
+{
+    if (value.isNull())
+        return emptyString();
     return value.toString(exec)->value(exec);
 }
 
@@ -334,11 +342,6 @@ void printErrorMessageForFrame(Frame* frame, const String& message)
     frame->document()->domWindow()->printErrorMessage(message);
 }
 
-EncodedJSValue objectToStringFunctionGetter(ExecState* exec, EncodedJSValue, PropertyName propertyName)
-{
-    return JSValue::encode(JSFunction::create(exec->vm(), exec->lexicalGlobalObject(), 0, propertyName.publicName(), objectProtoFuncToString));
-}
-
 Structure* getCachedDOMStructure(JSDOMGlobalObject& globalObject, const ClassInfo* classInfo)
 {
     JSDOMStructureMap& structures = globalObject.structures();
@@ -555,6 +558,40 @@ uint64_t toUInt64(ExecState* exec, JSValue value, IntegerConversionConfiguration
     return n;
 }
 
+class GetCallerGlobalObjectFunctor {
+public:
+    GetCallerGlobalObjectFunctor() = default;
+
+    StackVisitor::Status operator()(StackVisitor& visitor) const
+    {
+        if (!m_hasSkippedFirstFrame) {
+            m_hasSkippedFirstFrame = true;
+            return StackVisitor::Continue;
+        }
+
+        if (auto* codeBlock = visitor->codeBlock())
+            m_globalObject = codeBlock->globalObject();
+        else {
+            ASSERT(visitor->callee());
+            m_globalObject = visitor->callee()->globalObject();
+        }
+        return StackVisitor::Done;
+    }
+
+    JSGlobalObject* globalObject() const { return m_globalObject; }
+
+private:
+    mutable bool m_hasSkippedFirstFrame { false };
+    mutable JSGlobalObject* m_globalObject { nullptr };
+};
+
+DOMWindow& callerDOMWindow(ExecState* exec)
+{
+    GetCallerGlobalObjectFunctor iter;
+    exec->iterate(iter);
+    return iter.globalObject() ? asJSDOMWindow(iter.globalObject())->wrapped() : firstDOMWindow(exec);
+}
+
 DOMWindow& activeDOMWindow(ExecState* exec)
 {
     return asJSDOMWindow(exec->lexicalGlobalObject())->wrapped();
@@ -633,6 +670,20 @@ void reportDeprecatedSetterError(JSC::ExecState& state, const char* interfaceNam
     context.addConsoleMessage(MessageSource::JS, MessageLevel::Error, makeString("Deprecated attempt to set property '", attributeName, "' on a non-", interfaceName, " object."));
 }
 
+void throwNotSupportedError(JSC::ExecState& state, const char* message)
+{
+    ASSERT(!state.hadException());
+    String messageString(message);
+    state.vm().throwException(&state, createDOMException(&state, NOT_SUPPORTED_ERR, &messageString));
+}
+
+void throwInvalidStateError(JSC::ExecState& state, const char* message)
+{
+    ASSERT(!state.hadException());
+    String messageString(message);
+    state.vm().throwException(&state, createDOMException(&state, INVALID_STATE_ERR, &messageString));
+}
+
 JSC::EncodedJSValue throwArgumentMustBeEnumError(JSC::ExecState& state, unsigned argumentIndex, const char* argumentName, const char* functionInterfaceName, const char* functionName, const char* expectedValues)
 {
     StringBuilder builder;
@@ -685,9 +736,10 @@ void throwSequenceTypeError(JSC::ExecState& state)
     throwTypeError(state, "Value is not a sequence");
 }
 
-void throwSetterTypeError(JSC::ExecState& state, const char* interfaceName, const char* attributeName)
+bool throwSetterTypeError(JSC::ExecState& state, const char* interfaceName, const char* attributeName)
 {
     throwTypeError(state, makeString("The ", interfaceName, '.', attributeName, " setter can only be used on instances of ", interfaceName));
+    return false;
 }
 
 EncodedJSValue throwThisTypeError(JSC::ExecState& state, const char* interfaceName, const char* functionName)
@@ -699,7 +751,7 @@ void callFunctionWithCurrentArguments(JSC::ExecState& state, JSC::JSObject& this
 {
     JSC::CallData callData;
     JSC::CallType callType = JSC::getCallData(&function, callData);
-    ASSERT(callType != CallTypeNone);
+    ASSERT(callType != CallType::None);
 
     JSC::MarkedArgumentBuffer arguments;
     for (unsigned i = 0; i < state.argumentCount(); ++i)
@@ -724,7 +776,7 @@ static EncodedJSValue JSC_HOST_CALL callThrowTypeError(ExecState* exec)
 CallType DOMConstructorObject::getCallData(JSCell*, CallData& callData)
 {
     callData.native.function = callThrowTypeError;
-    return CallTypeHost;
+    return CallType::Host;
 }
 
 } // namespace WebCore

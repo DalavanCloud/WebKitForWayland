@@ -47,6 +47,7 @@
 #include "WebProcess.h"
 #include "WebProcessCreationParameters.h"
 #include "WebProcessPoolMessages.h"
+#include "WebUserContentController.h"
 #include <JavaScriptCore/APICast.h>
 #include <JavaScriptCore/Exception.h>
 #include <JavaScriptCore/JSLock.h>
@@ -70,8 +71,9 @@
 #include <WebCore/SecurityPolicy.h>
 #include <WebCore/SessionID.h>
 #include <WebCore/Settings.h>
-#include <WebCore/UserContentController.h>
 #include <WebCore/UserGestureIndicator.h>
+#include <WebCore/UserScript.h>
+#include <WebCore/UserStyleSheet.h>
 
 #if ENABLE(CSS_REGIONS) || ENABLE(CSS_COMPOSITING)
 #include <WebCore/RuntimeEnabledFeatures.h>
@@ -190,6 +192,26 @@ void InjectedBundle::overrideBoolPreferenceForTestRunner(WebPageGroupProxy* page
     if (preference == "WebKitCSSCompositingEnabled")
         RuntimeEnabledFeatures::sharedFeatures().setCSSCompositingEnabled(enabled);
 #endif
+    
+#if ENABLE(SHADOW_DOM)
+    if (preference == "WebKitShadowDOMEnabled")
+        RuntimeEnabledFeatures::sharedFeatures().setShadowDOMEnabled(enabled);
+#endif
+
+#if ENABLE(CUSTOM_ELEMENTS)
+    if (preference == "WebKitCustomElementsEnabled")
+        RuntimeEnabledFeatures::sharedFeatures().setCustomElementsEnabled(enabled);
+#endif
+
+#if ENABLE(WEBGL2)
+    if (preference == "WebKitWebGL2Enabled")
+        RuntimeEnabledFeatures::sharedFeatures().setWebGL2Enabled(enabled);
+#endif
+
+#if ENABLE(FETCH_API)
+    if (preference == "WebKitFetchAPIEnabled")
+        RuntimeEnabledFeatures::sharedFeatures().setFetchAPIEnabled(enabled);
+#endif
 
     // Map the names used in LayoutTests with the names used in WebCore::Settings and WebPreferencesStore.
 #define FOR_EACH_OVERRIDE_BOOL_PREFERENCE(macro) \
@@ -222,9 +244,7 @@ void InjectedBundle::overrideBoolPreferenceForTestRunner(WebPageGroupProxy* page
 
     FOR_EACH_OVERRIDE_BOOL_PREFERENCE(OVERRIDE_PREFERENCE_AND_SET_IN_EXISTING_PAGES)
 
-#if ENABLE(HIDDEN_PAGE_DOM_TIMER_THROTTLING)
     OVERRIDE_PREFERENCE_AND_SET_IN_EXISTING_PAGES(WebKitHiddenPageDOMTimerThrottlingEnabled, HiddenPageDOMTimerThrottlingEnabled, hiddenPageDOMTimerThrottlingEnabled)
-#endif
 
 #undef OVERRIDE_PREFERENCE_AND_SET_IN_EXISTING_PAGES
 #undef FOR_EACH_OVERRIDE_BOOL_PREFERENCE
@@ -285,13 +305,12 @@ void InjectedBundle::setJavaScriptCanAccessClipboard(WebPageGroupProxy* pageGrou
 
 void InjectedBundle::setPrivateBrowsingEnabled(WebPageGroupProxy* pageGroup, bool enabled)
 {
-    // FIXME (NetworkProcess): This test-only function doesn't work with NetworkProcess, <https://bugs.webkit.org/show_bug.cgi?id=115274>.
-#if PLATFORM(COCOA) || USE(CFNETWORK) || USE(SOUP)
-    if (enabled)
+    if (enabled) {
+        WebProcess::singleton().ensureLegacyPrivateBrowsingSessionInNetworkProcess();
         WebFrameNetworkingContext::ensurePrivateBrowsingSession(SessionID::legacyPrivateSessionID());
-    else
+    } else
         SessionTracker::destroySession(SessionID::legacyPrivateSessionID());
-#endif
+
     const HashSet<Page*>& pages = PageGroup::pageGroup(pageGroup->identifier())->pages();
     for (HashSet<Page*>::iterator iter = pages.begin(); iter != pages.end(); ++iter)
         (*iter)->enableLegacyPrivateBrowsing(enabled);
@@ -398,39 +417,39 @@ bool InjectedBundle::isProcessingUserGesture()
 void InjectedBundle::addUserScript(WebPageGroupProxy* pageGroup, InjectedBundleScriptWorld* scriptWorld, const String& source, const String& url, API::Array* whitelist, API::Array* blacklist, WebCore::UserScriptInjectionTime injectionTime, WebCore::UserContentInjectedFrames injectedFrames)
 {
     // url is not from URL::string(), i.e. it has not already been parsed by URL, so we have to use the relative URL constructor for URL instead of the ParsedURLStringTag version.
-    auto userScript = std::make_unique<UserScript>(source, URL(URL(), url), whitelist ? whitelist->toStringVector() : Vector<String>(), blacklist ? blacklist->toStringVector() : Vector<String>(), injectionTime, injectedFrames);
+    UserScript userScript{ source, URL(URL(), url), whitelist ? whitelist->toStringVector() : Vector<String>(), blacklist ? blacklist->toStringVector() : Vector<String>(), injectionTime, injectedFrames };
 
-    pageGroup->userContentController().addUserScript(scriptWorld->coreWorld(), WTFMove(userScript));
+    pageGroup->userContentController().addUserScript(*scriptWorld, WTFMove(userScript));
 }
 
 void InjectedBundle::addUserStyleSheet(WebPageGroupProxy* pageGroup, InjectedBundleScriptWorld* scriptWorld, const String& source, const String& url, API::Array* whitelist, API::Array* blacklist, WebCore::UserContentInjectedFrames injectedFrames)
 {
     // url is not from URL::string(), i.e. it has not already been parsed by URL, so we have to use the relative URL constructor for URL instead of the ParsedURLStringTag version.
-    auto userStyleSheet = std::make_unique<UserStyleSheet>(source, URL(URL(), url), whitelist ? whitelist->toStringVector() : Vector<String>(), blacklist ? blacklist->toStringVector() : Vector<String>(), injectedFrames, UserStyleUserLevel);
+    UserStyleSheet userStyleSheet{ source, URL(URL(), url), whitelist ? whitelist->toStringVector() : Vector<String>(), blacklist ? blacklist->toStringVector() : Vector<String>(), injectedFrames, UserStyleUserLevel };
 
-    pageGroup->userContentController().addUserStyleSheet(scriptWorld->coreWorld(), WTFMove(userStyleSheet), InjectInExistingDocuments);
+    pageGroup->userContentController().addUserStyleSheet(*scriptWorld, WTFMove(userStyleSheet));
 }
 
 void InjectedBundle::removeUserScript(WebPageGroupProxy* pageGroup, InjectedBundleScriptWorld* scriptWorld, const String& url)
 {
     // url is not from URL::string(), i.e. it has not already been parsed by URL, so we have to use the relative URL constructor for URL instead of the ParsedURLStringTag version.
-    pageGroup->userContentController().removeUserScript(scriptWorld->coreWorld(), URL(URL(), url));
+    pageGroup->userContentController().removeUserScriptWithURL(*scriptWorld, URL(URL(), url));
 }
 
 void InjectedBundle::removeUserStyleSheet(WebPageGroupProxy* pageGroup, InjectedBundleScriptWorld* scriptWorld, const String& url)
 {
     // url is not from URL::string(), i.e. it has not already been parsed by URL, so we have to use the relative URL constructor for URL instead of the ParsedURLStringTag version.
-    pageGroup->userContentController().removeUserStyleSheet(scriptWorld->coreWorld(), URL(URL(), url));
+    pageGroup->userContentController().removeUserStyleSheetWithURL(*scriptWorld, URL(URL(), url));
 }
 
 void InjectedBundle::removeUserScripts(WebPageGroupProxy* pageGroup, InjectedBundleScriptWorld* scriptWorld)
 {
-    pageGroup->userContentController().removeUserScripts(scriptWorld->coreWorld());
+    pageGroup->userContentController().removeUserScripts(*scriptWorld);
 }
 
 void InjectedBundle::removeUserStyleSheets(WebPageGroupProxy* pageGroup, InjectedBundleScriptWorld* scriptWorld)
 {
-    pageGroup->userContentController().removeUserStyleSheets(scriptWorld->coreWorld());
+    pageGroup->userContentController().removeUserStyleSheets(*scriptWorld);
 }
 
 void InjectedBundle::removeAllUserContent(WebPageGroupProxy* pageGroup)

@@ -141,7 +141,7 @@ const char* SharedBuffer::data() const
     return this->buffer().data();
 }
 
-PassRefPtr<ArrayBuffer> SharedBuffer::createArrayBuffer() const
+RefPtr<ArrayBuffer> SharedBuffer::createArrayBuffer() const
 {
     RefPtr<ArrayBuffer> arrayBuffer = ArrayBuffer::createUninitialized(static_cast<unsigned>(size()), sizeof(char));
 
@@ -155,10 +155,10 @@ PassRefPtr<ArrayBuffer> SharedBuffer::createArrayBuffer() const
     if (position != arrayBuffer->byteLength()) {
         ASSERT_NOT_REACHED();
         // Don't return the incomplete ArrayBuffer.
-        return 0;
+        return nullptr;
     }
 
-    return arrayBuffer.release();
+    return arrayBuffer;
 }
 
 void SharedBuffer::append(SharedBuffer* data)
@@ -264,8 +264,14 @@ Ref<SharedBuffer> SharedBuffer::copy() const
     clone->m_buffer->data.append(m_buffer->data.data(), m_buffer->data.size());
 
 #if !USE(NETWORK_CFDATA_ARRAY_CALLBACK)
-    for (char* segment : m_segments)
-        clone->m_buffer->data.append(segment, segmentSize);
+    if (!m_segments.isEmpty()) {
+        unsigned lastIndex = m_segments.size() - 1;
+        for (unsigned i = 0; i < lastIndex; ++i)
+            clone->m_buffer->data.append(m_segments[i], segmentSize);
+
+        unsigned sizeOfLastSegment = m_size - m_buffer->data.size() - lastIndex * segmentSize;
+        clone->m_buffer->data.append(m_segments.last(), sizeOfLastSegment);
+    }
 #else
     for (auto& data : m_dataArray)
         clone->m_dataArray.append(data.get());
@@ -420,7 +426,7 @@ inline bool SharedBuffer::maybeAppendPlatformData(SharedBuffer*)
 
 #endif
 
-PassRefPtr<SharedBuffer> utf8Buffer(const String& string)
+RefPtr<SharedBuffer> utf8Buffer(const String& string)
 {
     // Allocate a buffer big enough to hold all the characters.
     const int length = string.length();

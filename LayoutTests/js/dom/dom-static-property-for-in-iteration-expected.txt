@@ -11,6 +11,7 @@ PASS a["hock"] is 5
 PASS a["snood"] is 6
 PASS a["charset"] is 
 PASS a["coords"] is 
+PASS a["download"] is 
 PASS a["hreflang"] is 
 PASS a["name"] is 
 PASS a["ping"] is 
@@ -19,15 +20,17 @@ PASS a["rev"] is
 PASS a["shape"] is 
 PASS a["target"] is 
 PASS a["type"] is 
-PASS a["hash"] is 
+PASS a["text"] is nerget
+PASS a["relList"] is 
+PASS a["origin"] is file://
+PASS a["protocol"] is file:
+PASS a["username"] is 
+PASS a["password"] is 
 PASS a["host"] is 
 PASS a["hostname"] is 
 PASS a["port"] is 
-PASS a["protocol"] is file:
 PASS a["search"] is 
-PASS a["origin"] is file://
-PASS a["text"] is nerget
-PASS a["relList"] is 
+PASS a["hash"] is 
 PASS a["title"] is 
 PASS a["lang"] is 
 PASS a["translate"] is true
@@ -47,7 +50,7 @@ PASS a["attributes"] is [object NamedNodeMap]
 PASS a["style"] is [object CSSStyleDeclaration]
 PASS a["id"] is foo
 PASS a["offsetLeft"] is 8
-PASS a["offsetTop"] is 744
+PASS a["offsetTop"] is 789
 PASS a["offsetWidth"] is 40
 PASS a["offsetHeight"] is 18
 PASS a["clientLeft"] is 0
@@ -140,7 +143,7 @@ PASS a["lastChild"] is [object Text]
 PASS a["previousSibling"] is [object Text]
 PASS a["nextSibling"] is [object Text]
 PASS a["ownerDocument"] is [object HTMLDocument]
-PASS a["treeRoot"] is [object HTMLDocument]
+PASS a["rootNode"] is [object HTMLDocument]
 PASS a["namespaceURI"] is http://www.w3.org/1999/xhtml
 PASS a["prefix"] is null
 PASS a["localName"] is a

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2011-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -53,6 +53,7 @@
 #include "LowLevelInterpreter.h"
 #include "ObjectConstructor.h"
 #include "ProtoCallFrame.h"
+#include "ShadowChicken.h"
 #include "StructureRareDataInlines.h"
 #include "VMInlines.h"
 #include <wtf/StringPrintStream.h>
@@ -526,7 +527,6 @@ LLINT_SLOW_PATH_DECL(slow_path_instanceof)
     LLINT_BEGIN();
     JSValue value = LLINT_OP_C(2).jsValue();
     JSValue proto = LLINT_OP_C(3).jsValue();
-    ASSERT(!value.isObject() || !proto.isObject());
     LLINT_RETURN(jsBoolean(JSObject::defaultHasInstance(exec, value, proto)));
 }
 
@@ -545,13 +545,26 @@ LLINT_SLOW_PATH_DECL(slow_path_instanceof_custom)
     LLINT_RETURN(result);
 }
 
+LLINT_SLOW_PATH_DECL(slow_path_try_get_by_id)
+{
+    LLINT_BEGIN();
+    CodeBlock* codeBlock = exec->codeBlock();
+    const Identifier& ident = codeBlock->identifier(pc[3].u.operand);
+    JSValue baseValue = LLINT_OP_C(2).jsValue();
+    PropertySlot slot(baseValue, PropertySlot::PropertySlot::InternalMethodType::VMInquiry);
+
+    baseValue.getPropertySlot(exec, ident, slot);
+
+    LLINT_RETURN(slot.getPureResult());
+}
+
 LLINT_SLOW_PATH_DECL(slow_path_get_by_id)
 {
     LLINT_BEGIN();
     CodeBlock* codeBlock = exec->codeBlock();
     const Identifier& ident = codeBlock->identifier(pc[3].u.operand);
     JSValue baseValue = LLINT_OP_C(2).jsValue();
-    PropertySlot slot(baseValue);
+    PropertySlot slot(baseValue, PropertySlot::PropertySlot::InternalMethodType::Get);
 
     JSValue result = baseValue.get(exec, ident, slot);
     LLINT_CHECK_EXCEPTION();
@@ -602,7 +615,7 @@ LLINT_SLOW_PATH_DECL(slow_path_get_arguments_length)
     CodeBlock* codeBlock = exec->codeBlock();
     const Identifier& ident = codeBlock->identifier(pc[3].u.operand);
     JSValue baseValue = LLINT_OP(2).jsValue();
-    PropertySlot slot(baseValue);
+    PropertySlot slot(baseValue, PropertySlot::InternalMethodType::Get);
     LLINT_RETURN(baseValue.get(exec, ident, slot));
 }
 
@@ -682,6 +695,7 @@ LLINT_SLOW_PATH_DECL(slow_path_del_by_id)
     LLINT_BEGIN();
     CodeBlock* codeBlock = exec->codeBlock();
     JSObject* baseObject = LLINT_OP_C(2).jsValue().toObject(exec);
+    LLINT_CHECK_EXCEPTION();
     bool couldDelete = baseObject->methodTable()->deleteProperty(baseObject, exec, codeBlock->identifier(pc[3].u.operand));
     LLINT_CHECK_EXCEPTION();
     if (!couldDelete && codeBlock->isStrictMode())
@@ -799,7 +813,8 @@ LLINT_SLOW_PATH_DECL(slow_path_del_by_val)
     LLINT_BEGIN();
     JSValue baseValue = LLINT_OP_C(2).jsValue();
     JSObject* baseObject = baseValue.toObject(exec);
-    
+    LLINT_CHECK_EXCEPTION();
+
     JSValue subscript = LLINT_OP_C(3).jsValue();
     
     bool couldDelete;
@@ -1082,6 +1097,15 @@ LLINT_SLOW_PATH_DECL(slow_path_new_arrow_func_exp)
     LLINT_RETURN(JSFunction::create(vm, executable, scope));
 }
 
+LLINT_SLOW_PATH_DECL(slow_path_set_function_name)
+{
+    LLINT_BEGIN();
+    JSFunction* func = jsCast<JSFunction*>(LLINT_OP(1).Register::unboxedCell());
+    JSValue name = LLINT_OP_C(2).Register::jsValue();
+    func->setFunctionName(exec, name);
+    LLINT_END();
+}
+
 static SlowPathReturnType handleHostCall(ExecState* execCallee, Instruction* pc, JSValue callee, CodeSpecializationKind kind)
 {
     UNUSED_PARAM(pc);
@@ -1100,9 +1124,9 @@ static SlowPathReturnType handleHostCall(ExecState* execCallee, Instruction* pc,
         CallData callData;
         CallType callType = getCallData(callee, callData);
     
-        ASSERT(callType != CallTypeJS);
+        ASSERT(callType != CallType::JS);
     
-        if (callType == CallTypeHost) {
+        if (callType == CallType::Host) {
             NativeCallFrameTracer tracer(&vm, execCallee);
             execCallee->setCallee(asObject(callee));
             vm.hostCallReturnValue = JSValue::decode(callData.native.function(execCallee));
@@ -1114,7 +1138,7 @@ static SlowPathReturnType handleHostCall(ExecState* execCallee, Instruction* pc,
         dataLog("Call callee is not a function: ", callee, "\n");
 #endif
 
-        ASSERT(callType == CallTypeNone);
+        ASSERT(callType == CallType::None);
         LLINT_CALL_THROW(exec, createNotAFunctionError(exec, callee));
     }
 
@@ -1123,9 +1147,9 @@ static SlowPathReturnType handleHostCall(ExecState* execCallee, Instruction* pc,
     ConstructData constructData;
     ConstructType constructType = getConstructData(callee, constructData);
     
-    ASSERT(constructType != ConstructTypeJS);
+    ASSERT(constructType != ConstructType::JS);
     
-    if (constructType == ConstructTypeHost) {
+    if (constructType == ConstructType::Host) {
         NativeCallFrameTracer tracer(&vm, execCallee);
         execCallee->setCallee(asObject(callee));
         vm.hostCallReturnValue = JSValue::decode(constructData.native.function(execCallee));
@@ -1137,7 +1161,7 @@ static SlowPathReturnType handleHostCall(ExecState* execCallee, Instruction* pc,
     dataLog("Constructor callee is not a function: ", callee, "\n");
 #endif
 
-    ASSERT(constructType == ConstructTypeNone);
+    ASSERT(constructType == ConstructType::None);
     LLINT_CALL_THROW(exec, createNotAConstructorError(exec, callee));
 }
 
@@ -1413,7 +1437,7 @@ LLINT_SLOW_PATH_DECL(slow_path_get_from_scope)
     // ModuleVar is always converted to ClosureVar for get_from_scope.
     ASSERT(getPutInfo.resolveType() != ModuleVar);
 
-    PropertySlot slot(scope);
+    PropertySlot slot(scope, PropertySlot::InternalMethodType::Get);
     if (!scope->getPropertySlot(exec, ident, slot)) {
         if (getPutInfo.resolveMode() == ThrowIfNotFound)
             LLINT_RETURN(exec->vm().throwException(exec, createUndefinedVariableError(exec, ident)));
@@ -1421,7 +1445,7 @@ LLINT_SLOW_PATH_DECL(slow_path_get_from_scope)
     }
 
     JSValue result = JSValue();
-    if (jsDynamicCast<JSGlobalLexicalEnvironment*>(scope)) {
+    if (scope->isGlobalLexicalEnvironment()) {
         // When we can't statically prove we need a TDZ check, we must perform the check on the slow path.
         result = slot.getValue(exec, ident);
         if (result == jsTDZValue())
@@ -1458,10 +1482,10 @@ LLINT_SLOW_PATH_DECL(slow_path_put_to_scope)
 
     bool hasProperty = scope->hasProperty(exec, ident);
     if (hasProperty
-        && jsDynamicCast<JSGlobalLexicalEnvironment*>(scope)
+        && scope->isGlobalLexicalEnvironment()
         && getPutInfo.initializationMode() != Initialization) {
         // When we can't statically prove we need a TDZ check, we must perform the check on the slow path.
-        PropertySlot slot(scope);
+        PropertySlot slot(scope, PropertySlot::InternalMethodType::Get);
         JSGlobalLexicalEnvironment::getOwnPropertySlot(scope, exec, ident, slot);
         if (slot.getValue(exec, ident) == jsTDZValue())
             LLINT_THROW(createTDZError(exec));
@@ -1489,6 +1513,25 @@ LLINT_SLOW_PATH_DECL(slow_path_check_if_exception_is_uncatchable_and_notify_prof
     if (isTerminatedExecutionException(vm.exception()))
         LLINT_RETURN_TWO(pc, bitwise_cast<void*>(static_cast<uintptr_t>(1)));
     LLINT_RETURN_TWO(pc, 0);
+}
+
+LLINT_SLOW_PATH_DECL(slow_path_log_shadow_chicken_prologue)
+{
+    LLINT_BEGIN();
+    
+    vm.shadowChicken().log(
+        vm, exec, ShadowChicken::Packet::prologue(exec->callee(), exec, exec->callerFrame()));
+    
+    LLINT_END();
+}
+
+LLINT_SLOW_PATH_DECL(slow_path_log_shadow_chicken_tail)
+{
+    LLINT_BEGIN();
+    
+    vm.shadowChicken().log(vm, exec, ShadowChicken::Packet::tail(exec));
+    
+    LLINT_END();
 }
 
 extern "C" SlowPathReturnType llint_throw_stack_overflow_error(VM* vm, ProtoCallFrame* protoFrame)

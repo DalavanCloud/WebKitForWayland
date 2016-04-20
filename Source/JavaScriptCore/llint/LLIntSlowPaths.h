@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011, 2014 Apple Inc. All rights reserved.
+ * Copyright (C) 2011, 2014, 2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -69,6 +69,7 @@ LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_new_array_buffer);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_new_regexp);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_instanceof);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_instanceof_custom);
+LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_try_get_by_id);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_get_by_id);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_get_arguments_length);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_put_by_id);
@@ -102,6 +103,7 @@ LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_new_func_exp);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_new_generator_func);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_new_generator_func_exp);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_new_arrow_func_exp);
+LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_set_function_name);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_call);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_construct);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_size_frame_for_varargs);
@@ -121,6 +123,8 @@ LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_handle_exception);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_get_from_scope);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_put_to_scope);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_check_if_exception_is_uncatchable_and_notify_profiler);
+LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_log_shadow_chicken_prologue);
+LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_log_shadow_chicken_tail);
 extern "C" SlowPathReturnType llint_throw_stack_overflow_error(VM*, ProtoCallFrame*) WTF_INTERNAL;
 #if !ENABLE(JIT)
 extern "C" SlowPathReturnType llint_stack_check_at_vm_entry(VM*, Register*) WTF_INTERNAL;

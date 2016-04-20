@@ -62,10 +62,8 @@ void InPlaceAbstractState::beginBasicBlock(BasicBlock* basicBlock)
     m_variables = basicBlock->valuesAtHead;
     
     if (m_graph.m_form == SSA) {
-        HashMap<Node*, AbstractValue>::iterator iter = basicBlock->ssa->valuesAtHead.begin();
-        HashMap<Node*, AbstractValue>::iterator end = basicBlock->ssa->valuesAtHead.end();
-        for (; iter != end; ++iter)
-            forNode(iter->key) = iter->value;
+        for (auto& entry : basicBlock->ssa->valuesAtHead)
+            forNode(entry.node) = entry.value;
     }
     basicBlock->cfaShouldRevisit = false;
     basicBlock->cfaHasVisited = true;
@@ -84,6 +82,14 @@ static void setLiveValues(HashMap<Node*, AbstractValue>& values, HashSet<Node*>&
     HashSet<Node*>::iterator end = live.end();
     for (; iter != end; ++iter)
         values.add(*iter, AbstractValue());
+}
+
+static void setLiveValues(Vector<BasicBlock::SSAData::NodeAbstractValuePair>& values, HashSet<Node*>& live)
+{
+    values.resize(0);
+    values.reserveCapacity(live.size());
+    for (Node* node : live)
+        values.uncheckedAppend(BasicBlock::SSAData::NodeAbstractValuePair { node, AbstractValue() });
 }
 
 void InPlaceAbstractState::initialize()
@@ -121,7 +127,7 @@ void InPlaceAbstractState::initialize()
             root->valuesAtHead.argument(i).setType(m_graph, SpecCell);
             break;
         case FlushedJSValue:
-            root->valuesAtHead.argument(i).makeHeapTop();
+            root->valuesAtHead.argument(i).makeBytecodeTop();
             break;
         default:
             DFG_CRASH(m_graph, nullptr, "Bad flush format for argument");
@@ -300,17 +306,16 @@ bool InPlaceAbstractState::merge(BasicBlock* from, BasicBlock* to)
     case SSA: {
         for (size_t i = from->valuesAtTail.size(); i--;)
             changed |= to->valuesAtHead[i].merge(from->valuesAtTail[i]);
-        
-        HashSet<Node*>::iterator iter = to->ssa->liveAtHead.begin();
-        HashSet<Node*>::iterator end = to->ssa->liveAtHead.end();
-        for (; iter != end; ++iter) {
-            Node* node = *iter;
+
+        for (auto& entry : to->ssa->valuesAtHead) {
+            Node* node = entry.node;
             if (verbose)
-                dataLog("      Merging for ", node, ": from ", from->ssa->valuesAtTail.find(node)->value, " to ", to->ssa->valuesAtHead.find(node)->value, "\n");
-            changed |= to->ssa->valuesAtHead.find(node)->value.merge(
+                dataLog("      Merging for ", node, ": from ", from->ssa->valuesAtTail.find(node)->value, " to ", entry.value, "\n");
+            changed |= entry.value.merge(
                 from->ssa->valuesAtTail.find(node)->value);
+
             if (verbose)
-                dataLog("         Result: ", to->ssa->valuesAtHead.find(node)->value, "\n");
+                dataLog("         Result: ", entry.value, "\n");
         }
         break;
     }

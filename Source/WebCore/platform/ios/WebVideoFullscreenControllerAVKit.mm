@@ -113,44 +113,44 @@ private:
     WebVideoFullscreenControllerContext() { }
 
     // WebVideoFullscreenChangeObserver
-    virtual void didSetupFullscreen() override;
-    virtual void didEnterFullscreen() override { }
-    virtual void didExitFullscreen() override;
-    virtual void didCleanupFullscreen() override;
-    virtual void fullscreenMayReturnToInline() override;
+    void didSetupFullscreen() override;
+    void didEnterFullscreen() override { }
+    void didExitFullscreen() override;
+    void didCleanupFullscreen() override;
+    void fullscreenMayReturnToInline() override;
     
     // WebVideoFullscreenInterface
-    virtual void resetMediaState() override;
-    virtual void setDuration(double) override;
-    virtual void setCurrentTime(double currentTime, double anchorTime) override;
-    virtual void setBufferedTime(double) override;
-    virtual void setRate(bool isPlaying, float playbackRate) override;
-    virtual void setVideoDimensions(bool hasVideo, float width, float height) override;
-    virtual void setSeekableRanges(const TimeRanges&) override;
-    virtual void setCanPlayFastReverse(bool) override;
-    virtual void setAudioMediaSelectionOptions(const Vector<String>& options, uint64_t selectedIndex) override;
-    virtual void setLegibleMediaSelectionOptions(const Vector<String>& options, uint64_t selectedIndex) override;
-    virtual void setExternalPlayback(bool enabled, ExternalPlaybackTargetType, String localizedDeviceName) override;
-    virtual void setWirelessVideoPlaybackDisabled(bool) override;
+    void resetMediaState() override;
+    void setDuration(double) override;
+    void setCurrentTime(double currentTime, double anchorTime) override;
+    void setBufferedTime(double) override;
+    void setRate(bool isPlaying, float playbackRate) override;
+    void setVideoDimensions(bool hasVideo, float width, float height) override;
+    void setSeekableRanges(const TimeRanges&) override;
+    void setCanPlayFastReverse(bool) override;
+    void setAudioMediaSelectionOptions(const Vector<String>& options, uint64_t selectedIndex) override;
+    void setLegibleMediaSelectionOptions(const Vector<String>& options, uint64_t selectedIndex) override;
+    void setExternalPlayback(bool enabled, ExternalPlaybackTargetType, String localizedDeviceName) override;
+    void setWirelessVideoPlaybackDisabled(bool) override;
 
     // WebVideoFullscreenModel
-    virtual void play() override;
-    virtual void pause() override;
-    virtual void togglePlayState() override;
-    virtual void beginScrubbing() override;
-    virtual void endScrubbing() override;
-    virtual void seekToTime(double time) override;
-    virtual void fastSeek(double time) override;
-    virtual void beginScanningForward() override;
-    virtual void beginScanningBackward() override;
-    virtual void endScanning() override;
-    virtual void requestFullscreenMode(HTMLMediaElementEnums::VideoFullscreenMode) override;
-    virtual void setVideoLayerFrame(FloatRect) override;
-    virtual void setVideoLayerGravity(WebVideoFullscreenModel::VideoGravity) override;
-    virtual void selectAudioMediaOption(uint64_t index) override;
-    virtual void selectLegibleMediaOption(uint64_t index) override;
-    virtual void fullscreenModeChanged(HTMLMediaElementEnums::VideoFullscreenMode) override;
-    virtual bool isVisible() const override;
+    void play() override;
+    void pause() override;
+    void togglePlayState() override;
+    void beginScrubbing() override;
+    void endScrubbing() override;
+    void seekToTime(double time) override;
+    void fastSeek(double time) override;
+    void beginScanningForward() override;
+    void beginScanningBackward() override;
+    void endScanning() override;
+    void requestFullscreenMode(HTMLMediaElementEnums::VideoFullscreenMode) override;
+    void setVideoLayerFrame(FloatRect) override;
+    void setVideoLayerGravity(WebVideoFullscreenModel::VideoGravity) override;
+    void selectAudioMediaOption(uint64_t index) override;
+    void selectLegibleMediaOption(uint64_t index) override;
+    void fullscreenModeChanged(HTMLMediaElementEnums::VideoFullscreenMode) override;
+    bool isVisible() const override;
 
     RefPtr<WebVideoFullscreenInterfaceAVKit> m_interface;
     RefPtr<WebVideoFullscreenModelVideoElement> m_model;
@@ -550,25 +550,30 @@ void WebVideoFullscreenControllerContext::setUpFullscreen(HTMLVideoElement& vide
     RetainPtr<UIView> viewRef = view;
     m_videoElement = &videoElement;
 
-    m_interface = WebVideoFullscreenInterfaceAVKit::create();
-    m_interface->setWebVideoFullscreenChangeObserver(this);
-    m_interface->setWebVideoFullscreenModel(this);
-    m_videoFullscreenView = adoptNS([[getUIViewClass() alloc] init]);
-    
     RefPtr<WebVideoFullscreenControllerContext> strongThis(this);
-    WebThreadRun([strongThis, this, viewRef, mode] {
-        m_model = WebVideoFullscreenModelVideoElement::create();
-        m_model->setWebVideoFullscreenInterface(this);
-        m_model->setVideoElement(m_videoElement.get());
-        
-        bool allowsPictureInPicture = m_videoElement->mediaSession().allowsPictureInPicture(*m_videoElement.get());
+    dispatch_async(dispatch_get_main_queue(), [strongThis, this, viewRef, mode] {
+        ASSERT(isUIThread());
 
-        IntRect videoElementClientRect = elementRectInWindow(m_videoElement.get());
-        FloatRect videoLayerFrame = FloatRect(FloatPoint(), videoElementClientRect.size());
-        m_model->setVideoLayerFrame(videoLayerFrame);
+        m_interface = WebVideoFullscreenInterfaceAVKit::create();
+        m_interface->setWebVideoFullscreenChangeObserver(this);
+        m_interface->setWebVideoFullscreenModel(this);
+        m_videoFullscreenView = adoptNS([[getUIViewClass() alloc] init]);
         
-        dispatch_async(dispatch_get_main_queue(), [strongThis, this, videoElementClientRect, viewRef, mode, allowsPictureInPicture] {
-            m_interface->setupFullscreen(*m_videoFullscreenView.get(), videoElementClientRect, viewRef.get(), mode, allowsPictureInPicture);
+        RefPtr<WebVideoFullscreenControllerContext> strongThis(this);
+        WebThreadRun([strongThis, this, viewRef, mode] {
+            m_model = WebVideoFullscreenModelVideoElement::create();
+            m_model->setWebVideoFullscreenInterface(this);
+            m_model->setVideoElement(m_videoElement.get());
+            
+            bool allowsPictureInPicture = m_videoElement->mediaSession().allowsPictureInPicture(*m_videoElement.get());
+
+            IntRect videoElementClientRect = elementRectInWindow(m_videoElement.get());
+            FloatRect videoLayerFrame = FloatRect(FloatPoint(), videoElementClientRect.size());
+            m_model->setVideoLayerFrame(videoLayerFrame);
+            
+            dispatch_async(dispatch_get_main_queue(), [strongThis, this, videoElementClientRect, viewRef, mode, allowsPictureInPicture] {
+                m_interface->setupFullscreen(*m_videoFullscreenView.get(), videoElementClientRect, viewRef.get(), mode, allowsPictureInPicture);
+            });
         });
     });
 }

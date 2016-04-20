@@ -43,7 +43,6 @@
 #include "HTMLTableCellElement.h"
 #include "HTMLTableElement.h"
 #include "HitTestResult.h"
-#include "Logging.h"
 #include "LogicalSelectionOffsetCaches.h"
 #include "MainFrame.h"
 #include "Page.h"
@@ -84,7 +83,6 @@ namespace WebCore {
 using namespace HTMLNames;
 
 #ifndef NDEBUG
-void printRenderTreeForLiveDocuments();
 
 RenderObject::SetLayoutNeededForbiddenScope::SetLayoutNeededForbiddenScope(RenderObject* renderObject, bool isForbidden)
     : m_renderObject(renderObject)
@@ -128,10 +126,6 @@ RenderObject::RenderObject(Node& node)
         renderView->didCreateRenderer();
 #ifndef NDEBUG
     renderObjectCounter.increment();
-    static std::once_flag onceFlag;
-    std::call_once(onceFlag, [] {
-        registerNotifyCallback("com.apple.WebKit.showRenderTree", printRenderTreeForLiveDocuments);
-    });
 #endif
 }
 
@@ -525,7 +519,7 @@ static bool hasFixedPosInNamedFlowContainingBlock(const RenderObject* renderer)
     ASSERT(renderer->flowThreadState() != RenderObject::NotInsideFlowThread);
 
     RenderObject* curr = const_cast<RenderObject*>(renderer);
-    while (curr) {
+    while (curr && !is<RenderView>(*curr)) {
         if (curr->fixedPositionedWithNamedFlowContainingBlock())
             return true;
         curr = curr->containingBlock();
@@ -706,23 +700,23 @@ RenderBlock* RenderObject::containingBlock() const
 
     const RenderStyle& style = this->style();
     if (!is<RenderText>(*this) && style.position() == FixedPosition)
-        parent = parent->containingBlockForFixedPosition();
+        parent = containingBlockForFixedPosition(parent);
     else if (!is<RenderText>(*this) && style.position() == AbsolutePosition)
-        parent = parent->containingBlockForAbsolutePosition();
+        parent = containingBlockForAbsolutePosition(parent);
     else
-        parent = parent->containingBlockForObjectInFlow();
+        parent = containingBlockForObjectInFlow(parent);
 
-    if (!is<RenderBlock>(parent))
-        return nullptr; // This can still happen in case of an orphaned tree
-
+    // This can still happen in case of an detached tree
+    if (!parent)
+        return nullptr;
     return downcast<RenderBlock>(parent);
 }
 
 void RenderObject::addPDFURLRect(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
 {
-    Vector<IntRect> focusRingRects;
+    Vector<LayoutRect> focusRingRects;
     addFocusRingRects(focusRingRects, paintOffset, paintInfo.paintContainer);
-    IntRect urlRect = unionRect(focusRingRects);
+    LayoutRect urlRect = unionRect(focusRingRects);
 
     if (urlRect.isEmpty())
         return;
@@ -798,18 +792,17 @@ IntRect RenderObject::absoluteBoundingBoxRect(bool useTransforms, bool* wasFixed
 
 void RenderObject::absoluteFocusRingQuads(Vector<FloatQuad>& quads)
 {
-    Vector<IntRect> rects;
+    Vector<LayoutRect> rects;
     // FIXME: addFocusRingRects() needs to be passed this transform-unaware
     // localToAbsolute() offset here because RenderInline::addFocusRingRects()
     // implicitly assumes that. This doesn't work correctly with transformed
     // descendants.
     FloatPoint absolutePoint = localToAbsolute();
     addFocusRingRects(rects, flooredLayoutPoint(absolutePoint));
-    size_t count = rects.size();
-    for (size_t i = 0; i < count; ++i) {
-        IntRect rect = rects[i];
-        rect.move(-absolutePoint.x(), -absolutePoint.y());
-        quads.append(localToAbsoluteQuad(FloatQuad(rect)));
+    float deviceScaleFactor = document().deviceScaleFactor();
+    for (auto rect : rects) {
+        rect.moveBy(LayoutPoint(-absolutePoint));
+        quads.append(localToAbsoluteQuad(FloatQuad(snapRectToDevicePixels(rect, deviceScaleFactor))));
     }
 }
 
@@ -2278,7 +2271,8 @@ void RenderObject::removeRareData()
     setHasRareData(false);
 }
 
-#ifndef NDEBUG
+#if ENABLE(TREE_DEBUGGING)
+
 void printRenderTreeForLiveDocuments()
 {
     for (const auto* document : Document::allDocuments()) {
@@ -2290,7 +2284,21 @@ void printRenderTreeForLiveDocuments()
         showRenderTree(document->renderView());
     }
 }
-#endif
+
+void printLayerTreeForLiveDocuments()
+{
+    for (const auto* document : Document::allDocuments()) {
+        if (!document->renderView() || document->inPageCache())
+            continue;
+        if (document->frame() && document->frame()->isMainFrame())
+            fprintf(stderr, "----------------------main frame--------------------------\n");
+        fprintf(stderr, "%s", document->url().string().utf8().data());
+        showLayerTree(document->renderView());
+    }
+}
+
+#endif // ENABLE(TREE_DEBUGGING)
+
 } // namespace WebCore
 
 #if ENABLE(TREE_DEBUGGING)

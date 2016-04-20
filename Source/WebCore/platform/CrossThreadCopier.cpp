@@ -46,7 +46,6 @@
 #include "IDBCursorInfo.h"
 #include "IDBDatabaseIdentifier.h"
 #include "IDBDatabaseInfo.h"
-#include "IDBDatabaseMetadata.h"
 #include "IDBError.h"
 #include "IDBGetResult.h"
 #include "IDBIndexInfo.h"
@@ -55,6 +54,7 @@
 #include "IDBObjectStoreInfo.h"
 #include "IDBResourceIdentifier.h"
 #include "IDBTransactionInfo.h"
+#include "IDBValue.h"
 #endif
 
 namespace WebCore {
@@ -111,19 +111,9 @@ IndexedDB::CursorType CrossThreadCopierBase<false, false, IndexedDB::CursorType>
     return type;
 }
 
-CrossThreadCopierBase<false, false, IDBDatabaseMetadata>::Type CrossThreadCopierBase<false, false, IDBDatabaseMetadata>::copy(const IDBDatabaseMetadata& metadata)
-{
-    return metadata.isolatedCopy();
-}
-
 CrossThreadCopierBase<false, false, IDBGetResult>::Type CrossThreadCopierBase<false, false, IDBGetResult>::copy(const IDBGetResult& result)
 {
     return result.isolatedCopy();
-}
-
-CrossThreadCopierBase<false, false, IDBIndexMetadata>::Type CrossThreadCopierBase<false, false, IDBIndexMetadata>::copy(const IDBIndexMetadata& metadata)
-{
-    return metadata.isolatedCopy();
 }
 
 CrossThreadCopierBase<false, false, IDBKeyData>::Type CrossThreadCopierBase<false, false, IDBKeyData>::copy(const IDBKeyData& keyData)
@@ -134,11 +124,6 @@ CrossThreadCopierBase<false, false, IDBKeyData>::Type CrossThreadCopierBase<fals
 CrossThreadCopierBase<false, false, IDBKeyRangeData>::Type CrossThreadCopierBase<false, false, IDBKeyRangeData>::copy(const IDBKeyRangeData& keyRangeData)
 {
     return keyRangeData.isolatedCopy();
-}
-
-CrossThreadCopierBase<false, false, IDBObjectStoreMetadata>::Type CrossThreadCopierBase<false, false, IDBObjectStoreMetadata>::copy(const IDBObjectStoreMetadata& metadata)
-{
-    return metadata.isolatedCopy();
 }
 
 CrossThreadCopierBase<false, false, IDBDatabaseInfo>::Type CrossThreadCopierBase<false, false, IDBDatabaseInfo>::copy(const IDBDatabaseInfo& info)
@@ -179,6 +164,11 @@ CrossThreadCopierBase<false, false, IDBIndexInfo>::Type CrossThreadCopierBase<fa
 CrossThreadCopierBase<false, false, IDBCursorInfo>::Type CrossThreadCopierBase<false, false, IDBCursorInfo>::copy(const IDBCursorInfo& info)
 {
     return info.isolatedCopy();
+}
+
+CrossThreadCopierBase<false, false, IDBValue>::Type CrossThreadCopierBase<false, false, IDBValue>::copy(const IDBValue& value)
+{
+    return value.isolatedCopy();
 }
 
 #endif // ENABLE(INDEXED_DATABASE)

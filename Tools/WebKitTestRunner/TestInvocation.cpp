@@ -171,7 +171,7 @@ end:
 
     if (m_webProcessIsUnresponsive)
         dumpWebProcessUnresponsiveness();
-    else if (!TestController::singleton().resetStateToConsistentValues()) {
+    else if (!TestController::singleton().resetStateToConsistentValues(m_options)) {
         // The process froze while loading about:blank, let's start a fresh one.
         // It would be nice to report that the previous test froze after dumping results, but we have no way to do that.
         TestController::singleton().terminateWebContentProcess();
@@ -477,10 +477,13 @@ void TestInvocation::didReceiveMessageFromInjectedBundle(WKStringRef messageName
         WKBooleanRef permissionWK = static_cast<WKBooleanRef>(WKDictionaryGetItemForKey(messageBodyDictionary, permissionKeyWK.get()));
         bool permission = WKBooleanGetValue(permissionWK);
 
-        WKRetainPtr<WKStringRef> urlKey(AdoptWK, WKStringCreateWithUTF8CString("url"));
-        WKStringRef urlWK = static_cast<WKStringRef>(WKDictionaryGetItemForKey(messageBodyDictionary, urlKey.get()));
+        WKRetainPtr<WKStringRef> originKey(AdoptWK, WKStringCreateWithUTF8CString("origin"));
+        WKStringRef originWK = static_cast<WKStringRef>(WKDictionaryGetItemForKey(messageBodyDictionary, originKey.get()));
 
-        TestController::singleton().setUserMediaPermissionForOrigin(permission, urlWK);
+        WKRetainPtr<WKStringRef> parentOriginKey(AdoptWK, WKStringCreateWithUTF8CString("parentOrigin"));
+        WKStringRef parentOriginWK = static_cast<WKStringRef>(WKDictionaryGetItemForKey(messageBodyDictionary, parentOriginKey.get()));
+
+        TestController::singleton().setUserMediaPermissionForOrigin(permission, originWK, parentOriginWK);
         return;
     }
 
@@ -662,6 +665,20 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         return nullptr;
     }
 
+    if (WKStringIsEqualToUTF8CString(messageName, "SetViewSize")) {
+        ASSERT(WKGetTypeID(messageBody) == WKDictionaryGetTypeID());
+
+        WKDictionaryRef messageBodyDictionary = static_cast<WKDictionaryRef>(messageBody);
+        WKRetainPtr<WKStringRef> widthKey(AdoptWK, WKStringCreateWithUTF8CString("width"));
+        WKRetainPtr<WKStringRef> heightKey(AdoptWK, WKStringCreateWithUTF8CString("height"));
+
+        WKDoubleRef widthWK = static_cast<WKDoubleRef>(WKDictionaryGetItemForKey(messageBodyDictionary, widthKey.get()));
+        WKDoubleRef heightWK = static_cast<WKDoubleRef>(WKDictionaryGetItemForKey(messageBodyDictionary, heightKey.get()));
+
+        TestController::singleton().mainWebView()->resizeTo(WKDoubleGetValue(widthWK), WKDoubleGetValue(heightWK));
+        return nullptr;
+    }
+
     if (WKStringIsEqualToUTF8CString(messageName, "IsGeolocationClientActive")) {
         bool isActive = TestController::singleton().isGeolocationProviderActive();
         WKRetainPtr<WKTypeRef> result(AdoptWK, WKBooleanCreate(isActive));
@@ -756,6 +773,12 @@ void TestInvocation::didEndSwipe()
 void TestInvocation::didRemoveSwipeSnapshot()
 {
     WKRetainPtr<WKStringRef> messageName = adoptWK(WKStringCreateWithUTF8CString("CallDidRemoveSwipeSnapshotCallback"));
+    WKPagePostMessageToInjectedBundle(TestController::singleton().mainWebView()->page(), messageName.get(), 0);
+}
+
+void TestInvocation::notifyDownloadDone()
+{
+    WKRetainPtr<WKStringRef> messageName = adoptWK(WKStringCreateWithUTF8CString("NotifyDownloadDone"));
     WKPagePostMessageToInjectedBundle(TestController::singleton().mainWebView()->page(), messageName.get(), 0);
 }
 

@@ -35,12 +35,12 @@ class JSGlobalObjectConsoleAgent final : public InspectorConsoleAgent {
     WTF_MAKE_NONCOPYABLE(JSGlobalObjectConsoleAgent);
     WTF_MAKE_FAST_ALLOCATED;
 public:
-    JSGlobalObjectConsoleAgent(AgentContext&);
+    JSGlobalObjectConsoleAgent(AgentContext&, InspectorHeapAgent*);
     virtual ~JSGlobalObjectConsoleAgent() { }
 
     // FIXME: XHRs and Nodes only makes sense debugging a Web context. Can this be moved to a different agent?
-    virtual void setMonitoringXHREnabled(ErrorString&, bool enabled) override;
-    virtual void addInspectedNode(ErrorString&, int nodeId) override;
+    void setMonitoringXHREnabled(ErrorString&, bool enabled) override;
+    void addInspectedNode(ErrorString&, int nodeId) override;
 };
 
 } // namespace Inspector

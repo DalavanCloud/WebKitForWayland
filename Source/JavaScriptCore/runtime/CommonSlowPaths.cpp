@@ -212,7 +212,7 @@ SLOW_PATH_DECL(slow_path_create_scoped_arguments)
     RETURN(ScopedArguments::createByCopying(exec, table, scope));
 }
 
-SLOW_PATH_DECL(slow_path_create_out_of_band_arguments)
+SLOW_PATH_DECL(slow_path_create_cloned_arguments)
 {
     BEGIN();
     RETURN(ClonedArguments::createWithMachineFrame(exec, exec, ArgumentsMode::Cloned));
@@ -221,17 +221,29 @@ SLOW_PATH_DECL(slow_path_create_out_of_band_arguments)
 SLOW_PATH_DECL(slow_path_create_this)
 {
     BEGIN();
-    JSFunction* constructor = jsCast<JSFunction*>(OP(2).jsValue().asCell());
+    JSObject* result;
+    JSObject* constructorAsObject = asObject(OP(2).jsValue());
+    if (constructorAsObject->type() == JSFunctionType) {
+        JSFunction* constructor = jsCast<JSFunction*>(constructorAsObject);
+        auto& cacheWriteBarrier = pc[4].u.jsCell;
+        if (!cacheWriteBarrier)
+            cacheWriteBarrier.set(exec->vm(), exec->codeBlock(), constructor);
+        else if (cacheWriteBarrier.unvalidatedGet() != JSCell::seenMultipleCalleeObjects() && cacheWriteBarrier.get() != constructor)
+            cacheWriteBarrier.setWithoutWriteBarrier(JSCell::seenMultipleCalleeObjects());
 
-    auto& cacheWriteBarrier = pc[4].u.jsCell;
-    if (!cacheWriteBarrier)
-        cacheWriteBarrier.set(exec->vm(), exec->codeBlock(), constructor);
-    else if (cacheWriteBarrier.unvalidatedGet() != JSCell::seenMultipleCalleeObjects() && cacheWriteBarrier.get() != constructor)
-        cacheWriteBarrier.setWithoutWriteBarrier(JSCell::seenMultipleCalleeObjects());
-
-    size_t inlineCapacity = pc[3].u.operand;
-    Structure* structure = constructor->rareData(exec, inlineCapacity)->objectAllocationProfile()->structure();
-    RETURN(constructEmptyObject(exec, structure));
+        size_t inlineCapacity = pc[3].u.operand;
+        Structure* structure = constructor->rareData(exec, inlineCapacity)->objectAllocationProfile()->structure();
+        result = constructEmptyObject(exec, structure);
+    } else {
+        // http://ecma-international.org/ecma-262/6.0/#sec-ordinarycreatefromconstructor
+        JSValue proto = constructorAsObject->get(exec, exec->propertyNames().prototype);
+        CHECK_EXCEPTION();
+        if (proto.isObject())
+            result = constructEmptyObject(exec, asObject(proto));
+        else
+            result = constructEmptyObject(exec);
+    }
+    RETURN(result);
 }
 
 SLOW_PATH_DECL(slow_path_to_this)
@@ -551,6 +563,7 @@ SLOW_PATH_DECL(slow_path_del_by_val)
     BEGIN();
     JSValue baseValue = OP_C(2).jsValue();
     JSObject* baseObject = baseValue.toObject(exec);
+    CHECK_EXCEPTION();
     
     JSValue subscript = OP_C(3).jsValue();
     
@@ -608,35 +621,38 @@ SLOW_PATH_DECL(slow_path_has_indexed_property)
 {
     BEGIN();
     JSObject* base = OP(2).jsValue().toObject(exec);
+    CHECK_EXCEPTION();
     JSValue property = OP(3).jsValue();
     pc[4].u.arrayProfile->observeStructure(base->structure(vm));
     ASSERT(property.isUInt32());
-    RETURN(jsBoolean(base->hasProperty(exec, property.asUInt32())));
+    RETURN(jsBoolean(base->hasPropertyGeneric(exec, property.asUInt32(), PropertySlot::InternalMethodType::GetOwnProperty)));
 }
 
 SLOW_PATH_DECL(slow_path_has_structure_property)
 {
     BEGIN();
     JSObject* base = OP(2).jsValue().toObject(exec);
+    CHECK_EXCEPTION();
     JSValue property = OP(3).jsValue();
     ASSERT(property.isString());
     JSPropertyNameEnumerator* enumerator = jsCast<JSPropertyNameEnumerator*>(OP(4).jsValue().asCell());
     if (base->structure(vm)->id() == enumerator->cachedStructureID())
         RETURN(jsBoolean(true));
-    RETURN(jsBoolean(base->hasProperty(exec, asString(property.asCell())->toIdentifier(exec))));
+    RETURN(jsBoolean(base->hasPropertyGeneric(exec, asString(property.asCell())->toIdentifier(exec), PropertySlot::InternalMethodType::GetOwnProperty)));
 }
 
 SLOW_PATH_DECL(slow_path_has_generic_property)
 {
     BEGIN();
     JSObject* base = OP(2).jsValue().toObject(exec);
+    CHECK_EXCEPTION();
     JSValue property = OP(3).jsValue();
     bool result;
     if (property.isString())
-        result = base->hasProperty(exec, asString(property.asCell())->toIdentifier(exec));
+        result = base->hasPropertyGeneric(exec, asString(property.asCell())->toIdentifier(exec), PropertySlot::InternalMethodType::GetOwnProperty);
     else {
         ASSERT(property.isUInt32());
-        result = base->hasProperty(exec, property.asUInt32());
+        result = base->hasPropertyGeneric(exec, property.asUInt32(), PropertySlot::InternalMethodType::GetOwnProperty);
     }
     RETURN(jsBoolean(result));
 }
@@ -658,6 +674,7 @@ SLOW_PATH_DECL(slow_path_get_property_enumerator)
         RETURN(JSPropertyNameEnumerator::create(vm));
 
     JSObject* base = baseValue.toObject(exec);
+    CHECK_EXCEPTION();
 
     RETURN(propertyNameEnumerator(exec, base));
 }
@@ -766,7 +783,7 @@ SLOW_PATH_DECL(slow_path_resolve_scope)
     BEGIN();
     const Identifier& ident = exec->codeBlock()->identifier(pc[3].u.operand);
     JSScope* scope = exec->uncheckedR(pc[2].u.operand).Register::scope();
-    JSValue resolvedScope = JSScope::resolve(exec, scope, ident);
+    JSObject* resolvedScope = JSScope::resolve(exec, scope, ident);
 
     ResolveType resolveType = static_cast<ResolveType>(pc[4].u.operand);
 
@@ -774,13 +791,8 @@ SLOW_PATH_DECL(slow_path_resolve_scope)
     ASSERT(resolveType != ModuleVar);
 
     if (resolveType == UnresolvedProperty || resolveType == UnresolvedPropertyWithVarInjectionChecks) {
-        if (JSGlobalLexicalEnvironment* globalLexicalEnvironment = jsDynamicCast<JSGlobalLexicalEnvironment*>(resolvedScope)) {
-            if (resolveType == UnresolvedProperty)
-                pc[4].u.operand = GlobalLexicalVar;
-            else
-                pc[4].u.operand = GlobalLexicalVarWithVarInjectionChecks;
-            pc[6].u.pointer = globalLexicalEnvironment;
-        } else if (JSGlobalObject* globalObject = jsDynamicCast<JSGlobalObject*>(resolvedScope)) {
+        if (resolvedScope->isGlobalObject()) {
+            JSGlobalObject* globalObject = jsCast<JSGlobalObject*>(resolvedScope);
             if (globalObject->hasProperty(exec, ident)) {
                 if (resolveType == UnresolvedProperty)
                     pc[4].u.operand = GlobalProperty;
@@ -789,6 +801,13 @@ SLOW_PATH_DECL(slow_path_resolve_scope)
 
                 pc[6].u.pointer = globalObject;
             }
+        } else if (resolvedScope->isGlobalLexicalEnvironment()) {
+            JSGlobalLexicalEnvironment* globalLexicalEnvironment = jsCast<JSGlobalLexicalEnvironment*>(resolvedScope);
+            if (resolveType == UnresolvedProperty)
+                pc[4].u.operand = GlobalLexicalVar;
+            else
+                pc[4].u.operand = GlobalLexicalVarWithVarInjectionChecks;
+            pc[6].u.pointer = globalLexicalEnvironment;
         }
     }
 

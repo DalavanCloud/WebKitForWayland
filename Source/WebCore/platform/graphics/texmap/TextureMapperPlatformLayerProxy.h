@@ -26,6 +26,8 @@
 #ifndef TextureMapperPlatformLayerProxy_h
 #define TextureMapperPlatformLayerProxy_h
 
+#if USE(COORDINATED_GRAPHICS_THREADED)
+
 #include "GraphicsContext3D.h"
 #include "TextureMapper.h"
 #include "TransformationMatrix.h"
@@ -68,7 +70,6 @@ public:
     Lock& lock() { return m_lock; }
     std::unique_ptr<TextureMapperPlatformLayerBuffer> getAvailableBuffer(const IntSize&, GC3Dint internalFormat = GraphicsContext3D::DONT_CARE);
     void pushNextBuffer(std::unique_ptr<TextureMapperPlatformLayerBuffer>);
-    void requestUpdate();
     bool isActive();
 
     void activateOnCompositingThread(Compositor*, TextureMapperLayer*);
@@ -103,5 +104,7 @@ private:
 };
 
 } // namespace WebCore
+
+#endif // USE(COORDINATED_GRAPHICS_THREADED)
 
 #endif // TextureMapperPlatformLayerProxy_h

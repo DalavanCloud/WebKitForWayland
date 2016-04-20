@@ -220,26 +220,6 @@ static void setCGFontRenderingMode(GraphicsContext& context)
     CGContextSetShouldSubpixelQuantizeFonts(cgContext, doSubpixelQuantization);
 }
 
-#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
-static CGSize dilationSizeForTextColor(const Color& color)
-{
-    double hue;
-    double saturation;
-    double lightness;
-    color.getHSL(hue, saturation, lightness);
-    
-    // These values were derived empirically, and are only experimental.
-    if (lightness < 0.3333) // Dark
-        return CGSizeMake(0.007, 0.019);
-
-    if (lightness < 0.6667) // Medium
-        return CGSizeMake(0.032, 0.032);
-
-    // Light
-    return CGSizeMake(0.0475, 0.039);
-}
-#endif
-
 void FontCascade::drawGlyphs(GraphicsContext& context, const Font& font, const GlyphBuffer& glyphBuffer, int from, int numGlyphs, const FloatPoint& anchorPoint, FontSmoothingMode smoothingMode)
 {
     const FontPlatformData& platformData = font.platformData();
@@ -250,34 +230,29 @@ void FontCascade::drawGlyphs(GraphicsContext& context, const Font& font, const G
 
     bool shouldSmoothFonts;
     bool changeFontSmoothing;
-    bool matchAntialiasedAndSmoothedFonts = context.antialiasedFontDilationEnabled();
     
     switch (smoothingMode) {
     case Antialiased: {
         context.setShouldAntialias(true);
         shouldSmoothFonts = false;
         changeFontSmoothing = true;
-        matchAntialiasedAndSmoothedFonts = false; // CSS has opted into strictly antialiased fonts.
         break;
     }
     case SubpixelAntialiased: {
         context.setShouldAntialias(true);
         shouldSmoothFonts = true;
         changeFontSmoothing = true;
-        matchAntialiasedAndSmoothedFonts = true;
         break;
     }
     case NoSmoothing: {
         context.setShouldAntialias(false);
         shouldSmoothFonts = false;
         changeFontSmoothing = true;
-        matchAntialiasedAndSmoothedFonts = false;
         break;
     }
     case AutoSmoothing: {
         shouldSmoothFonts = true;
         changeFontSmoothing = false;
-        matchAntialiasedAndSmoothedFonts = true;
         break;
     }
     }
@@ -285,7 +260,6 @@ void FontCascade::drawGlyphs(GraphicsContext& context, const Font& font, const G
     if (!shouldUseSmoothing()) {
         shouldSmoothFonts = false;
         changeFontSmoothing = true;
-        matchAntialiasedAndSmoothedFonts = true;
     }
 
 #if !PLATFORM(IOS)
@@ -294,17 +268,6 @@ void FontCascade::drawGlyphs(GraphicsContext& context, const Font& font, const G
         originalShouldUseFontSmoothing = CGContextGetShouldSmoothFonts(cgContext);
         CGContextSetShouldSmoothFonts(cgContext, shouldSmoothFonts);
     }
-    
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
-    CGFontAntialiasingStyle oldAntialiasingStyle;
-    bool resetAntialiasingStyle = false;
-    if (antialiasedFontDilationEnabled() && !CGContextGetShouldSmoothFonts(cgContext) && matchAntialiasedAndSmoothedFonts) {
-        resetAntialiasingStyle = true;
-        oldAntialiasingStyle = CGContextGetFontAntialiasingStyle(cgContext);
-        CGContextSetFontAntialiasingStyle(cgContext, kCGFontAntialiasingStyleUnfilteredCustomDilation);
-        CGContextSetFontDilation(cgContext, dilationSizeForTextColor(context.fillColor()));
-    }
-#endif
 #endif
 
     CGContextSetFont(cgContext, platformData.cgFont());
@@ -371,11 +334,6 @@ void FontCascade::drawGlyphs(GraphicsContext& context, const Font& font, const G
         context.setShadow(shadowOffset, shadowBlur, shadowColor);
 
 #if !PLATFORM(IOS)
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
-    if (resetAntialiasingStyle)
-        CGContextSetFontAntialiasingStyle(cgContext, oldAntialiasingStyle);
-#endif
-    
     if (changeFontSmoothing)
         CGContextSetShouldSmoothFonts(cgContext, originalShouldUseFontSmoothing);
 #endif
@@ -468,18 +426,16 @@ public:
         , m_fontData(glyphBuffer.fontAt(m_index))
         , m_translation(CGAffineTransformScale(CGAffineTransformMakeTranslation(textOrigin.x(), textOrigin.y()), 1, -1))
     {
-        moveToNextValidGlyph();
     }
 private:
-    virtual bool containsMorePaths() override
+    bool containsMorePaths() override
     {
         return m_index != m_glyphBuffer.size();
     }
-    virtual Path path() override;
-    virtual std::pair<float, float> extents() override;
-    virtual GlyphUnderlineType underlineType() override;
-    virtual void advance() override;
-    void moveToNextValidGlyph();
+    Path path() override;
+    std::pair<float, float> extents() override;
+    GlyphUnderlineType underlineType() override;
+    void advance() override;
 
     int m_index;
     const TextRun& m_textRun;
@@ -506,23 +462,13 @@ auto MacGlyphToPathTranslator::underlineType() -> GlyphUnderlineType
     return computeUnderlineType(m_textRun, m_glyphBuffer, m_index);
 }
 
-void MacGlyphToPathTranslator::moveToNextValidGlyph()
-{
-    if (!m_fontData->isSVGFont())
-        return;
-    advance();
-}
-
 void MacGlyphToPathTranslator::advance()
 {
-    do {
-        GlyphBufferAdvance advance = m_glyphBuffer.advanceAt(m_index);
-        m_translation = CGAffineTransformTranslate(m_translation, advance.width(), advance.height());
-        ++m_index;
-        if (m_index >= m_glyphBuffer.size())
-            break;
+    GlyphBufferAdvance advance = m_glyphBuffer.advanceAt(m_index);
+    m_translation = CGAffineTransformTranslate(m_translation, advance.width(), advance.height());
+    ++m_index;
+    if (m_index < m_glyphBuffer.size())
         m_fontData = m_glyphBuffer.fontAt(m_index);
-    } while (m_fontData->isSVGFont() && m_index < m_glyphBuffer.size());
 }
 
 DashArray FontCascade::dashesForIntersectionsWithRect(const TextRun& run, const FloatPoint& textOrigin, const FloatRect& lineExtents) const
@@ -542,24 +488,13 @@ DashArray FontCascade::dashesForIntersectionsWithRect(const TextRun& run, const 
         return DashArray();
     
     // FIXME: Handle SVG + non-SVG interleaved runs. https://bugs.webkit.org/show_bug.cgi?id=133778
-    const Font* fontData = glyphBuffer.fontAt(0);
-    std::unique_ptr<GlyphToPathTranslator> translator;
-    bool isSVG = false;
     FloatPoint origin = FloatPoint(textOrigin.x() + deltaX, textOrigin.y());
-    if (!fontData->isSVGFont())
-        translator = std::make_unique<MacGlyphToPathTranslator>(run, glyphBuffer, origin);
-    else {
-        TextRun::RenderingContext* renderingContext = run.renderingContext();
-        if (!renderingContext)
-            return DashArray();
-        translator = renderingContext->createGlyphToPathTranslator(*fontData, &run, glyphBuffer, 0, glyphBuffer.size(), origin);
-        isSVG = true;
-    }
+    std::unique_ptr<GlyphToPathTranslator> translator = std::make_unique<MacGlyphToPathTranslator>(run, glyphBuffer, origin);
     DashArray result;
     for (int index = 0; translator->containsMorePaths(); ++index, translator->advance()) {
         GlyphIterationState info = GlyphIterationState(CGPointMake(0, 0), CGPointMake(0, 0), lineExtents.y(), lineExtents.y() + lineExtents.height(), lineExtents.x() + lineExtents.width(), lineExtents.x());
         const Font* localFont = glyphBuffer.fontAt(index);
-        if (!localFont || (!isSVG && localFont->isSVGFont()) || (isSVG && localFont != fontData)) {
+        if (!localFont) {
             // The advances will get all messed up if we do anything other than bail here.
             result.clear();
             break;
@@ -592,7 +527,7 @@ DashArray FontCascade::dashesForIntersectionsWithRect(const TextRun& run, const 
 bool FontCascade::primaryFontIsSystemFont() const
 {
     const auto& fontData = primaryFont();
-    return !fontData.isSVGFont() && CTFontDescriptorIsSystemUIFont(adoptCF(CTFontCopyFontDescriptor(fontData.platformData().ctFont())).get());
+    return CTFontDescriptorIsSystemUIFont(adoptCF(CTFontCopyFontDescriptor(fontData.platformData().ctFont())).get());
 }
 
 void FontCascade::adjustSelectionRectForComplexText(const TextRun& run, LayoutRect& selectionRect, int from, int to) const
@@ -641,7 +576,7 @@ void FontCascade::drawEmphasisMarksForComplexText(GraphicsContext& context, cons
     if (glyphBuffer.isEmpty())
         return;
 
-    drawEmphasisMarks(context, run, glyphBuffer, mark, FloatPoint(point.x() + initialAdvance, point.y()));
+    drawEmphasisMarks(context, glyphBuffer, mark, FloatPoint(point.x() + initialAdvance, point.y()));
 }
 
 float FontCascade::floatWidthForComplexText(const TextRun& run, HashSet<const Font*>* fallbackFonts, GlyphOverflow* glyphOverflow) const

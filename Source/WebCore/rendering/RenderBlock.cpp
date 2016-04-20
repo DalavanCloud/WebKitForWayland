@@ -65,7 +65,6 @@
 #include "RenderTheme.h"
 #include "RenderTreePosition.h"
 #include "RenderView.h"
-#include "SVGTextRunRenderingContext.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "TextBreakIterator.h"
@@ -255,7 +254,8 @@ void RenderBlock::styleWillChange(StyleDifference diff, const RenderStyle& newSt
             // Remove our absolutely positioned descendants from their current containing block.
             // They will be inserted into our positioned objects list during layout.
             auto containingBlock = parent();
-            while (containingBlock && (containingBlock->style().position() == StaticPosition || (containingBlock->isInline() && !containingBlock->isReplaced())) && !containingBlock->isRenderView()) {
+            while (containingBlock && !is<RenderView>(*containingBlock)
+                && (containingBlock->style().position() == StaticPosition || (containingBlock->isInline() && !containingBlock->isReplaced()))) {
                 if (containingBlock->style().position() == RelativePosition && containingBlock->isInline() && !containingBlock->isReplaced()) {
                     containingBlock = containingBlock->containingBlock();
                     break;
@@ -315,7 +315,7 @@ void RenderBlock::styleDidChange(StyleDifference diff, const RenderStyle* oldSty
 
     // It's possible for our border/padding to change, but for the overall logical width of the block to
     // end up being the same. We keep track of this change so in layoutBlock, we can know to set relayoutChildren=true.
-    setHasBorderOrPaddingLogicalWidthChanged(oldStyle && diff == StyleDifferenceLayout && needsLayout() && borderOrPaddingLogicalWidthChanged(oldStyle, &newStyle));
+    setShouldForceRelayoutChildren(oldStyle && diff == StyleDifferenceLayout && needsLayout() && borderOrPaddingLogicalWidthChanged(oldStyle, &newStyle));
 }
 
 RenderBlock* RenderBlock::continuationBefore(RenderObject* beforeChild)
@@ -836,7 +836,7 @@ bool RenderBlock::isSelfCollapsingBlock() const
     bool hasAutoHeight = logicalHeightLength.isAuto();
     if (logicalHeightLength.isPercentOrCalculated() && !document().inQuirksMode()) {
         hasAutoHeight = true;
-        for (RenderBlock* cb = containingBlock(); !cb->isRenderView(); cb = cb->containingBlock()) {
+        for (RenderBlock* cb = containingBlock(); cb && !is<RenderView>(*cb); cb = cb->containingBlock()) {
             if (cb->style().logicalHeight().isFixed() || cb->isTableCell())
                 hasAutoHeight = false;
         }
@@ -975,7 +975,7 @@ bool RenderBlock::recomputeLogicalWidth()
     updateLogicalWidth();
     
     bool hasBorderOrPaddingLogicalWidthChanged = this->hasBorderOrPaddingLogicalWidthChanged();
-    setHasBorderOrPaddingLogicalWidthChanged(false);
+    setShouldForceRelayoutChildren(false);
 
     return oldWidth != logicalWidth() || hasBorderOrPaddingLogicalWidthChanged;
 }
@@ -1063,12 +1063,8 @@ void RenderBlock::addOverflowFromPositionedObjects()
         RenderBox* positionedObject = *it;
         
         // Fixed positioned elements don't contribute to layout overflow, since they don't scroll with the content.
-        if (positionedObject->style().position() != FixedPosition) {
-            LayoutUnit x = positionedObject->x();
-            if (style().shouldPlaceBlockDirectionScrollbarOnLogicalLeft())
-                x -= verticalScrollbarWidth();
-            addOverflowFromChild(positionedObject, LayoutSize(x, positionedObject->y()));
-        }
+        if (positionedObject->style().position() != FixedPosition)
+            addOverflowFromChild(positionedObject, { positionedObject->x(), positionedObject->y() });
     }
 }
 
@@ -1097,7 +1093,7 @@ LayoutUnit RenderBlock::computeStartPositionDeltaForChildAvoidingFloats(const Re
     if (region)
         blockOffset = std::max(blockOffset, blockOffset + (region->logicalTopForFlowThreadContent() - offsetFromLogicalTopOfFirstPage()));
 
-    LayoutUnit startOff = startOffsetForLineInRegion(blockOffset, false, region, logicalHeightForChild(child));
+    LayoutUnit startOff = startOffsetForLineInRegion(blockOffset, DoNotIndentText, region, logicalHeightForChild(child));
 
     if (style().textAlign() != WEBKIT_CENTER && !child.style().marginStartUsing(&style()).isAuto()) {
         if (childMarginStart < 0)
@@ -1842,7 +1838,7 @@ GapRects RenderBlock::selectionGaps(RenderBlock& rootBlock, const LayoutPoint& r
         flippedBlockRect.moveBy(rootBlockPhysicalPosition);
         clipOutPositionedObjects(paintInfo, flippedBlockRect.location(), positionedObjects());
         if (isBody() || isDocumentElementRenderer()) { // The <body> must make sure to examine its containingBlock's positioned objects.
-            for (RenderBlock* cb = containingBlock(); cb && !cb->isRenderView(); cb = cb->containingBlock())
+            for (RenderBlock* cb = containingBlock(); cb && !is<RenderView>(*cb); cb = cb->containingBlock())
                 clipOutPositionedObjects(paintInfo, LayoutPoint(cb->x(), cb->y()), cb->positionedObjects()); // FIXME: Not right for flipped writing modes.
         }
         clipOutFloatingObjects(rootBlock, paintInfo, rootBlockPhysicalPosition, offsetFromRootBlock);
@@ -2026,7 +2022,7 @@ void RenderBlock::getSelectionGapInfo(SelectionState state, bool& leftGap, bool&
 
 LayoutUnit RenderBlock::logicalLeftSelectionOffset(RenderBlock& rootBlock, LayoutUnit position, const LogicalSelectionOffsetCaches& cache)
 {
-    LayoutUnit logicalLeft = logicalLeftOffsetForLine(position, false);
+    LayoutUnit logicalLeft = logicalLeftOffsetForLine(position, DoNotIndentText);
     if (logicalLeft == logicalLeftOffsetForContent()) {
         if (&rootBlock != this) // The border can potentially be further extended by our containingBlock().
             return cache.containingBlockInfo(*this).logicalLeftSelectionOffset(rootBlock, position + logicalTop());
@@ -2048,7 +2044,7 @@ LayoutUnit RenderBlock::logicalLeftSelectionOffset(RenderBlock& rootBlock, Layou
 
 LayoutUnit RenderBlock::logicalRightSelectionOffset(RenderBlock& rootBlock, LayoutUnit position, const LogicalSelectionOffsetCaches& cache)
 {
-    LayoutUnit logicalRight = logicalRightOffsetForLine(position, false);
+    LayoutUnit logicalRight = logicalRightOffsetForLine(position, DoNotIndentText);
     if (logicalRight == logicalRightOffsetForContent()) {
         if (&rootBlock != this) // The border can potentially be further extended by our containingBlock().
             return cache.containingBlockInfo(*this).logicalRightSelectionOffset(rootBlock, position + logicalTop());
@@ -2284,6 +2280,8 @@ LayoutUnit RenderBlock::textIndentOffset() const
 LayoutUnit RenderBlock::logicalLeftOffsetForContent(RenderRegion* region) const
 {
     LayoutUnit logicalLeftOffset = style().isHorizontalWritingMode() ? borderLeft() + paddingLeft() : borderTop() + paddingTop();
+    if (style().shouldPlaceBlockDirectionScrollbarOnLeft())
+        logicalLeftOffset += verticalScrollbarWidth();
     if (!region)
         return logicalLeftOffset;
     LayoutRect boxRect = borderBoxRectInRegion(region);
@@ -2293,6 +2291,8 @@ LayoutUnit RenderBlock::logicalLeftOffsetForContent(RenderRegion* region) const
 LayoutUnit RenderBlock::logicalRightOffsetForContent(RenderRegion* region) const
 {
     LayoutUnit logicalRightOffset = style().isHorizontalWritingMode() ? borderLeft() + paddingLeft() : borderTop() + paddingTop();
+    if (style().shouldPlaceBlockDirectionScrollbarOnLeft())
+        logicalRightOffset += verticalScrollbarWidth();
     logicalRightOffset += availableLogicalWidth();
     if (!region)
         return logicalRightOffset;
@@ -3427,12 +3427,12 @@ LayoutRect RenderBlock::localCaretRect(InlineBox* inlineBox, int caretOffset, La
     return caretRect;
 }
 
-void RenderBlock::addFocusRingRectsForInlineChildren(Vector<IntRect>&, const LayoutPoint&, const RenderLayerModelObject*)
+void RenderBlock::addFocusRingRectsForInlineChildren(Vector<LayoutRect>&, const LayoutPoint&, const RenderLayerModelObject*)
 {
     ASSERT_NOT_REACHED();
 }
 
-void RenderBlock::addFocusRingRects(Vector<IntRect>& rects, const LayoutPoint& additionalOffset, const RenderLayerModelObject* paintContainer)
+void RenderBlock::addFocusRingRects(Vector<LayoutRect>& rects, const LayoutPoint& additionalOffset, const RenderLayerModelObject* paintContainer)
 {
     // For blocks inside inlines, we include margins so that we run right up to the inline boxes
     // above and below us (thus getting merged with them to form a single irregular shape).
@@ -3447,9 +3447,9 @@ void RenderBlock::addFocusRingRects(Vector<IntRect>& rects, const LayoutPoint& a
         float bottomMargin = nextInlineHasLineBox ? collapsedMarginAfter() : LayoutUnit();
         LayoutRect rect(additionalOffset.x(), additionalOffset.y() - topMargin, width(), height() + topMargin + bottomMargin);
         if (!rect.isEmpty())
-            rects.append(snappedIntRect(rect));
+            rects.append(rect);
     } else if (width() && height())
-        rects.append(snappedIntRect(additionalOffset, size()));
+        rects.append(LayoutRect(additionalOffset, size()));
 
     if (!hasOverflowClip() && !hasControlClip()) {
         if (childrenInline())
@@ -3698,7 +3698,7 @@ const char* RenderBlock::renderName() const
     return "RenderBlock";
 }
 
-TextRun RenderBlock::constructTextRun(RenderObject* context, const FontCascade& font, StringView stringView, const RenderStyle& style, ExpansionBehavior expansion, TextRunFlags flags)
+TextRun RenderBlock::constructTextRun(StringView stringView, const RenderStyle& style, ExpansionBehavior expansion, TextRunFlags flags)
 {
     TextDirection textDirection = LTR;
     bool directionalOverride = style.rtlOrdering() == VisualOrder;
@@ -3708,40 +3708,34 @@ TextRun RenderBlock::constructTextRun(RenderObject* context, const FontCascade& 
         if (flags & RespectDirectionOverride)
             directionalOverride |= isOverride(style.unicodeBidi());
     }
-    TextRun run(stringView, 0, 0, expansion, textDirection, directionalOverride);
-    if (font.primaryFont().isSVGFont()) {
-        ASSERT(context); // FIXME: Thread a RenderObject& to this point so we don't have to dereference anything.
-        run.setRenderingContext(SVGTextRunRenderingContext::create(*context));
-    }
-
-    return run;
+    return TextRun(stringView, 0, 0, expansion, textDirection, directionalOverride);
 }
 
-TextRun RenderBlock::constructTextRun(RenderObject* context, const FontCascade& font, const String& string, const RenderStyle& style, ExpansionBehavior expansion, TextRunFlags flags)
+TextRun RenderBlock::constructTextRun(const String& string, const RenderStyle& style, ExpansionBehavior expansion, TextRunFlags flags)
 {
-    return constructTextRun(context, font, StringView(string), style, expansion, flags);
+    return constructTextRun(StringView(string), style, expansion, flags);
 }
 
-TextRun RenderBlock::constructTextRun(RenderObject* context, const FontCascade& font, const RenderText* text, const RenderStyle& style, ExpansionBehavior expansion)
+TextRun RenderBlock::constructTextRun(const RenderText* text, const RenderStyle& style, ExpansionBehavior expansion)
 {
-    return constructTextRun(context, font, text->stringView(), style, expansion);
+    return constructTextRun(text->stringView(), style, expansion);
 }
 
-TextRun RenderBlock::constructTextRun(RenderObject* context, const FontCascade& font, const RenderText* text, unsigned offset, unsigned length, const RenderStyle& style, ExpansionBehavior expansion)
+TextRun RenderBlock::constructTextRun(const RenderText* text, unsigned offset, unsigned length, const RenderStyle& style, ExpansionBehavior expansion)
 {
     unsigned stop = offset + length;
     ASSERT(stop <= text->textLength());
-    return constructTextRun(context, font, text->stringView(offset, stop), style, expansion);
+    return constructTextRun(text->stringView(offset, stop), style, expansion);
 }
 
-TextRun RenderBlock::constructTextRun(RenderObject* context, const FontCascade& font, const LChar* characters, int length, const RenderStyle& style, ExpansionBehavior expansion)
+TextRun RenderBlock::constructTextRun(const LChar* characters, int length, const RenderStyle& style, ExpansionBehavior expansion)
 {
-    return constructTextRun(context, font, StringView(characters, length), style, expansion);
+    return constructTextRun(StringView(characters, length), style, expansion);
 }
 
-TextRun RenderBlock::constructTextRun(RenderObject* context, const FontCascade& font, const UChar* characters, int length, const RenderStyle& style, ExpansionBehavior expansion)
+TextRun RenderBlock::constructTextRun(const UChar* characters, int length, const RenderStyle& style, ExpansionBehavior expansion)
 {
-    return constructTextRun(context, font, StringView(characters, length), style, expansion);
+    return constructTextRun(StringView(characters, length), style, expansion);
 }
 
 RenderBlock* RenderBlock::createAnonymousWithParentRendererAndDisplay(const RenderObject* parent, EDisplay display)

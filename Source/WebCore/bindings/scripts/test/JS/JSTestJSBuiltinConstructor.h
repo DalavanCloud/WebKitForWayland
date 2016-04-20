@@ -35,8 +35,10 @@ public:
         return ptr;
     }
 
+    static const bool hasStaticPropertyTable = false;
+
     static JSC::JSObject* createPrototype(JSC::VM&, JSC::JSGlobalObject*);
-    static JSC::JSObject* getPrototype(JSC::VM&, JSC::JSGlobalObject*);
+    static JSC::JSObject* prototype(JSC::VM&, JSC::JSGlobalObject*);
     static void destroy(JSC::JSCell*);
 
     DECLARE_INFO;

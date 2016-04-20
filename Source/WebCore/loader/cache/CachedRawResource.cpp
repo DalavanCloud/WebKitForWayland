@@ -42,7 +42,7 @@ CachedRawResource::CachedRawResource(ResourceRequest& resourceRequest, Type type
     , m_identifier(0)
     , m_allowEncodedDataReplacement(true)
 {
-    ASSERT(isMainOrRawResource());
+    ASSERT(isMainOrMediaOrRawResource());
 }
 
 const char* CachedRawResource::calculateIncrementalDataChunk(SharedBuffer* data, unsigned& incrementalDataLength)
@@ -184,6 +184,16 @@ void CachedRawResource::responseReceived(const ResourceResponse& response)
     CachedResourceClientWalker<CachedRawResourceClient> w(m_clients);
     while (CachedRawResourceClient* c = w.next())
         c->responseReceived(this, m_response);
+}
+
+bool CachedRawResource::shouldCacheResponse(const ResourceResponse& response)
+{
+    CachedResourceClientWalker<CachedRawResourceClient> w(m_clients);
+    while (CachedRawResourceClient* c = w.next()) {
+        if (!c->shouldCacheResponse(this, response))
+            return false;
+    }
+    return true;
 }
 
 void CachedRawResource::didSendData(unsigned long long bytesSent, unsigned long long totalBytesToBeSent)

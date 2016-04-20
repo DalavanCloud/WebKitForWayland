@@ -33,6 +33,42 @@ PASS Does not have syntax error: ';({ get let() { return 50; }, set let(x) { ret
 PASS Does not have syntax error: ''use strict'; ;({ get let() { return 50; }, set let(x) { return 50;} });'
 PASS Does not have syntax error: 'function foo() { { let x; } var x; }'
 PASS Does not have syntax error: ''use strict'; function foo() { { let x; } var x; }'
+PASS Does not have syntax error: 'var x = (function foo() { const foo = 20; });'
+PASS Does not have syntax error: ''use strict'; var x = (function foo() { const foo = 20; });'
+PASS Does not have syntax error: 'var x = (function foo() { let foo = 20; });'
+PASS Does not have syntax error: ''use strict'; var x = (function foo() { let foo = 20; });'
+PASS Does not have syntax error: 'var x = (function foo() { class foo { } });'
+PASS Does not have syntax error: ''use strict'; var x = (function foo() { class foo { } });'
+PASS Does not have syntax error: ';(function foo() { const foo = 20; });'
+PASS Does not have syntax error: ''use strict'; ;(function foo() { const foo = 20; });'
+PASS Does not have syntax error: ';(function foo() { let foo = 20; });'
+PASS Does not have syntax error: ''use strict'; ;(function foo() { let foo = 20; });'
+PASS Does not have syntax error: ';(function foo() { class foo { } });'
+PASS Does not have syntax error: ''use strict'; ;(function foo() { class foo { } });'
+PASS Does not have syntax error: 'let x = {f: function foo() { const foo = 20; } };'
+PASS Does not have syntax error: ''use strict'; let x = {f: function foo() { const foo = 20; } };'
+PASS Does not have syntax error: 'let x = {f: function foo() { let foo = 20; } };'
+PASS Does not have syntax error: ''use strict'; let x = {f: function foo() { let foo = 20; } };'
+PASS Does not have syntax error: 'let x = {f: function foo() { class foo { } } };'
+PASS Does not have syntax error: ''use strict'; let x = {f: function foo() { class foo { } } };'
+PASS Does not have syntax error: 'let x = { foo() { const foo = 20; } };'
+PASS Does not have syntax error: ''use strict'; let x = { foo() { const foo = 20; } };'
+PASS Does not have syntax error: 'let x = { foo() { let foo = 20; } };'
+PASS Does not have syntax error: ''use strict'; let x = { foo() { let foo = 20; } };'
+PASS Does not have syntax error: 'let x = { foo() { class foo { } } };'
+PASS Does not have syntax error: ''use strict'; let x = { foo() { class foo { } } };'
+PASS Does not have syntax error: 'let x = { set foo(x) { const foo = 20; } };'
+PASS Does not have syntax error: ''use strict'; let x = { set foo(x) { const foo = 20; } };'
+PASS Does not have syntax error: 'let x = { set foo(x) { let foo = 20; } };'
+PASS Does not have syntax error: ''use strict'; let x = { set foo(x) { let foo = 20; } };'
+PASS Does not have syntax error: 'let x = { set foo(x) { class foo { } } };'
+PASS Does not have syntax error: ''use strict'; let x = { set foo(x) { class foo { } } };'
+PASS Does not have syntax error: 'let x = { get foo() { const foo = 20; } };'
+PASS Does not have syntax error: ''use strict'; let x = { get foo() { const foo = 20; } };'
+PASS Does not have syntax error: 'let x = { get foo() { let foo = 20; } };'
+PASS Does not have syntax error: ''use strict'; let x = { get foo() { let foo = 20; } };'
+PASS Does not have syntax error: 'let x = { get foo() { class foo { } } };'
+PASS Does not have syntax error: ''use strict'; let x = { get foo() { class foo { } } };'
 SyntaxError: Unexpected keyword 'let'. Can't use 'let' as an identifier name for a LexicalDeclaration.
 SyntaxError: Unexpected keyword 'let'. Can't use 'let' as an identifier name for a LexicalDeclaration.
 PASS Has syntax error: 'let let;'
@@ -279,11 +315,11 @@ PASS Has syntax error: 'function f() { let x; var [x] = 20; }'
 SyntaxError: Cannot declare a var variable that shadows a let/const/class variable: 'x'.
 SyntaxError: Cannot declare a var variable that shadows a let/const/class variable: 'x'.
 PASS Has syntax error: ''use strict'; function f() { let x; var [x] = 20; }'
-SyntaxError: Cannot declare a function that shadows a let/const/class variable 'x' in strict mode.
-SyntaxError: Cannot declare a function that shadows a let/const/class variable 'x' in strict mode.
+SyntaxError: Cannot declare a function that shadows a let/const/class/function variable 'x' in strict mode.
+SyntaxError: Cannot declare a function that shadows a let/const/class/function variable 'x' in strict mode.
 PASS Has syntax error: 'function f() { let x;  function x(){} }'
-SyntaxError: Cannot declare a function that shadows a let/const/class variable 'x' in strict mode.
-SyntaxError: Cannot declare a function that shadows a let/const/class variable 'x' in strict mode.
+SyntaxError: Cannot declare a function that shadows a let/const/class/function variable 'x' in strict mode.
+SyntaxError: Cannot declare a function that shadows a let/const/class/function variable 'x' in strict mode.
 PASS Has syntax error: ''use strict'; function f() { let x;  function x(){} }'
 SyntaxError: Cannot declare a let variable twice: 'x'.
 SyntaxError: Cannot declare a let variable twice: 'x'.
@@ -309,11 +345,11 @@ PASS Has syntax error: 'function f() { const x = 20; var [x] = 20; }'
 SyntaxError: Cannot declare a var variable that shadows a let/const/class variable: 'x'.
 SyntaxError: Cannot declare a var variable that shadows a let/const/class variable: 'x'.
 PASS Has syntax error: ''use strict'; function f() { const x = 20; var [x] = 20; }'
-SyntaxError: Cannot declare a function that shadows a let/const/class variable 'x' in strict mode.
-SyntaxError: Cannot declare a function that shadows a let/const/class variable 'x' in strict mode.
+SyntaxError: Cannot declare a function that shadows a let/const/class/function variable 'x' in strict mode.
+SyntaxError: Cannot declare a function that shadows a let/const/class/function variable 'x' in strict mode.
 PASS Has syntax error: 'function f() { const x = 20;  function x(){} }'
-SyntaxError: Cannot declare a function that shadows a let/const/class variable 'x' in strict mode.
-SyntaxError: Cannot declare a function that shadows a let/const/class variable 'x' in strict mode.
+SyntaxError: Cannot declare a function that shadows a let/const/class/function variable 'x' in strict mode.
+SyntaxError: Cannot declare a function that shadows a let/const/class/function variable 'x' in strict mode.
 PASS Has syntax error: ''use strict'; function f() { const x = 20;  function x(){} }'
 SyntaxError: Cannot declare a const variable twice: 'x'.
 SyntaxError: Cannot declare a const variable twice: 'x'.
@@ -339,11 +375,11 @@ PASS Has syntax error: 'function f() { class x{}; var [x] = 20; }'
 SyntaxError: Cannot declare a var variable that shadows a let/const/class variable: 'x'.
 SyntaxError: Cannot declare a var variable that shadows a let/const/class variable: 'x'.
 PASS Has syntax error: ''use strict'; function f() { class x{}; var [x] = 20; }'
-SyntaxError: Cannot declare a function that shadows a let/const/class variable 'x' in strict mode.
-SyntaxError: Cannot declare a function that shadows a let/const/class variable 'x' in strict mode.
+SyntaxError: Cannot declare a function that shadows a let/const/class/function variable 'x' in strict mode.
+SyntaxError: Cannot declare a function that shadows a let/const/class/function variable 'x' in strict mode.
 PASS Has syntax error: 'function f() { class x{};  function x(){} }'
-SyntaxError: Cannot declare a function that shadows a let/const/class variable 'x' in strict mode.
-SyntaxError: Cannot declare a function that shadows a let/const/class variable 'x' in strict mode.
+SyntaxError: Cannot declare a function that shadows a let/const/class/function variable 'x' in strict mode.
+SyntaxError: Cannot declare a function that shadows a let/const/class/function variable 'x' in strict mode.
 PASS Has syntax error: ''use strict'; function f() { class x{};  function x(){} }'
 SyntaxError: Cannot declare a class twice: 'x'.
 SyntaxError: Cannot declare a class twice: 'x'.

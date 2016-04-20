@@ -43,12 +43,12 @@ class PageConsoleAgent final : public WebConsoleAgent {
     WTF_MAKE_NONCOPYABLE(PageConsoleAgent);
     WTF_MAKE_FAST_ALLOCATED;
 public:
-    PageConsoleAgent(WebAgentContext&, InspectorDOMAgent*);
+    PageConsoleAgent(WebAgentContext&, Inspector::InspectorHeapAgent*, InspectorDOMAgent*);
     virtual ~PageConsoleAgent() { }
 
 private:
-    virtual void clearMessages(ErrorString&) override;
-    virtual void addInspectedNode(ErrorString&, int nodeId) override;
+    void clearMessages(ErrorString&) override;
+    void addInspectedNode(ErrorString&, int nodeId) override;
 
     InspectorDOMAgent* m_inspectorDOMAgent;
 };

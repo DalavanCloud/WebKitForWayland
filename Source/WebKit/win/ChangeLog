@@ -1,3 +1,291 @@
+2016-04-11  Darin Adler  <darin@apple.com>
+
+        Remove UsePointersEvenForNonNullableObjectArguments from HTMLSelectElement
+        https://bugs.webkit.org/show_bug.cgi?id=156458
+
+        Reviewed by Chris Dumez.
+
+        * DOMCoreClasses.cpp: Added now-needed include.
+
+2016-04-11  Gavin Barraclough  <barraclough@apple.com>
+
+        WebKit should adopt journal_mode=wal for all SQLite databases.
+        https://bugs.webkit.org/show_bug.cgi?id=133496
+
+        Reviewed by Darin Adler.
+
+        * WebDatabaseManager.cpp:
+        (WebDatabaseManager::deleteAllDatabases):
+            - renamed deleteAllDatabases -> deleteAllDatabasesImmediately.
+
+2016-04-08  Joanmarie Diggs  <jdiggs@igalia.com>
+
+        AX: "AXLandmarkApplication" is an inappropriate subrole for ARIA "application" since it's no longer a landmark
+        https://bugs.webkit.org/show_bug.cgi?id=155403
+
+        Reviewed by Chris Fleizach.
+
+        The new subrole is AXWebApplication and the new role description is "web application".
+        As part of the fix, the WebCore AccessibilityRole for ARIA's "application" role was
+        renamed from LandmarkApplicationRole to WebApplicationRole.
+
+        The roles-exposed.html and aria-grouping-roles.html test expectations were also updated.
+
+        * AccessibleBase.cpp: Update the rolename
+        (MSAARole):
+
+2016-04-07  Brian Burg  <bburg@apple.com>
+
+        CookieJar should support adding synthetic cookies for developer tools
+        https://bugs.webkit.org/show_bug.cgi?id=156091
+        <rdar://problem/25581340>
+
+        Reviewed by Timothy Hatcher.
+
+        * WebCoreSupport/WebPlatformStrategies.h:
+        * WebCoreSupport/WebPlatformStrategies.cpp:
+        Add new method override.
+
+2016-03-24  Said Abou-Hallawa  <sabouhallawa@apple,com>
+
+        Change NativeImagePtr for CG to be RetainPtr<CGImageRef>
+        https://bugs.webkit.org/show_bug.cgi?id=155412
+
+        Reviewed by Darin Adler.
+
+        * Plugins/PluginView.h:
+        * Plugins/PluginViewWin.cpp:
+        (WebCore::PluginView::snapshot):
+        Replace PassRefPtr with RefPtr.
+
+2016-03-22  Per Arne Vollan  <peavo@outlook.com>
+
+        [Win] [64-bit] Remove MSVC 2013 FMA3 Bug Workaround
+        https://bugs.webkit.org/show_bug.cgi?id=141499
+
+        Reviewed by Brent Fulgham.
+
+        As we have moved on to VS2015, this workaround is no longer needed.
+
+        * WebKitDLL.cpp:
+        (DllMain):
+
+2016-03-21  Hyungwook Lee  <hyungwook.lee@navercorp.com> 
+
+        [Win] Connect layoutTestController.findString() to support testing 
+        https://bugs.webkit.org/show_bug.cgi?id=50234
+
+        Reviewed by Alex Christensen.
+
+        Implement WebView::findString to support testing efforts.
+
+        * Interfaces/IWebViewPrivate.idl: Add API declaration.
+        * WebView.cpp:
+        * WebView.h:
+
+2016-03-16  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Unreviewed, rolling out r196951 and r197031.
+
+        Revert also WinCairo follow ups after r196803
+
+        Reverted changesets:
+
+        "[WinCairo] Compile fix."
+        https://bugs.webkit.org/show_bug.cgi?id=154545
+        http://trac.webkit.org/changeset/196951
+
+        "[WinCairo] Mark layer as non composited."
+        https://bugs.webkit.org/show_bug.cgi?id=154640
+        http://trac.webkit.org/changeset/197031
+
+2016-03-16  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Unreviewed, rolling out r197693.
+
+        197031
+
+        Reverted changeset:
+
+        "[WinCairo][AcceleratedCompositing] Rendering issues on
+        www.bbc.com."
+        https://bugs.webkit.org/show_bug.cgi?id=154912
+        http://trac.webkit.org/changeset/197693
+
+2016-03-15  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Correct double-release of CFURLConnectionRef
+        https://bugs.webkit.org/show_bug.cgi?id=155515
+        <rdar://problem/25159143>
+
+        Reviewed by Tim Horton.
+
+        Tested by http/tests/download suite.
+
+        * WebDownloadCFNet.cpp: Remove extra CFRelease.
+
+2016-03-14  Per Arne Vollan  <peavo@outlook.com>
+
+        [WinCairo] Compile fix.
+        https://bugs.webkit.org/show_bug.cgi?id=155463
+
+        Reviewed by Alex Christensen.
+
+        Get the NetworkStorageSession object from the document in the same way as other platforms do.
+
+        * WebCoreSupport/WebFrameNetworkingContext.cpp:
+        (WebFrameNetworkingContext::storageSession):
+        * WebCoreSupport/WebFrameNetworkingContext.h:
+        (WebFrameNetworkingContext::storageSession):
+
+2016-03-14  Joonghun Park  <jh718.park@samsung.com>
+
+        Purge PassRefPtr from ArrayBuffer, ArchiveResource, Pasteboard, LegacyWebArchive and DataObjectGtk
+        https://bugs.webkit.org/show_bug.cgi?id=150497
+
+        Reviewed by Darin Adler.
+
+        * WebArchive.cpp:
+        (WebArchive::initWithNode):
+
+2016-03-12  Sam Weinig  <sam@webkit.org>
+
+        WebKit can easily crash below NetworkSession::dataTaskForIdentifier() with NSURLSession enabled
+        <rdar://problem/25129946>
+        https://bugs.webkit.org/show_bug.cgi?id=155401
+
+        Reviewed by Alex Christensen.
+
+        * WebCoreSupport/WebFrameNetworkingContext.cpp:
+        (WebFrameNetworkingContext::ensurePrivateBrowsingSession):
+        Pass a SessionID to NetworkStorageSession::createPrivateBrowsingSession().
+
+2016-03-10  Jer Noble  <jer.noble@apple.com>
+
+        Unreviewed build fix after r197953; correct the settings added in r197953.
+
+        * WebView.cpp:
+        (WebView::notifyPreferencesChanged):
+
+2016-03-10  Jer Noble  <jer.noble@apple.com>
+
+        Add separate WK and WK2 preferences for requiring user gestures for video media, distinct from user gestures for media generally
+        https://bugs.webkit.org/show_bug.cgi?id=155141
+
+        Reviewed by Beth Dakin.
+
+        * WebView.cpp:
+        (WebView::notifyPreferencesChanged):
+
+2016-03-07  Per Arne Vollan  <peavo@outlook.com>
+
+        [WinCairo][AcceleratedCompositing] Rendering issues on www.bbc.com.
+        https://bugs.webkit.org/show_bug.cgi?id=154912
+
+        Reviewed by Michael Catanzaro.
+
+        If we have a scroll layer, we should not include the scroll position in the visible rectangle,
+        since the scroll position is already reflected in the position of the scroll layer.
+
+        * WebCoreSupport/AcceleratedCompositingContext.cpp:
+        (AcceleratedCompositingContext::flushPendingLayerChanges):
+
+2016-03-06  Gavin Barraclough  <barraclough@apple.com>
+
+        Convert DOMTimer to std::chrono::milliseconds
+        https://bugs.webkit.org/show_bug.cgi?id=155085
+
+        Reviewed by Andreas Kling.
+
+        DOMTimer currently uses a mix of millisecond (was int, now std::chrono) and second (as double)
+        time values. Constant conversion back and forth is a complete mess. Stop that.
+
+        * WebView.cpp:
+        (WebView::setMinimumTimerInterval):
+            - Convert double argument into std::chrono::milliseconds.
+
+2016-03-05  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [ES6] Support Reflect.construct
+        https://bugs.webkit.org/show_bug.cgi?id=147330
+
+        Reviewed by Saam Barati.
+
+        * Plugins/PluginPackage.cpp:
+        (WebCore::NPN_Invoke):
+
+2016-02-24  Per Arne Vollan  <peavo@outlook.com>
+
+        [WinCairo] Mark layer as non composited.
+        https://bugs.webkit.org/show_bug.cgi?id=154640
+
+        Reviewed by Alex Christensen.
+
+        We need to mark the non composited layer as being non composited.
+
+        * WebCoreSupport/AcceleratedCompositingContext.cpp:
+        (AcceleratedCompositingContext::initialize):
+        (AcceleratedCompositingContext::flushPendingLayerChanges):
+
+2016-02-22  Per Arne Vollan  <peavo@outlook.com>
+
+        [WinCairo] Compile fix.
+        https://bugs.webkit.org/show_bug.cgi?id=154545
+
+        Reviewed by Alex Christensen.
+
+        Add missing parameter to GraphicsLayerTextureMapper::updateBackingStoreIncludingSubLayers().
+
+        * WebCoreSupport/AcceleratedCompositingContext.cpp:
+        (AcceleratedCompositingContext::flushPendingLayerChanges):
+
+2016-02-21  Darin Adler  <darin@apple.com>
+
+        Refactor LazyEventListener creation to separate Element and Document cases
+        https://bugs.webkit.org/show_bug.cgi?id=154231
+
+        Reviewed by Andreas Kling.
+
+        * WebView.h: Forward declare KeyboardEvent.
+
+2016-02-16  Andreas Kling  <akling@apple.com>
+
+        Drop StyleResolver and SelectorQueryCache when entering PageCache.
+        <https://webkit.org/b/154238>
+
+        Reviewed by Antti Koivisto.
+
+        * WebCoreSupport/WebVisitedLinkStore.cpp:
+        (WebVisitedLinkStore::removeAllVisitedLinks): Deleted.
+        (WebVisitedLinkStore::addVisitedLinkHash): Deleted.
+
+2016-02-14  Chris Dumez  <cdumez@apple.com>
+
+        Unreviewed Window build fix.
+
+        * WebCoreStatistics.cpp:
+        * WebJavaScriptCollector.cpp:
+
+2016-02-12  Jiewen Tan  <jiewen_tan@apple.com>
+
+        WebKit should expose the DOM 4 Event.isTrusted property
+        https://bugs.webkit.org/show_bug.cgi?id=76121
+        <rdar://problem/22558494>
+
+        Reviewed by Darin Adler.
+
+        * DOMCoreClasses.cpp:
+        (DOMNode::dispatchEvent):
+        (DOMWindow::dispatchEvent):
+
+2016-02-11  Antti Koivisto  <antti@apple.com>
+
+        Try to fix windows build.
+
+        * DOMCoreClasses.cpp:
+        (DOMElement::style):
+        (DOMElement::offsetLeft):
+
 2016-02-06  Darin Adler  <darin@apple.com>
 
         Finish auditing call sites of upper() and lower(), eliminate many, and rename the functions

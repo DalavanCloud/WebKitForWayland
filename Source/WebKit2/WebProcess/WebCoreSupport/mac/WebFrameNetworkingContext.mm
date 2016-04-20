@@ -58,11 +58,13 @@ void WebFrameNetworkingContext::ensurePrivateBrowsingSession(SessionID sessionID
     else
         base = SessionTracker::getIdentifierBase();
 
-    SessionTracker::setSession(sessionID, NetworkStorageSession::createPrivateBrowsingSession(base + '.' + String::number(sessionID.sessionID()))
+    auto networkStorageSession = NetworkStorageSession::createPrivateBrowsingSession(sessionID, base + '.' + String::number(sessionID.sessionID()));
 #if USE(NETWORK_SESSION)
-        , std::make_unique<NetworkSession>(NetworkSession::Type::Ephemeral, sessionID, nullptr)
+    auto networkSession = NetworkSession::create(NetworkSession::Type::Ephemeral, sessionID, nullptr, WTFMove(networkStorageSession));
+    SessionTracker::setSession(sessionID, WTFMove(networkSession));
+#else
+    SessionTracker::setSession(sessionID, WTFMove(networkStorageSession));
 #endif
-    );
 }
 
 void WebFrameNetworkingContext::setCookieAcceptPolicyForAllContexts(HTTPCookieAcceptPolicy policy)
@@ -72,10 +74,9 @@ void WebFrameNetworkingContext::setCookieAcceptPolicyForAllContexts(HTTPCookieAc
     if (RetainPtr<CFHTTPCookieStorageRef> cookieStorage = NetworkStorageSession::defaultStorageSession().cookieStorage())
         CFHTTPCookieStorageSetCookieAcceptPolicy(cookieStorage.get(), policy);
 
-    for (const auto& session : SessionTracker::storageSessionMap().values()) {
-        if (session)
-            CFHTTPCookieStorageSetCookieAcceptPolicy(session->cookieStorage().get(), policy);
-    }
+    SessionTracker::forEachNetworkStorageSession([&] (const NetworkStorageSession& networkStorageSession) {
+        CFHTTPCookieStorageSetCookieAcceptPolicy(networkStorageSession.cookieStorage().get(), policy);
+    });
 }
     
 bool WebFrameNetworkingContext::localFileContentSniffingEnabled() const
@@ -86,20 +87,13 @@ bool WebFrameNetworkingContext::localFileContentSniffingEnabled() const
 SchedulePairHashSet* WebFrameNetworkingContext::scheduledRunLoopPairs() const
 {
     if (!frame() || !frame()->page())
-        return 0;
+        return nullptr;
     return frame()->page()->scheduledRunLoopPairs();
 }
 
 RetainPtr<CFDataRef> WebFrameNetworkingContext::sourceApplicationAuditData() const
 {
-#if PLATFORM(IOS)
-    audit_token_t auditToken;
-    if (!WebProcess::singleton().parentProcessConnection()->getAuditToken(auditToken))
-        return nullptr;
-    return adoptCF(CFDataCreate(0, (const UInt8*)&auditToken, sizeof(auditToken)));
-#else
-    return nullptr;
-#endif
+    return WebProcess::singleton().sourceApplicationAuditData();
 }
 
 String WebFrameNetworkingContext::sourceApplicationIdentifier() const

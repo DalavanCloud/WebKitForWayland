@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -37,6 +37,7 @@
 #include "ViewUpdateDispatcher.h"
 #include "VisitedLinkTable.h"
 #include <WebCore/HysteresisActivity.h>
+#include <WebCore/ResourceLoadStatisticsStore.h>
 #include <WebCore/SessionID.h>
 #include <WebCore/Timer.h>
 #include <wtf/Forward.h>
@@ -75,6 +76,7 @@ class InjectedBundle;
 class NetworkProcessConnection;
 class ObjCObjectGraph;
 class UserData;
+class WebAutomationSessionProxy;
 class WebConnectionToUIProcess;
 class WebFrame;
 class WebIconDatabaseProxy;
@@ -82,6 +84,7 @@ class WebLoaderStrategy;
 class WebPage;
 class WebPageGroupProxy;
 class WebProcessSupplement;
+enum class WebsiteDataType;
 struct WebPageCreationParameters;
 struct WebPageGroupData;
 struct WebPreferencesStore;
@@ -163,24 +166,26 @@ public:
 
     void ensurePrivateBrowsingSession(WebCore::SessionID);
     void destroyPrivateBrowsingSession(WebCore::SessionID);
+    void ensureLegacyPrivateBrowsingSessionInNetworkProcess();
 
     void pageDidEnterWindow(uint64_t pageID);
     void pageWillLeaveWindow(uint64_t pageID);
 
     void nonVisibleProcessCleanupTimerFired();
+    void statisticsChangedTimerFired();
 
 #if PLATFORM(COCOA)
+    RetainPtr<CFDataRef> sourceApplicationAuditData() const;
     void destroyRenderingResources();
 #endif
 
     void updateActivePages();
 
+    void setHiddenPageTimerThrottlingIncreaseLimit(int milliseconds);
+
     void processWillSuspendImminently(bool& handled);
     void prepareToSuspend();
     void cancelPrepareToSuspend();
-    bool markAllLayersVolatileIfPossible();
-    void setAllLayerTreeStatesFrozen(bool);
-    void processSuspensionCleanupTimerFired();
     void processDidResume();
 
 #if PLATFORM(IOS)
@@ -203,12 +208,23 @@ public:
 
     void prefetchDNS(const String&);
 
+    WebAutomationSessionProxy* automationSessionProxy() { return m_automationSessionProxy.get(); }
+
 private:
     WebProcess();
     ~WebProcess();
 
     void initializeWebProcess(WebProcessCreationParameters&&);
     void platformInitializeWebProcess(WebProcessCreationParameters&&);
+
+#if USE(OS_STATE)
+    void registerWithStateDumper();
+#endif
+
+    void markAllLayersVolatile(std::function<void()> completionHandler);
+    void cancelMarkAllLayersVolatile();
+    void setAllLayerTreeStatesFrozen(bool);
+    void processSuspensionCleanupTimerFired();
 
     void clearCachedCredentials();
 
@@ -228,6 +244,7 @@ private:
     void setDefaultRequestTimeoutInterval(double);
     void setAlwaysUsesComplexTextCodePath(bool);
     void setShouldUseFontSmoothing(bool);
+    void setResourceLoadStatisticsEnabled(bool);
     void userPreferredLanguagesChanged(const Vector<String>&) const;
     void fullKeyboardAccessModeChanged(bool fullKeyboardAccessEnabled);
 
@@ -255,9 +272,9 @@ private:
 
     void releasePageCache();
 
-    void fetchWebsiteData(WebCore::SessionID, uint64_t websiteDataTypes, uint64_t callbackID);
-    void deleteWebsiteData(WebCore::SessionID, uint64_t websiteDataTypes, std::chrono::system_clock::time_point modifiedSince, uint64_t callbackID);
-    void deleteWebsiteDataForOrigins(WebCore::SessionID, uint64_t websiteDataTypes, const Vector<WebCore::SecurityOriginData>& origins, uint64_t callbackID);
+    void fetchWebsiteData(WebCore::SessionID, OptionSet<WebsiteDataType>, uint64_t callbackID);
+    void deleteWebsiteData(WebCore::SessionID, OptionSet<WebsiteDataType>, std::chrono::system_clock::time_point modifiedSince, uint64_t callbackID);
+    void deleteWebsiteDataForOrigins(WebCore::SessionID, OptionSet<WebsiteDataType>, const Vector<WebCore::SecurityOriginData>& origins, uint64_t callbackID);
 
     void setMemoryCacheDisabled(bool);
 
@@ -272,28 +289,31 @@ private:
     enum class ShouldAcknowledgeWhenReadyToSuspend { No, Yes };
     void actualPrepareToSuspend(ShouldAcknowledgeWhenReadyToSuspend);
 
+    void ensureAutomationSessionProxy(const String& sessionIdentifier);
+    void destroyAutomationSessionProxy();
+
     // ChildProcess
-    virtual void initializeProcess(const ChildProcessInitializationParameters&) override;
-    virtual void initializeProcessName(const ChildProcessInitializationParameters&) override;
-    virtual void initializeSandbox(const ChildProcessInitializationParameters&, SandboxInitializationParameters&) override;
-    virtual void initializeConnection(IPC::Connection*) override;
-    virtual bool shouldTerminate() override;
-    virtual void terminate() override;
+    void initializeProcess(const ChildProcessInitializationParameters&) override;
+    void initializeProcessName(const ChildProcessInitializationParameters&) override;
+    void initializeSandbox(const ChildProcessInitializationParameters&, SandboxInitializationParameters&) override;
+    void initializeConnection(IPC::Connection*) override;
+    bool shouldTerminate() override;
+    void terminate() override;
 
 #if USE(APPKIT)
-    virtual void stopRunLoop() override;
+    void stopRunLoop() override;
 #endif
 
     void platformInitializeProcess(const ChildProcessInitializationParameters&);
 
     // IPC::Connection::Client
     friend class WebConnectionToUIProcess;
-    virtual void didReceiveMessage(IPC::Connection&, IPC::MessageDecoder&) override;
-    virtual void didReceiveSyncMessage(IPC::Connection&, IPC::MessageDecoder&, std::unique_ptr<IPC::MessageEncoder>&) override;
-    virtual void didClose(IPC::Connection&) override;
-    virtual void didReceiveInvalidMessage(IPC::Connection&, IPC::StringReference messageReceiverName, IPC::StringReference messageName) override;
-    virtual IPC::ProcessType localProcessType() override { return IPC::ProcessType::Web; }
-    virtual IPC::ProcessType remoteProcessType() override { return IPC::ProcessType::UI; }
+    void didReceiveMessage(IPC::Connection&, IPC::MessageDecoder&) override;
+    void didReceiveSyncMessage(IPC::Connection&, IPC::MessageDecoder&, std::unique_ptr<IPC::MessageEncoder>&) override;
+    void didClose(IPC::Connection&) override;
+    void didReceiveInvalidMessage(IPC::Connection&, IPC::StringReference messageReceiverName, IPC::StringReference messageName) override;
+    IPC::ProcessType localProcessType() override { return IPC::ProcessType::Web; }
+    IPC::ProcessType remoteProcessType() override { return IPC::ProcessType::UI; }
 
     // Implemented in generated WebProcessMessageReceiver.cpp
     void didReceiveWebProcessMessage(IPC::Connection&, IPC::MessageDecoder&);
@@ -309,7 +329,6 @@ private:
 #if PLATFORM(IOS)
     RefPtr<ViewUpdateDispatcher> m_viewUpdateDispatcher;
 #endif
-    WebCore::Timer m_processSuspensionCleanupTimer;
 
     bool m_inDidClose;
 
@@ -341,6 +360,8 @@ private:
     HashSet<String> m_dnsPrefetchedHosts;
     WebCore::HysteresisActivity m_dnsPrefetchHystereris;
 
+    std::unique_ptr<WebAutomationSessionProxy> m_automationSessionProxy;
+
 #if ENABLE(DATABASE_PROCESS)
     void ensureWebToDatabaseProcessConnection();
     RefPtr<WebToDatabaseProcessConnection> m_webToDatabaseProcessConnection;
@@ -358,12 +379,16 @@ private:
 
     HashSet<uint64_t> m_pagesInWindows;
     WebCore::Timer m_nonVisibleProcessCleanupTimer;
+    WebCore::Timer m_statisticsChangedTimer;
 
 #if PLATFORM(IOS)
     WebSQLiteDatabaseTracker m_webSQLiteDatabaseTracker;
 #endif
 
-    ShouldAcknowledgeWhenReadyToSuspend m_shouldAcknowledgeWhenReadyToSuspend;
+    Ref<WebCore::ResourceLoadStatisticsStore> m_resourceLoadStatisticsStorage;
+
+    unsigned m_pagesMarkingLayersAsVolatile { 0 };
+    bool m_suppressMemoryPressureHandler { false };
 };
 
 } // namespace WebKit

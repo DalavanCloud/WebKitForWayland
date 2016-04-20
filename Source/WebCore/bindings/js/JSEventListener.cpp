@@ -21,6 +21,7 @@
 #include "JSEventListener.h"
 
 #include "BeforeUnloadEvent.h"
+#include "ContentSecurityPolicy.h"
 #include "Event.h"
 #include "Frame.h"
 #include "HTMLElement.h"
@@ -93,6 +94,8 @@ void JSEventListener::handleEvent(ScriptExecutionContext* scriptExecutionContext
         JSDOMWindow* window = jsCast<JSDOMWindow*>(globalObject);
         if (!window->wrapped().isCurrentlyDisplayedInFrame())
             return;
+        if (wasCreatedFromMarkup() && !scriptExecutionContext->contentSecurityPolicy()->allowInlineEventHandlers(sourceURL(), sourcePosition().m_line))
+            return;
         // FIXME: Is this check needed for other contexts?
         ScriptController& script = window->wrapped().frame()->script();
         if (!script.canExecuteScripts(AboutToExecuteScript) || script.isPaused())
@@ -105,12 +108,12 @@ void JSEventListener::handleEvent(ScriptExecutionContext* scriptExecutionContext
     CallData callData;
     CallType callType = getCallData(handleEventFunction, callData);
     // If jsFunction is not actually a function, see if it implements the EventListener interface and use that
-    if (callType == CallTypeNone) {
+    if (callType == CallType::None) {
         handleEventFunction = jsFunction->get(exec, Identifier::fromString(exec, "handleEvent"));
         callType = getCallData(handleEventFunction, callData);
     }
 
-    if (callType != CallTypeNone) {
+    if (callType != CallType::None) {
         Ref<JSEventListener> protect(*this);
 
         MarkedArgumentBuffer args;

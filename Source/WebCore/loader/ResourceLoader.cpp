@@ -346,8 +346,7 @@ void ResourceLoader::willSendRequestInternal(ResourceRequest& request, const Res
     if (frameLoader()) {
         Page* page = frameLoader()->frame().page();
         if (page && m_documentLoader) {
-            auto* userContentController = page->userContentController();
-            if (userContentController && userContentController->processContentExtensionRulesForLoad(request, m_resourceType, *m_documentLoader) == ContentExtensions::BlockedStatus::Blocked)
+            if (page->userContentProvider().processContentExtensionRulesForLoad(request, m_resourceType, *m_documentLoader) == ContentExtensions::BlockedStatus::Blocked)
                 request = { };
         }
     }
@@ -753,5 +752,10 @@ void ResourceLoader::didCreateQuickLookHandle(QuickLookHandle& handle)
     frameLoader()->client().didCreateQuickLookHandle(handle);
 }
 #endif
+
+bool ResourceLoader::isAlwaysOnLoggingAllowed() const
+{
+    return frameLoader() && frameLoader()->isAlwaysOnLoggingAllowed();
+}
 
 }

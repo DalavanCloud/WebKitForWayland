@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008, 2009, 2013-2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2008, 2009, 2013-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -201,9 +201,9 @@ Structure::Structure(VM& vm, JSGlobalObject* globalObject, JSValue prototype, co
     setHasGetterSetterProperties(classInfo->hasStaticSetterOrReadonlyProperties());
     setHasCustomGetterSetterProperties(false);
     setHasReadOnlyOrGetterSetterPropertiesExcludingProto(classInfo->hasStaticSetterOrReadonlyProperties());
-    setHasNonEnumerableProperties(false);
+    setIsQuickPropertyAccessAllowedForEnumeration(true);
     setAttributesInPrevious(0);
-    setPreventExtensions(false);
+    setDidPreventExtensions(false);
     setDidTransition(false);
     setStaticFunctionsReified(false);
     setHasRareData(false);
@@ -233,9 +233,9 @@ Structure::Structure(VM& vm)
     setHasGetterSetterProperties(m_classInfo->hasStaticSetterOrReadonlyProperties());
     setHasCustomGetterSetterProperties(false);
     setHasReadOnlyOrGetterSetterPropertiesExcludingProto(m_classInfo->hasStaticSetterOrReadonlyProperties());
-    setHasNonEnumerableProperties(false);
+    setIsQuickPropertyAccessAllowedForEnumeration(true);
     setAttributesInPrevious(0);
-    setPreventExtensions(false);
+    setDidPreventExtensions(false);
     setDidTransition(false);
     setStaticFunctionsReified(false);
     setHasRareData(false);
@@ -264,9 +264,9 @@ Structure::Structure(VM& vm, Structure* previous, DeferredStructureTransitionWat
     setHasGetterSetterProperties(previous->hasGetterSetterProperties());
     setHasCustomGetterSetterProperties(previous->hasCustomGetterSetterProperties());
     setHasReadOnlyOrGetterSetterPropertiesExcludingProto(previous->hasReadOnlyOrGetterSetterPropertiesExcludingProto());
-    setHasNonEnumerableProperties(previous->hasNonEnumerableProperties());
+    setIsQuickPropertyAccessAllowedForEnumeration(previous->isQuickPropertyAccessAllowedForEnumeration());
     setAttributesInPrevious(0);
-    setPreventExtensions(previous->preventExtensions());
+    setDidPreventExtensions(previous->didPreventExtensions());
     setDidTransition(true);
     setStaticFunctionsReified(previous->staticFunctionsReified());
     setHasRareData(false);
@@ -443,7 +443,18 @@ NonPropertyTransition Structure::suggestedArrayStorageTransition() const
     return AllocateArrayStorage;
 }
 
-Structure* Structure::addPropertyTransition(VM& vm, Structure* structure, PropertyName propertyName, unsigned attributes, PropertyOffset& offset, PutPropertySlot::Context context, DeferredStructureTransitionWatchpointFire* deferred)
+Structure* Structure::addPropertyTransition(VM& vm, Structure* structure, PropertyName propertyName, unsigned attributes, PropertyOffset& offset)
+{
+    Structure* newStructure = addPropertyTransitionToExistingStructure(
+        structure, propertyName, attributes, offset);
+    if (newStructure)
+        return newStructure;
+
+    return addNewPropertyTransition(
+        vm, structure, propertyName, attributes, offset, PutPropertySlot::UnknownContext);
+}
+
+Structure* Structure::addNewPropertyTransition(VM& vm, Structure* structure, PropertyName propertyName, unsigned attributes, PropertyOffset& offset, PutPropertySlot::Context context, DeferredStructureTransitionWatchpointFire* deferred)
 {
     ASSERT(!structure->isDictionary());
     ASSERT(structure->isObject());
@@ -619,13 +630,13 @@ Structure* Structure::preventExtensionsTransition(VM& vm, Structure* structure)
 {
     Structure* transition = create(vm, structure);
 
-    // Don't set m_offset, as one can not transition to this.
+    // Don't set m_offset, as one cannot transition to this.
 
     DeferGC deferGC(vm.heap);
     structure->materializePropertyMapIfNecessary(vm, deferGC);
     transition->propertyTable().set(vm, transition, structure->copyPropertyTableForPinning(vm));
     transition->m_offset = structure->m_offset;
-    transition->setPreventExtensions(true);
+    transition->setDidPreventExtensions(true);
     transition->pin();
 
     transition->checkOffsetConsistency();
@@ -691,7 +702,7 @@ Structure* Structure::nonPropertyTransition(VM& vm, Structure* structure, NonPro
 // In future we may want to cache this property.
 bool Structure::isSealed(VM& vm)
 {
-    if (isExtensible())
+    if (isStructureExtensible())
         return false;
 
     DeferGC deferGC(vm.heap);
@@ -710,7 +721,7 @@ bool Structure::isSealed(VM& vm)
 // In future we may want to cache this property.
 bool Structure::isFrozen(VM& vm)
 {
-    if (isExtensible())
+    if (isStructureExtensible())
         return false;
 
     DeferGC deferGC(vm.heap);
@@ -986,7 +997,7 @@ PropertyOffset Structure::add(VM& vm, PropertyName propertyName, unsigned attrib
 
     checkConsistency();
     if (attributes & DontEnum)
-        setHasNonEnumerableProperties(true);
+        setIsQuickPropertyAccessAllowedForEnumeration(false);
 
     auto rep = propertyName.uid();
 
@@ -1044,12 +1055,12 @@ void Structure::getPropertyNamesFromStructure(VM& vm, PropertyNameArray& propert
 
     PropertyTable::iterator end = propertyTable()->end();
     for (PropertyTable::iterator iter = propertyTable()->begin(); iter != end; ++iter) {
-        ASSERT(hasNonEnumerableProperties() || !(iter->attributes & DontEnum));
+        ASSERT(!isQuickPropertyAccessAllowedForEnumeration() || !(iter->attributes & DontEnum));
         if (!(iter->attributes & DontEnum) || mode.includeDontEnumProperties()) {
             if (iter->key->isSymbol() && !propertyNames.includeSymbolProperties())
                 continue;
             if (knownUnique)
-                propertyNames.addKnownUnique(iter->key);
+                propertyNames.addUnchecked(iter->key);
             else
                 propertyNames.add(iter->key);
         }
@@ -1116,7 +1127,9 @@ void Structure::visitChildren(JSCell* cell, SlotVisitor& visitor)
     if (thisObject->isPinnedPropertyTable()) {
         ASSERT(thisObject->m_propertyTableUnsafe);
         visitor.append(&thisObject->m_propertyTableUnsafe);
-    } else if (thisObject->m_propertyTableUnsafe)
+    } else if (visitor.isBuildingHeapSnapshot())
+        visitor.append(&thisObject->m_propertyTableUnsafe);
+    else if (thisObject->m_propertyTableUnsafe)
         thisObject->m_propertyTableUnsafe.clear();
 
     visitor.append(&thisObject->m_inferredTypeTable);
@@ -1153,24 +1166,11 @@ PassRefPtr<StructureShape> Structure::toStructureShape(JSValue value)
     Structure* curStructure = this;
     JSValue curValue = value;
     while (curStructure) {
-        Vector<Structure*, 8> structures;
-        Structure* structure;
-        PropertyTable* table;
-
-        curStructure->findStructuresAndMapForMaterialization(structures, structure, table);
-        if (table) {
-            PropertyTable::iterator iter = table->begin();
-            PropertyTable::iterator end = table->end();
-            for (; iter != end; ++iter)
-                curShape->addProperty(*iter->key);
-            
-            structure->m_lock.unlock();
-        }
-        for (unsigned i = structures.size(); i--;) {
-            Structure* structure = structures[i];
-            if (structure->m_nameInPrevious)
-                curShape->addProperty(*structure->m_nameInPrevious);
-        }
+        curStructure->forEachPropertyConcurrently(
+            [&] (const PropertyMapEntry& entry) -> bool {
+                curShape->addProperty(*entry.key);
+                return true;
+            });
 
         if (JSObject* curObject = curValue.getObject())
             curShape->setConstructorName(JSObject::calculatedClassName(curObject));
@@ -1324,7 +1324,7 @@ void Structure::checkConsistency()
     if (!propertyTable())
         return;
 
-    if (!hasNonEnumerableProperties()) {
+    if (isQuickPropertyAccessAllowedForEnumeration()) {
         PropertyTable::iterator end = propertyTable()->end();
         for (PropertyTable::iterator iter = propertyTable()->begin(); iter != end; ++iter) {
             ASSERT(!(iter->attributes & DontEnum));
@@ -1394,9 +1394,9 @@ bool Structure::canCachePropertyNameEnumerator() const
     return true;
 }
     
-bool Structure::canAccessPropertiesQuickly() const
+bool Structure::canAccessPropertiesQuicklyForEnumeration() const
 {
-    if (hasNonEnumerableProperties())
+    if (!isQuickPropertyAccessAllowedForEnumeration())
         return false;
     if (hasGetterSetterProperties())
         return false;

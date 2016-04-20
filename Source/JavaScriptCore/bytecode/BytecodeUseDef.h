@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013, 2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2013, 2015-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -52,9 +52,11 @@ void computeUsesForBytecodeOffset(
     case op_catch:
     case op_profile_control_flow:
     case op_create_direct_arguments:
-    case op_create_out_of_band_arguments:
+    case op_create_cloned_arguments:
     case op_get_rest_length:
     case op_watchdog:
+    case op_log_shadow_chicken_prologue:
+    case op_log_shadow_chicken_tail:
         return;
     case op_assert:
     case op_get_scope:
@@ -85,6 +87,7 @@ void computeUsesForBytecodeOffset(
     case op_jngreater:
     case op_jngreatereq:
     case op_jless:
+    case op_set_function_name:
     case op_copy_rest: {
         ASSERT(opcodeLengths[opcodeID] > 2);
         functor(codeBlock, instruction, opcodeID, instruction[1].u.operand);
@@ -140,6 +143,7 @@ void computeUsesForBytecodeOffset(
     case op_resolve_scope:
     case op_get_from_scope:
     case op_to_primitive:
+    case op_try_get_by_id:
     case op_get_by_id:
     case op_get_array_length:
     case op_typeof:
@@ -322,7 +326,10 @@ void computeDefsForBytecodeOffset(CodeBlock* codeBlock, BytecodeBasicBlock* bloc
     case op_profile_type:
     case op_profile_control_flow:
     case op_put_to_arguments:
+    case op_set_function_name:
     case op_watchdog:
+    case op_log_shadow_chicken_prologue:
+    case op_log_shadow_chicken_tail:
 #define LLINT_HELPER_OPCODES(opcode, length) case opcode:
         FOR_EACH_LLINT_OPCODE_EXTENSION(LLINT_HELPER_OPCODES);
 #undef LLINT_HELPER_OPCODES
@@ -361,6 +368,7 @@ void computeDefsForBytecodeOffset(CodeBlock* codeBlock, BytecodeBasicBlock* bloc
     case op_tail_call:
     case op_call_eval:
     case op_construct:
+    case op_try_get_by_id:
     case op_get_by_id:
     case op_get_array_length:
     case op_overrides_has_instance:
@@ -410,7 +418,7 @@ void computeDefsForBytecodeOffset(CodeBlock* codeBlock, BytecodeBasicBlock* bloc
     case op_get_scope:
     case op_create_direct_arguments:
     case op_create_scoped_arguments:
-    case op_create_out_of_band_arguments:
+    case op_create_cloned_arguments:
     case op_del_by_id:
     case op_del_by_val:
     case op_unsigned:

@@ -43,7 +43,6 @@
 #include "WebProcessPool.h"
 #include "WebProcessProxy.h"
 #include <WebCore/NotImplemented.h>
-#include <WebCore/SchemeRegistry.h>
 #include <wtf/NeverDestroyed.h>
 
 #if ENABLE(INSPECTOR_SERVER)
@@ -304,6 +303,20 @@ void WebInspectorProxy::togglePageProfiling()
     m_isProfilingPage = !m_isProfilingPage;
 }
 
+void WebInspectorProxy::toggleElementSelection()
+{
+    if (!m_inspectedPage)
+        return;
+
+    if (m_elementSelectionActive) {
+        m_ignoreElementSelectionChange = true;
+        m_inspectedPage->process().send(Messages::WebInspector::StopElementSelection(), m_inspectedPage->pageID());
+    } else {
+        connect();
+        m_inspectedPage->process().send(Messages::WebInspector::StartElementSelection(), m_inspectedPage->pageID());
+    }
+}
+
 static WebProcessPool* s_mainInspectorProcessPool;
 static WebProcessPool* s_nestedInspectorProcessPool;
 
@@ -332,14 +345,10 @@ bool WebInspectorProxy::isInspectorPage(WebPageProxy& webPage)
 
 static bool isMainOrTestInspectorPage(WKURLRequestRef requestRef)
 {
-    URL requestURL(URL(), toImpl(requestRef)->resourceRequest().url());
-    if (!WebCore::SchemeRegistry::shouldTreatURLSchemeAsLocal(requestURL.protocol()))
-        return false;
-
-    // Use URL so we can compare just the paths.
+    // Use URL so we can compare the paths and protocols.
+    const URL& requestURL = toImpl(requestRef)->resourceRequest().url();
     URL mainPageURL(URL(), WebInspectorProxy::inspectorPageURL());
-    ASSERT(WebCore::SchemeRegistry::shouldTreatURLSchemeAsLocal(mainPageURL.protocol()));
-    if (decodeURLEscapeSequences(requestURL.path()) == decodeURLEscapeSequences(mainPageURL.path()))
+    if (requestURL.protocol() == mainPageURL.protocol() && decodeURLEscapeSequences(requestURL.path()) == decodeURLEscapeSequences(mainPageURL.path()))
         return true;
 
     // We might not have a Test URL in Production builds.
@@ -348,8 +357,7 @@ static bool isMainOrTestInspectorPage(WKURLRequestRef requestRef)
         return false;
 
     URL testPageURL(URL(), testPageURLString);
-    ASSERT(WebCore::SchemeRegistry::shouldTreatURLSchemeAsLocal(testPageURL.protocol()));
-    return decodeURLEscapeSequences(requestURL.path()) == decodeURLEscapeSequences(testPageURL.path());
+    return requestURL.protocol() == testPageURL.protocol() && decodeURLEscapeSequences(requestURL.path()) == decodeURLEscapeSequences(testPageURL.path());
 }
 
 static void processDidCrash(WKPageRef, const void* clientInfo)
@@ -627,6 +635,21 @@ void WebInspectorProxy::attachAvailabilityChanged(bool available)
 void WebInspectorProxy::inspectedURLChanged(const String& urlString)
 {
     platformInspectedURLChanged(urlString);
+}
+
+void WebInspectorProxy::elementSelectionChanged(bool active)
+{
+    m_elementSelectionActive = active;
+
+    if (m_ignoreElementSelectionChange) {
+        m_ignoreElementSelectionChange = false;
+        if (!m_isVisible)
+            close();
+        return;
+    }
+
+    if (!active && isConnected())
+        bringToFront();
 }
 
 void WebInspectorProxy::save(const String& filename, const String& content, bool base64Encoded, bool forceSaveAs)

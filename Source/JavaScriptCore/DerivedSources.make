@@ -61,6 +61,7 @@ all : \
     KeywordLookup.h \
     RegExpJitTables.h \
     AirOpcode.h \
+    YarrCanonicalizeUnicode.cpp \
 #
 
 # JavaScript builtins.
@@ -98,6 +99,7 @@ JavaScriptCore_BUILTINS_SOURCES = \
     $(JavaScriptCore)/builtins/PromiseOperations.js \
     $(JavaScriptCore)/builtins/PromisePrototype.js \
     $(JavaScriptCore)/builtins/ReflectObject.js \
+    $(JavaScriptCore)/builtins/RegExpPrototype.js \
     $(JavaScriptCore)/builtins/SetPrototype.js \
     $(JavaScriptCore)/builtins/StringConstructor.js \
     $(JavaScriptCore)/builtins/StringIteratorPrototype.js \
@@ -146,10 +148,10 @@ OBJECT_LUT_HEADERS = \
     ObjectConstructor.lut.h \
     ReflectObject.lut.h \
     RegExpConstructor.lut.h \
-    RegExpPrototype.lut.h \
     SetPrototype.lut.h \
     StringConstructor.lut.h \
     StringIteratorPrototype.lut.h \
+    StringPrototype.lut.h \
     SymbolConstructor.lut.h \
     SymbolPrototype.lut.h \
 #
@@ -170,8 +172,8 @@ KeywordLookup.h: KeywordLookupGenerator.py Keywords.table
 
 # udis86 instruction tables
 
-udis86_itab.h: $(JavaScriptCore)/disassembler/udis86/itab.py $(JavaScriptCore)/disassembler/udis86/optable.xml
-	$(PYTHON) $(JavaScriptCore)/disassembler/udis86/itab.py $(JavaScriptCore)/disassembler/udis86/optable.xml
+udis86_itab.h: $(JavaScriptCore)/disassembler/udis86/ud_itab.py $(JavaScriptCore)/disassembler/udis86/optable.xml
+	$(PYTHON) $(JavaScriptCore)/disassembler/udis86/ud_itab.py $(JavaScriptCore)/disassembler/udis86/optable.xml .
 
 # Bytecode files
 
@@ -270,6 +272,9 @@ JSReplayInputs.h : $(INPUT_GENERATOR_SPECIFICATIONS) $(INPUT_GENERATOR_SCRIPTS)
 
 AirOpcode.h: $(JavaScriptCore)/b3/air/opcode_generator.rb $(JavaScriptCore)/b3/air/AirOpcode.opcodes
 	$(RUBY) $^
+
+YarrCanonicalizeUnicode.cpp: $(JavaScriptCore)/generateYarrCanonicalizeUnicode $(JavaScriptCore)/ucd/CaseFolding.txt
+	$(PYTHON) $(JavaScriptCore)/generateYarrCanonicalizeUnicode $(JavaScriptCore)/ucd/CaseFolding.txt ./YarrCanonicalizeUnicode.cpp
 
 # Dynamically-defined targets are listed below. Static targets belong up top.
 

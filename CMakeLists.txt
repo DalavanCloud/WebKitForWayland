@@ -8,6 +8,8 @@ endif ()
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/Source/cmake")
 
+set(ENABLE_WEBCORE ON)
+
 if (NOT DEFINED ENABLE_WEBKIT)
     set(ENABLE_WEBKIT ON)
 endif ()
@@ -19,7 +21,15 @@ endif ()
 # -----------------------------------------------------------------------------
 # Determine which port will be built
 # -----------------------------------------------------------------------------
-set(ALL_PORTS Efl GTK AppleWin WinCairo Mac WPE)
+set(ALL_PORTS
+    AppleWin
+    Efl
+    GTK
+    JSCOnly
+    Mac
+    WinCairo
+    WPE
+)
 set(PORT "NOPORT" CACHE STRING "choose which WebKit port to build (one of ${ALL_PORTS})")
 
 list(FIND ALL_PORTS ${PORT} RET)
@@ -105,17 +115,11 @@ set(WebCoreTestSupport_LIBRARY_TYPE STATIC)
 option(SHOULD_INSTALL_JS_SHELL "generate an installation rule to install the built JavaScript shell")
 
 # -----------------------------------------------------------------------------
-# Output directories
+# Default output directories, which can be overwritten by ports
 #------------------------------------------------------------------------------
-if (NOT CMAKE_ARCHIVE_OUTPUT_DIRECTORY)
-    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-endif ()
-if (NOT CMAKE_LIBRARY_OUTPUT_DIRECTORY)
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-endif ()
-if (NOT CMAKE_RUNTIME_OUTPUT_DIRECTORY)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-endif ()
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # -----------------------------------------------------------------------------
 # Common configuration

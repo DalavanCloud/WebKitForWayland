@@ -29,6 +29,7 @@
 #if ENABLE(INDEXED_DATABASE)
 
 #include "IDBKeyRangeData.h"
+#include "IDBValue.h"
 #include "IndexedDB.h"
 #include "Logging.h"
 #include "MemoryIDBBackingStore.h"
@@ -47,8 +48,12 @@ MemoryBackingStoreTransaction::MemoryBackingStoreTransaction(MemoryIDBBackingSto
     : m_backingStore(backingStore)
     , m_info(info)
 {
-    if (m_info.mode() == IndexedDB::TransactionMode::VersionChange)
-        m_originalDatabaseInfo = std::make_unique<IDBDatabaseInfo>(m_backingStore.getOrEstablishDatabaseInfo());
+    if (m_info.mode() == IndexedDB::TransactionMode::VersionChange) {
+        IDBDatabaseInfo info;
+        auto error = m_backingStore.getOrEstablishDatabaseInfo(info);
+        if (error.isNull())
+            m_originalDatabaseInfo = std::make_unique<IDBDatabaseInfo>(info);
+    }
 }
 
 MemoryBackingStoreTransaction::~MemoryBackingStoreTransaction()
@@ -89,6 +94,14 @@ void MemoryBackingStoreTransaction::addExistingIndex(MemoryIndex& index)
 void MemoryBackingStoreTransaction::indexDeleted(Ref<MemoryIndex>&& index)
 {
     m_indexes.remove(&index.get());
+
+    // If this MemoryIndex belongs to an object store that will not get restored if this transaction aborts,
+    // then we can forget about it altogether.
+    auto& objectStore = index->objectStore();
+    if (auto deletedObjectStore = m_deletedObjectStores.get(objectStore.info().name())) {
+        if (deletedObjectStore != &objectStore)
+            return;
+    }
 
     auto addResult = m_deletedIndexes.add(index->info().name(), nullptr);
     if (addResult.isNewEntry)
@@ -218,7 +231,7 @@ void MemoryBackingStoreTransaction::abort()
 
         for (auto entry : *keyValueMap) {
             objectStore->deleteRecord(entry.key);
-            objectStore->addRecord(*this, entry.key, entry.value);
+            objectStore->addRecord(*this, entry.key, { entry.value });
         }
     }
 

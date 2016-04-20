@@ -44,6 +44,7 @@
 #include "HTMLOptGroupElement.h"
 #include "HTMLOptionElement.h"
 #include "HTMLOptionsCollection.h"
+#include "HTMLParserIdioms.h"
 #include "KeyboardEvent.h"
 #include "LocalizedStrings.h"
 #include "MouseEvent.h"
@@ -219,19 +220,14 @@ int HTMLSelectElement::activeSelectionEndListIndex() const
     return lastSelectedListIndex();
 }
 
-void HTMLSelectElement::add(HTMLElement* element, HTMLElement* beforeElement, ExceptionCode& ec)
+void HTMLSelectElement::add(HTMLElement& element, HTMLElement* beforeElement, ExceptionCode& ec)
 {
-    if (!element || !(is<HTMLOptionElement>(*element) || element->hasTagName(hrTag) || is<HTMLOptGroupElement>(*element)))
+    if (!(is<HTMLOptionElement>(element) || is<HTMLHRElement>(element) || is<HTMLOptGroupElement>(element)))
         return;
-
-    // Make sure the element is ref'd and deref'd so we don't leak it.
-    Ref<HTMLElement> protectNewChild(*element);
-
-    insertBefore(*element, beforeElement, ec);
-    updateValidity();
+    insertBefore(element, beforeElement, ec);
 }
 
-void HTMLSelectElement::add(HTMLElement* element, int beforeIndex, ExceptionCode& ec)
+void HTMLSelectElement::add(HTMLElement& element, int beforeIndex, ExceptionCode& ec)
 {
     add(element, item(beforeIndex), ec);
 }
@@ -245,12 +241,12 @@ void HTMLSelectElement::removeByIndex(int optionIndex)
     listItems()[listIndex]->remove(IGNORE_EXCEPTION);
 }
 
-void HTMLSelectElement::remove(HTMLOptionElement* option)
+void HTMLSelectElement::remove(HTMLOptionElement& option)
 {
-    if (option->ownerSelectElement() != this)
+    if (option.ownerSelectElement() != this)
         return;
 
-    option->remove(IGNORE_EXCEPTION);
+    option.remove(IGNORE_EXCEPTION);
 }
 
 String HTMLSelectElement::value() const
@@ -302,17 +298,8 @@ bool HTMLSelectElement::isPresentationAttribute(const QualifiedName& name) const
 void HTMLSelectElement::parseAttribute(const QualifiedName& name, const AtomicString& value)
 {
     if (name == sizeAttr) {
-        int oldSize = m_size;
-        // Set the attribute value to a number.
-        // This is important since the style rules for this attribute can determine the appearance property.
-        int size = value.toInt();
-        AtomicString attrSize = AtomicString::number(size);
-        if (attrSize != value) {
-            // FIXME: This is horribly factored.
-            if (Attribute* sizeAttribute = ensureUniqueElementData().findAttributeByName(sizeAttr))
-                sizeAttribute->setValue(attrSize);
-        }
-        size = std::max(size, 0);
+        unsigned oldSize = m_size;
+        unsigned size = limitToOnlyHTMLNonNegative(value);
 
         // Ensure that we've determined selectedness of the items at least once prior to changing the size.
         if (oldSize != size)
@@ -428,9 +415,9 @@ void HTMLSelectElement::setMultiple(bool multiple)
         setSelectedIndex(oldSelectedIndex);
 }
 
-void HTMLSelectElement::setSize(int size)
+void HTMLSelectElement::setSize(unsigned size)
 {
-    setIntegralAttribute(sizeAttr, size);
+    setUnsignedIntegralAttribute(sizeAttr, limitToOnlyHTMLNonNegative(size));
 }
 
 HTMLOptionElement* HTMLSelectElement::namedItem(const AtomicString& name)
@@ -443,7 +430,7 @@ HTMLOptionElement* HTMLSelectElement::item(unsigned index)
     return options()->item(index);
 }
 
-void HTMLSelectElement::setOption(unsigned index, HTMLOptionElement* option, ExceptionCode& ec)
+void HTMLSelectElement::setOption(unsigned index, HTMLOptionElement& option, ExceptionCode& ec)
 {
     ec = 0;
     if (index > maxSelectItems - 1)
@@ -461,22 +448,21 @@ void HTMLSelectElement::setOption(unsigned index, HTMLOptionElement* option, Exc
     // Finally add the new element.
     if (!ec) {
         add(option, before.get(), ec);
-        if (diff >= 0 && option->selected())
+        if (diff >= 0 && option.selected())
             optionSelectionStateChanged(option, true);
     }
 }
 
-void HTMLSelectElement::setLength(unsigned newLen, ExceptionCode& ec)
+void HTMLSelectElement::setLength(unsigned newLength, ExceptionCode& ec)
 {
     ec = 0;
-    if (newLen > maxSelectItems)
-        newLen = maxSelectItems;
-    int diff = length() - newLen;
+    if (newLength > maxSelectItems)
+        newLength = maxSelectItems;
+    int diff = length() - newLength;
 
     if (diff < 0) { // Add dummy elements.
         do {
-            RefPtr<Element> option = document().createElement(optionTag, false);
-            ASSERT(option);
+            auto option = document().createElement(optionTag, false);
             add(downcast<HTMLElement>(option.get()), nullptr, ec);
             if (ec)
                 break;
@@ -489,7 +475,7 @@ void HTMLSelectElement::setLength(unsigned newLen, ExceptionCode& ec)
         Vector<Ref<Element>> itemsToRemove;
         size_t optionIndex = 0;
         for (auto& item : items) {
-            if (is<HTMLOptionElement>(*item) && optionIndex++ >= newLen) {
+            if (is<HTMLOptionElement>(*item) && optionIndex++ >= newLength) {
                 ASSERT(item->parentNode());
                 itemsToRemove.append(*item);
             }
@@ -508,12 +494,14 @@ bool HTMLSelectElement::isRequiredFormControl() const
     return isRequired();
 }
 
-#if PLATFORM(IOS)
 bool HTMLSelectElement::willRespondToMouseClickEvents()
 {
+#if PLATFORM(IOS)
     return !isDisabledFormControl();
-}
+#else
+    return HTMLFormControlElementWithState::willRespondToMouseClickEvents();
 #endif
+}
 
 // Returns the 1st valid item |skip| items from |listIndex| in direction |direction| if there is one.
 // Otherwise, it returns the valid item closest to that boundary which is past |listIndex| if there is one.
@@ -853,11 +841,11 @@ void HTMLSelectElement::setSelectedIndex(int index)
     selectOption(index, DeselectOtherOptions);
 }
 
-void HTMLSelectElement::optionSelectionStateChanged(HTMLOptionElement* option, bool optionIsSelected)
+void HTMLSelectElement::optionSelectionStateChanged(HTMLOptionElement& option, bool optionIsSelected)
 {
-    ASSERT(option->ownerSelectElement() == this);
+    ASSERT(option.ownerSelectElement() == this);
     if (optionIsSelected)
-        selectOption(option->index());
+        selectOption(option.index());
     else if (!usesMenuList())
         selectOption(-1);
     else

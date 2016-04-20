@@ -55,12 +55,13 @@ MemoryIDBBackingStore::~MemoryIDBBackingStore()
 {
 }
 
-const IDBDatabaseInfo& MemoryIDBBackingStore::getOrEstablishDatabaseInfo()
+IDBError MemoryIDBBackingStore::getOrEstablishDatabaseInfo(IDBDatabaseInfo& info)
 {
     if (!m_databaseInfo)
         m_databaseInfo = std::make_unique<IDBDatabaseInfo>(m_identifier.databaseName(), 0);
 
-    return *m_databaseInfo;
+    info = *m_databaseInfo;
+    return { };
 }
 
 void MemoryIDBBackingStore::setDatabaseInfo(const IDBDatabaseInfo& info)
@@ -266,7 +267,7 @@ IDBError MemoryIDBBackingStore::deleteRange(const IDBResourceIdentifier& transac
     return IDBError();
 }
 
-IDBError MemoryIDBBackingStore::addRecord(const IDBResourceIdentifier& transactionIdentifier, const IDBObjectStoreInfo& objectStoreInfo, const IDBKeyData& keyData, const ThreadSafeDataBuffer& value)
+IDBError MemoryIDBBackingStore::addRecord(const IDBResourceIdentifier& transactionIdentifier, const IDBObjectStoreInfo& objectStoreInfo, const IDBKeyData& keyData, const IDBValue& value)
 {
     LOG(IndexedDB, "MemoryIDBBackingStore::addRecord");
 
@@ -283,7 +284,7 @@ IDBError MemoryIDBBackingStore::addRecord(const IDBResourceIdentifier& transacti
     return objectStore->addRecord(*transaction, keyData, value);
 }
 
-IDBError MemoryIDBBackingStore::getRecord(const IDBResourceIdentifier& transactionIdentifier, uint64_t objectStoreIdentifier, const IDBKeyRangeData& range, ThreadSafeDataBuffer& outValue)
+IDBError MemoryIDBBackingStore::getRecord(const IDBResourceIdentifier& transactionIdentifier, uint64_t objectStoreIdentifier, const IDBKeyRangeData& range, IDBGetResult& outValue)
 {
     LOG(IndexedDB, "MemoryIDBBackingStore::getRecord");
 

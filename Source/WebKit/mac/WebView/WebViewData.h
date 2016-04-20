@@ -107,7 +107,7 @@ public:
     virtual ~WebViewLayerFlushScheduler() { }
 
 private:
-    virtual void layerFlushCallback() override
+    void layerFlushCallback() override
     {
         RefPtr<LayerFlushController> protector = m_flushController;
         WebCore::LayerFlushScheduler::layerFlushCallback();
@@ -210,8 +210,6 @@ private:
     WebScriptDebugDelegateImplementationCache scriptDebugDelegateImplementations;
     WebHistoryDelegateImplementationCache historyDelegateImplementations;
 
-    void *observationInfo;
-    
     BOOL closed;
 #if PLATFORM(IOS)
     BOOL closing;

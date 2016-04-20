@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2011 Ericsson AB. All rights reserved.
  * Copyright (C) 2012 Google Inc. All rights reserved.
- * Copyright (C) 2013-2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2016 Apple Inc. All rights reserved.
  * Copyright (C) 2013 Nokia Corporation and/or its subsidiary(-ies).
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,6 +44,7 @@
 #include "JSMediaDeviceInfo.h"
 #include "JSMediaStream.h"
 #include "JSNavigatorUserMediaError.h"
+#include "MainFrame.h"
 #include "MediaConstraintsImpl.h"
 #include "MediaStream.h"
 #include "MediaStreamPrivate.h"
@@ -105,14 +106,22 @@ UserMediaRequest::~UserMediaRequest()
 {
 }
 
-SecurityOrigin* UserMediaRequest::securityOrigin() const
+SecurityOrigin* UserMediaRequest::userMediaDocumentOrigin() const
 {
-    if (m_scriptExecutionContext)
-        return m_scriptExecutionContext->securityOrigin();
+    if (!m_scriptExecutionContext)
+        return nullptr;
 
-    return nullptr;
+    return m_scriptExecutionContext->securityOrigin();
 }
-    
+
+SecurityOrigin* UserMediaRequest::topLevelDocumentOrigin() const
+{
+    if (!m_scriptExecutionContext)
+        return nullptr;
+
+    return m_scriptExecutionContext->topOrigin();
+}
+
 void UserMediaRequest::start()
 {
     // 1 - make sure the system is capable of supporting the audio and video constraints. We don't want to ask for

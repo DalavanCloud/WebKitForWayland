@@ -203,6 +203,9 @@ extern NSString *WebPreferencesCacheModelChangedInternalNotification;
 - (BOOL)displayListDrawingEnabled;
 - (void)setDisplayListDrawingEnabled:(BOOL)enabled;
 
+- (BOOL)resourceLoadStatisticsEnabled;
+- (void)setResourceLoadStatisticsEnabled:(BOOL)enabled;
+
 - (BOOL)canvasUsesAcceleratedDrawing;
 - (void)setCanvasUsesAcceleratedDrawing:(BOOL)enabled;
 
@@ -233,6 +236,9 @@ extern NSString *WebPreferencesCacheModelChangedInternalNotification;
 - (BOOL)webGLEnabled;
 - (void)setWebGLEnabled:(BOOL)enabled;
 
+- (BOOL)webGL2Enabled;
+- (void)setWebGL2Enabled:(BOOL)enabled;
+
 - (BOOL)forceSoftwareWebGLRendering;
 - (void)setForceSoftwareWebGLRendering:(BOOL)forced;
 
@@ -245,11 +251,19 @@ extern NSString *WebPreferencesCacheModelChangedInternalNotification;
 - (BOOL)hyperlinkAuditingEnabled;
 - (void)setHyperlinkAuditingEnabled:(BOOL)enabled;
 
+// Deprecated. Use -setVideoPlaybackRequiresUserGesture and -setAudioPlaybackRequiresUserGesture instead.
 - (void)setMediaPlaybackRequiresUserGesture:(BOOL)flag;
+// Deprecated. Use -videoPlaybackRequiresUserGesture and -audioPlaybackRequiresUserGesture instead.
 - (BOOL)mediaPlaybackRequiresUserGesture;
+
+- (void)setVideoPlaybackRequiresUserGesture:(BOOL)flag;
+- (BOOL)videoPlaybackRequiresUserGesture;
 
 - (void)setAudioPlaybackRequiresUserGesture:(BOOL)flag;
 - (BOOL)audioPlaybackRequiresUserGesture;
+
+- (void)setOverrideUserGestureRequirementForMainContent:(BOOL)flag;
+- (BOOL)overrideUserGestureRequirementForMainContent;
 
 - (void)setMediaPlaybackAllowsInline:(BOOL)flag;
 - (BOOL)mediaPlaybackAllowsInline;
@@ -455,9 +469,6 @@ extern NSString *WebPreferencesCacheModelChangedInternalNotification;
 - (void)setMediaKeysStorageDirectory:(NSString *)directory;
 - (NSString *)mediaKeysStorageDirectory;
 
-- (void)setAntialiasedFontDilationEnabled:(BOOL)flag;
-- (BOOL)antialiasedFontDilationEnabled;
-
 - (void)setMetaRefreshEnabled:(BOOL)flag;
 - (BOOL)metaRefreshEnabled;
 
@@ -467,7 +478,17 @@ extern NSString *WebPreferencesCacheModelChangedInternalNotification;
 - (void)setMockCaptureDevicesEnabled:(BOOL)flag;
 - (BOOL)mockCaptureDevicesEnabled;
 
+- (void)setShadowDOMEnabled:(BOOL)flag;
+- (BOOL)shadowDOMEnabled;
+
+- (void)setCustomElementsEnabled:(BOOL)flag;
+- (BOOL)customElementsEnabled;
+
+- (void)setFetchAPIEnabled:(BOOL)flag;
+- (BOOL)fetchAPIEnabled;
+
 @property (nonatomic) BOOL javaScriptMarkupEnabled;
 @property (nonatomic) BOOL mediaDataLoadsAutomatically;
+@property (nonatomic) BOOL attachmentElementEnabled;
 
 @end

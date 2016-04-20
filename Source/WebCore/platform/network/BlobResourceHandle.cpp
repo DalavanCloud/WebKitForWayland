@@ -83,10 +83,10 @@ class BlobResourceSynchronousLoader : public ResourceHandleClient {
 public:
     BlobResourceSynchronousLoader(ResourceError&, ResourceResponse&, Vector<char>&);
 
-    virtual void didReceiveResponse(ResourceHandle*, const ResourceResponse&) override;
-    virtual void didReceiveData(ResourceHandle*, const char*, unsigned, int /*encodedDataLength*/) override;
-    virtual void didFinishLoading(ResourceHandle*, double /*finishTime*/) override;
-    virtual void didFail(ResourceHandle*, const ResourceError&) override;
+    void didReceiveResponse(ResourceHandle*, const ResourceResponse&) override;
+    void didReceiveData(ResourceHandle*, const char*, unsigned, int /*encodedDataLength*/) override;
+    void didFinishLoading(ResourceHandle*, double /*finishTime*/) override;
+    void didFail(ResourceHandle*, const ResourceError&) override;
 
 private:
     ResourceError& m_error;
@@ -136,10 +136,6 @@ void BlobResourceSynchronousLoader::didFail(ResourceHandle*, const ResourceError
 
 PassRefPtr<BlobResourceHandle> BlobResourceHandle::createAsync(BlobData* blobData, const ResourceRequest& request, ResourceHandleClient* client)
 {
-    // FIXME: Should probably call didFail() instead of blocking the load without explanation.
-    if (!equalLettersIgnoringASCIICase(request.httpMethod(), "get"))
-        return nullptr;
-
     return adoptRef(new BlobResourceHandle(blobData, request, client, true));
 }
 
@@ -207,6 +203,12 @@ void BlobResourceHandle::doStart()
     if (m_aborted || m_errorCode)
         return;
 
+    if (!equalLettersIgnoringASCIICase(firstRequest().httpMethod(), "get")) {
+        m_errorCode = methodNotAllowed;
+        notifyResponse();
+        return;
+    }
+
     // If the blob data is not found, fail now.
     if (!m_blobData) {
         m_errorCode = notFoundError;
@@ -251,16 +253,16 @@ void BlobResourceHandle::getSizeForNext()
     }
 
     const BlobDataItem& item = m_blobData->items().at(m_sizeItemCount);
-    switch (item.type) {
-    case BlobDataItem::Data:
+    switch (item.type()) {
+    case BlobDataItem::Type::Data:
         didGetSize(item.length());
         break;
-    case BlobDataItem::File:
+    case BlobDataItem::Type::File:
         // Files know their sizes, but asking the stream to verify that the file wasn't modified.
         if (m_async)
-            m_asyncStream->getSize(item.file->path(), item.file->expectedModificationTime());
+            m_asyncStream->getSize(item.file()->path(), item.file()->expectedModificationTime());
         else
-            didGetSize(m_stream->getSize(item.file->path(), item.file->expectedModificationTime()));
+            didGetSize(m_stream->getSize(item.file()->path(), item.file()->expectedModificationTime()));
         break;
     default:
         ASSERT_NOT_REACHED();
@@ -349,9 +351,9 @@ int BlobResourceHandle::readSync(char* buf, int length)
         
         const BlobDataItem& item = m_blobData->items().at(m_readItemCount);
         int bytesRead = 0;
-        if (item.type == BlobDataItem::Data)
+        if (item.type() == BlobDataItem::Type::Data)
             bytesRead = readDataSync(item, buf + offset, remaining);
-        else if (item.type == BlobDataItem::File)
+        else if (item.type() == BlobDataItem::Type::File)
             bytesRead = readFileSync(item, buf + offset, remaining);
         else
             ASSERT_NOT_REACHED();
@@ -387,7 +389,7 @@ int BlobResourceHandle::readDataSync(const BlobDataItem& item, char* buf, int le
     int bytesToRead = (length > remaining) ? static_cast<int>(remaining) : length;
     if (bytesToRead > m_totalRemainingSize)
         bytesToRead = static_cast<int>(m_totalRemainingSize);
-    memcpy(buf, item.data->data() + item.offset() + m_currentItemReadSize, bytesToRead);
+    memcpy(buf, item.data().data() + item.offset() + m_currentItemReadSize, bytesToRead);
     m_totalRemainingSize -= bytesToRead;
 
     m_currentItemReadSize += bytesToRead;
@@ -409,7 +411,7 @@ int BlobResourceHandle::readFileSync(const BlobDataItem& item, char* buf, int le
         long long bytesToRead = m_itemLengthList[m_readItemCount] - m_currentItemReadSize;
         if (bytesToRead > m_totalRemainingSize)
             bytesToRead = m_totalRemainingSize;
-        bool success = m_stream->openForRead(item.file->path(), item.offset() + m_currentItemReadSize, bytesToRead);
+        bool success = m_stream->openForRead(item.file()->path(), item.offset() + m_currentItemReadSize, bytesToRead);
         m_currentItemReadSize = 0;
         if (!success) {
             m_errorCode = notReadableError;
@@ -450,9 +452,9 @@ void BlobResourceHandle::readAsync()
     }
 
     const BlobDataItem& item = m_blobData->items().at(m_readItemCount);
-    if (item.type == BlobDataItem::Data)
+    if (item.type() == BlobDataItem::Type::Data)
         readDataAsync(item);
-    else if (item.type == BlobDataItem::File)
+    else if (item.type() == BlobDataItem::Type::File)
         readFileAsync(item);
     else
         ASSERT_NOT_REACHED();
@@ -462,12 +464,14 @@ void BlobResourceHandle::readDataAsync(const BlobDataItem& item)
 {
     ASSERT(isMainThread());
     ASSERT(m_async);
+    ASSERT(item.data().data());
+
     Ref<BlobResourceHandle> protect(*this);
 
     long long bytesToRead = item.length() - m_currentItemReadSize;
     if (bytesToRead > m_totalRemainingSize)
         bytesToRead = m_totalRemainingSize;
-    consumeData(item.data->data() + item.offset() + m_currentItemReadSize, static_cast<int>(bytesToRead));
+    consumeData(reinterpret_cast<const char*>(item.data().data()->data()) + item.offset() + m_currentItemReadSize, static_cast<int>(bytesToRead));
     m_currentItemReadSize = 0;
 }
 
@@ -484,7 +488,7 @@ void BlobResourceHandle::readFileAsync(const BlobDataItem& item)
     long long bytesToRead = m_itemLengthList[m_readItemCount] - m_currentItemReadSize;
     if (bytesToRead > m_totalRemainingSize)
         bytesToRead = static_cast<int>(m_totalRemainingSize);
-    m_asyncStream->openForRead(item.file->path(), item.offset() + m_currentItemReadSize, bytesToRead);
+    m_asyncStream->openForRead(item.file()->path(), item.offset() + m_currentItemReadSize, bytesToRead);
     m_fileOpened = true;
     m_currentItemReadSize = 0;
 }
@@ -578,6 +582,10 @@ void BlobResourceHandle::notifyResponseOnSuccess()
     ResourceResponse response(firstRequest().url(), m_blobData->contentType(), m_totalRemainingSize, String());
     response.setHTTPStatusCode(isRangeRequest ? httpPartialContent : httpOK);
     response.setHTTPStatusText(isRangeRequest ? httpPartialContentText : httpOKText);
+
+    response.setHTTPHeaderField(HTTPHeaderName::ContentType, m_blobData->contentType());
+    response.setHTTPHeaderField(HTTPHeaderName::ContentLength, String::number(m_totalRemainingSize));
+
     if (isRangeRequest)
         response.setHTTPHeaderField(HTTPHeaderName::ContentRange, ParsedContentRange(m_rangeOffset, m_rangeEnd, m_totalSize).headerValue());
     // FIXME: If a resource identified with a blob: URL is a File object, user agents must use that file's name attribute,

@@ -87,7 +87,7 @@
 #include "StyleResolver.h"
 #include "SubframeLoader.h"
 #include "TextResourceDecoder.h"
-#include "UserContentController.h"
+#include "UserContentProvider.h"
 #include "UserInputBridge.h"
 #include "ViewStateChangeObserver.h"
 #include "VisitedLinkState.h"
@@ -126,6 +126,14 @@ static HashSet<Page*>* allPages;
 
 DEFINE_DEBUG_ONLY_GLOBAL(WTF::RefCountedLeakCounter, pageCounter, ("Page"));
 
+void Page::forEachPage(std::function<void(Page&)> function)
+{
+    if (!allPages)
+        return;
+    for (Page* page : *allPages)
+        function(*page);
+}
+
 static void networkStateChanged(bool isOnLine)
 {
     Vector<Ref<Frame>> frames;
@@ -138,12 +146,14 @@ static void networkStateChanged(bool isOnLine)
     }
 
     AtomicString eventName = isOnLine ? eventNames().onlineEvent : eventNames().offlineEvent;
-    for (auto& frame : frames)
+    for (auto& frame : frames) {
+        if (!frame->document())
+            continue;
         frame->document()->dispatchWindowEvent(Event::create(eventName, false, false));
+    }
 }
 
 static const ViewState::Flags PageInitialViewState = ViewState::IsVisible | ViewState::IsInWindow;
-bool Page::s_tabSuspensionIsEnabled = false;
 
 Page::Page(PageConfiguration& pageConfiguration)
     : m_chrome(std::make_unique<Chrome>(*this, *pageConfiguration.chromeClient))
@@ -197,7 +207,8 @@ Page::Page(PageConfiguration& pageConfiguration)
 #if ENABLE(VIEW_MODE_CSS_MEDIA)
     , m_viewMode(ViewModeWindowed)
 #endif // ENABLE(VIEW_MODE_CSS_MEDIA)
-    , m_timerThrottlingEnabled(false)
+    , m_timerAlignmentInterval(DOMTimer::defaultAlignmentInterval())
+    , m_timerAlignmentIntervalIncreaseTimer(*this, &Page::timerAlignmentIntervalIncreaseTimerFired)
     , m_isEditable(false)
     , m_isPrerender(false)
     , m_viewState(PageInitialViewState)
@@ -220,19 +231,16 @@ Page::Page(PageConfiguration& pageConfiguration)
     , m_applicationCacheStorage(pageConfiguration.applicationCacheStorage ? *WTFMove(pageConfiguration.applicationCacheStorage) : ApplicationCacheStorage::singleton())
     , m_databaseProvider(*WTFMove(pageConfiguration.databaseProvider))
     , m_storageNamespaceProvider(*WTFMove(pageConfiguration.storageNamespaceProvider))
-    , m_userContentController(WTFMove(pageConfiguration.userContentController))
+    , m_userContentProvider(*WTFMove(pageConfiguration.userContentProvider))
     , m_visitedLinkStore(*WTFMove(pageConfiguration.visitedLinkStore))
     , m_sessionID(SessionID::defaultSessionID())
     , m_isClosing(false)
-    , m_tabSuspensionTimer(*this, &Page::tabSuspensionTimerFired)
 {
-    setTimerThrottlingEnabled(m_viewState & ViewState::IsVisuallyIdle);
+    updateTimerThrottlingState();
 
     m_storageNamespaceProvider->addPage(*this);
 
-    if (m_userContentController)
-        m_userContentController->addPage(*this);
-
+    m_userContentProvider->addPage(*this);
     m_visitedLinkStore->addPage(*this);
 
     if (!allPages) {
@@ -288,9 +296,7 @@ Page::~Page()
 #endif
 
     m_storageNamespaceProvider->removePage(*this);
-
-    if (m_userContentController)
-        m_userContentController->removePage(*this);
+    m_userContentProvider->removePage(*this);
     m_visitedLinkStore->removePage(*this);
 }
 
@@ -475,6 +481,8 @@ void Page::updateStyleForAllPagesAfterGlobalChangeInEnvironment()
             // If a change in the global environment has occurred, we need to
             // make sure all the properties a recomputed, therefore we invalidate
             // the properties cache.
+            if (!frame->document())
+                continue;
             if (StyleResolver* styleResolver = frame->document()->styleResolverIfExists())
                 styleResolver->invalidateMatchedPropertiesCache();
             frame->document()->scheduleForcedStyleRecalc();
@@ -538,6 +546,8 @@ bool Page::showAllPlugins() const
 inline MediaCanStartListener* Page::takeAnyMediaCanStartListener()
 {
     for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
+        if (!frame->document())
+            continue;
         if (MediaCanStartListener* listener = frame->document()->takeAnyMediaCanStartListener())
             return listener;
     }
@@ -760,6 +770,8 @@ void Page::setMediaVolume(float volume)
 
     m_mediaVolume = volume;
     for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
+        if (!frame->document())
+            continue;
         frame->document()->mediaVolumeDidChange();
     }
 }
@@ -792,8 +804,11 @@ void Page::setPageScaleFactor(float scale, const IntPoint& origin, bool inStable
         }
 #if ENABLE(MEDIA_CONTROLS_SCRIPT)
         if (inStableState) {
-            for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext())
+            for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
+                if (!frame->document())
+                    continue;
                 frame->document()->pageScaleFactorChangedAndStable();
+            }
         }
 #endif
         return;
@@ -830,8 +845,11 @@ void Page::setPageScaleFactor(float scale, const IntPoint& origin, bool inStable
 
 #if ENABLE(MEDIA_CONTROLS_SCRIPT)
     if (inStableState) {
-        for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext())
+        for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
+            if (!frame->document())
+                continue;
             frame->document()->pageScaleFactorChangedAndStable();
+        }
     }
 #else
     UNUSED_PARAM(inStableState);
@@ -845,7 +863,6 @@ void Page::setViewScaleFactor(float scale)
 
     m_viewScaleFactor = scale;
     PageCache::singleton().markPagesForDeviceOrPageScaleChanged(*this);
-    PageCache::singleton().markPagesForFullStyleRecalc(*this);
 }
 
 void Page::setDeviceScaleFactor(float scaleFactor)
@@ -863,7 +880,6 @@ void Page::setDeviceScaleFactor(float scaleFactor)
     mainFrame().deviceOrPageScaleFactorChanged();
     PageCache::singleton().markPagesForDeviceOrPageScaleChanged(*this);
 
-    PageCache::singleton().markPagesForFullStyleRecalc(*this);
     GraphicsContext::updateDocumentMarkerResources();
 
     mainFrame().pageOverlayController().didChangeDeviceScaleFactor();
@@ -941,7 +957,6 @@ void Page::setPagination(const Pagination& pagination)
     m_pagination = pagination;
 
     setNeedsRecalcStyleInAllFrames();
-    PageCache::singleton().markPagesForFullStyleRecalc(*this);
 }
 
 void Page::setPaginationLineGridEnabled(bool enabled)
@@ -952,7 +967,6 @@ void Page::setPaginationLineGridEnabled(bool enabled)
     m_paginationLineGridEnabled = enabled;
     
     setNeedsRecalcStyleInAllFrames();
-    PageCache::singleton().markPagesForFullStyleRecalc(*this);
 }
 
 unsigned Page::pageCount() const
@@ -1013,8 +1027,6 @@ void Page::resumeScriptedAnimations()
 
 void Page::setIsVisuallyIdleInternal(bool isVisuallyIdle)
 {
-    setTimerThrottlingEnabled(isVisuallyIdle);
-    
     for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
         if (frame->document())
             frame->document()->scriptedAnimationControllerSetThrottled(isVisuallyIdle);
@@ -1094,14 +1106,31 @@ const String& Page::userStyleSheet() const
 
 void Page::invalidateStylesForAllLinks()
 {
-    for (Frame* frame = m_mainFrame.get(); frame; frame = frame->tree().traverseNext())
+    for (Frame* frame = m_mainFrame.get(); frame; frame = frame->tree().traverseNext()) {
+        if (!frame->document())
+            continue;
         frame->document()->visitedLinkState().invalidateStyleForAllLinks();
+    }
 }
 
 void Page::invalidateStylesForLink(LinkHash linkHash)
 {
-    for (Frame* frame = m_mainFrame.get(); frame; frame = frame->tree().traverseNext())
+    for (Frame* frame = m_mainFrame.get(); frame; frame = frame->tree().traverseNext()) {
+        if (!frame->document())
+            continue;
         frame->document()->visitedLinkState().invalidateStyleForLink(linkHash);
+    }
+}
+
+void Page::invalidateInjectedStyleSheetCacheInAllFrames()
+{
+    for (Frame* frame = m_mainFrame.get(); frame; frame = frame->tree().traverseNext()) {
+        Document* document = frame->document();
+        if (!document)
+            continue;
+        document->extensionStyleSheets().invalidateInjectedStyleSheetCache();
+        document->styleResolverChanged(DeferRecalcStyle);
+    }
 }
 
 void Page::setDebugger(JSC::Debugger* debugger)
@@ -1154,32 +1183,116 @@ void Page::setMemoryCacheClientCallsEnabled(bool enabled)
 
 void Page::hiddenPageDOMTimerThrottlingStateChanged()
 {
-    setTimerThrottlingEnabled(m_viewState & ViewState::IsVisuallyIdle);
+    // Disable & reengage to ensure state is updated.
+    setTimerThrottlingState(TimerThrottlingState::Disabled);
+    updateTimerThrottlingState();
 }
 
-void Page::setTimerThrottlingEnabled(bool enabled)
+void Page::updateTimerThrottlingState()
 {
-#if ENABLE(HIDDEN_PAGE_DOM_TIMER_THROTTLING)
-    if (!m_settings->hiddenPageDOMTimerThrottlingEnabled())
-        enabled = false;
-#endif
+    // Timer throttling disabled if page is visually active, or disabled by setting.
+    if (!m_settings->hiddenPageDOMTimerThrottlingEnabled() || !(m_viewState & ViewState::IsVisuallyIdle)) {
+        setTimerThrottlingState(TimerThrottlingState::Disabled);
+        return;
+    }
 
-    if (enabled == m_timerThrottlingEnabled)
+    // If the page is visible (but idle), there is any activity (loading, media playing, etc), or per setting,
+    // we allow timer throttling, but not increasing timer throttling.
+    if (!m_settings->hiddenPageDOMTimerThrottlingAutoIncreases() || m_viewState & ViewState::IsVisible || m_pageThrottler.activityState()) {
+        setTimerThrottlingState(TimerThrottlingState::Enabled);
+        return;
+    }
+
+    // If we get here increasing timer throttling is enabled.
+    setTimerThrottlingState(TimerThrottlingState::EnabledIncreasing);
+}
+
+void Page::setTimerThrottlingState(TimerThrottlingState state)
+{
+    if (state == m_timerThrottlingState)
         return;
 
-    m_timerThrottlingEnabled = enabled;
-    m_settings->setDOMTimerAlignmentInterval(enabled ? DOMTimer::hiddenPageAlignmentInterval() : DOMTimer::defaultAlignmentInterval());
-    
-    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
-        if (frame->document())
-            frame->document()->didChangeTimerAlignmentInterval();
+    m_timerThrottlingState = state;
+    m_timerThrottlingStateLastChangedTime = std::chrono::steady_clock::now();
+
+    updateDOMTimerAlignmentInterval();
+
+    // When throttling is disabled, release all throttled timers.
+    if (state == TimerThrottlingState::Disabled) {
+        for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
+            if (auto* document = frame->document())
+                document->didChangeTimerAlignmentInterval();
+        }
     }
+}
+
+void Page::setTimerAlignmentIntervalIncreaseLimit(std::chrono::milliseconds limit)
+{
+    m_timerAlignmentIntervalIncreaseLimit = limit;
+
+    // If (m_timerAlignmentIntervalIncreaseLimit < m_timerAlignmentInterval) then we need
+    // to update m_timerAlignmentInterval, if greater then need to restart the increase timer.
+    if (m_timerThrottlingState == TimerThrottlingState::EnabledIncreasing)
+        updateDOMTimerAlignmentInterval();
+}
+
+void Page::updateDOMTimerAlignmentInterval()
+{
+    bool needsIncreaseTimer = false;
+
+    switch (m_timerThrottlingState) {
+    case TimerThrottlingState::Disabled:
+        m_timerAlignmentInterval = DOMTimer::defaultAlignmentInterval();
+        break;
+
+    case TimerThrottlingState::Enabled:
+        m_timerAlignmentInterval = DOMTimer::hiddenPageAlignmentInterval();
+        break;
+
+    case TimerThrottlingState::EnabledIncreasing:
+        // For pages in prerender state maximum throttling kicks in immediately.
+        if (m_isPrerender)
+            m_timerAlignmentInterval = m_timerAlignmentIntervalIncreaseLimit;
+        else {
+            ASSERT(m_timerThrottlingStateLastChangedTime.time_since_epoch() != std::chrono::steady_clock::duration::zero());
+            m_timerAlignmentInterval = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - m_timerThrottlingStateLastChangedTime);
+            // If we're below the limit, set the timer. If above, clamp to limit.
+            if (m_timerAlignmentInterval < m_timerAlignmentIntervalIncreaseLimit)
+                needsIncreaseTimer = true;
+            else
+                m_timerAlignmentInterval = m_timerAlignmentIntervalIncreaseLimit;
+        }
+        // Alignment interval should not be less than DOMTimer::hiddenPageAlignmentInterval().
+        m_timerAlignmentInterval = std::max(m_timerAlignmentInterval, DOMTimer::hiddenPageAlignmentInterval());
+    }
+
+    // If throttling is enabled, auto-increasing of throttling is enabled, and the auto-increase
+    // limit has not yet been reached, and then arm the timer to consider an increase. Time to wait
+    // between increases is equal to the current throttle time. Since alinment interval increases
+    // exponentially, time between steps is exponential too.
+    if (!needsIncreaseTimer)
+        m_timerAlignmentIntervalIncreaseTimer.stop();
+    else if (!m_timerAlignmentIntervalIncreaseTimer.isActive())
+        m_timerAlignmentIntervalIncreaseTimer.startOneShot(m_timerAlignmentInterval);
+}
+
+void Page::timerAlignmentIntervalIncreaseTimerFired()
+{
+    ASSERT(m_settings->hiddenPageDOMTimerThrottlingAutoIncreases());
+    ASSERT(m_timerThrottlingState == TimerThrottlingState::EnabledIncreasing);
+    ASSERT(m_timerAlignmentInterval < m_timerAlignmentIntervalIncreaseLimit);
+    
+    // Alignment interval is increased to equal the time the page has been throttled, to a limit.
+    updateDOMTimerAlignmentInterval();
 }
 
 void Page::dnsPrefetchingStateChanged()
 {
-    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext())
+    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
+        if (!frame->document())
+            continue;
         frame->document()->initDNSPrefetch();
+    }
 }
 
 Vector<Ref<PluginViewBase>> Page::pluginViews()
@@ -1202,8 +1315,11 @@ Vector<Ref<PluginViewBase>> Page::pluginViews()
 
 void Page::storageBlockingStateChanged()
 {
-    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext())
+    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
+        if (!frame->document())
+            continue;
         frame->document()->storageBlockingStateDidChange();
+    }
 
     // Collect the PluginViews in to a vector to ensure that action the plug-in takes
     // from below storageBlockingStateChanged does not affect their lifetime.
@@ -1242,8 +1358,11 @@ void Page::setMuted(bool muted)
 
     m_muted = muted;
 
-    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext())
+    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
+        if (!frame->document())
+            continue;
         frame->document()->pageMutedStateDidChange();
+    }
 }
 
 #if ENABLE(MEDIA_SESSION)
@@ -1308,6 +1427,9 @@ void Page::setViewState(ViewState::Flags viewState)
     if (changed & ViewState::IsVisuallyIdle)
         setIsVisuallyIdleInternal(viewState & ViewState::IsVisuallyIdle);
 
+    if (changed & (ViewState::IsVisible | ViewState::IsVisuallyIdle))
+        updateTimerThrottlingState();
+
     for (auto* observer : m_viewStateChangeObservers)
         observer->viewStateDidChange(oldViewState, m_viewState);
 }
@@ -1315,8 +1437,7 @@ void Page::setViewState(ViewState::Flags viewState)
 void Page::setPageActivityState(PageActivityState::Flags activityState)
 {
     chrome().client().setPageActivityState(activityState);
-    
-    updateTabSuspensionState();
+    updateTimerThrottlingState();
 }
 
 void Page::setIsVisible(bool isVisible)
@@ -1368,13 +1489,12 @@ void Page::setIsVisibleInternal(bool isVisible)
         if (FrameView* view = mainFrame().view())
             view->hide();
     }
-
-    updateTabSuspensionState();
 }
 
 void Page::setIsPrerender()
 {
     m_isPrerender = true;
+    updateDOMTimerAlignmentInterval();
 }
 
 PageVisibilityState Page::visibilityState() const
@@ -1671,8 +1791,11 @@ void Page::hiddenPageCSSAnimationSuspensionStateChanged()
 #if ENABLE(VIDEO_TRACK)
 void Page::captionPreferencesChanged()
 {
-    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext())
+    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
+        if (!frame->document())
+            continue;
         frame->document()->captionPreferencesChanged();
+    }
 }
 #endif
 
@@ -1692,22 +1815,18 @@ bool Page::arePromptsAllowed()
     return !m_forbidPromptsDepth;
 }
 
-void Page::setUserContentController(UserContentController* userContentController)
+UserContentProvider& Page::userContentProvider()
 {
-    if (m_userContentController)
-        m_userContentController->removePage(*this);
+    return m_userContentProvider;
+}
 
-    m_userContentController = userContentController;
+void Page::setUserContentProvider(Ref<UserContentProvider>&& userContentProvider)
+{
+    m_userContentProvider->removePage(*this);
+    m_userContentProvider = WTFMove(userContentProvider);
+    m_userContentProvider->addPage(*this);
 
-    if (m_userContentController)
-        m_userContentController->addPage(*this);
-
-    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
-        if (Document *document = frame->document()) {
-            document->extensionStyleSheets().invalidateInjectedStyleSheetCache();
-            document->styleResolverChanged(DeferRecalcStyle);
-        }
-    }
+    invalidateInjectedStyleSheetCacheInAllFrames();
 }
 
 void Page::setStorageNamespaceProvider(Ref<StorageNamespaceProvider>&& storageNamespaceProvider)
@@ -1731,7 +1850,6 @@ void Page::setVisitedLinkStore(Ref<VisitedLinkStore>&& visitedLinkStore)
     m_visitedLinkStore->addPage(*this);
 
     invalidateStylesForAllLinks();
-    PageCache::singleton().markPagesForFullStyleRecalc(*this);
 }
 
 SessionID Page::sessionID() const
@@ -1755,8 +1873,11 @@ void Page::setSessionID(SessionID sessionID)
     if (!privateBrowsingStateChanged)
         return;
 
-    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext())
+    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
+        if (!frame->document())
+            continue;
         frame->document()->privateBrowsingStateDidChange();
+    }
 
     // Collect the PluginViews in to a vector to ensure that action the plug-in takes
     // from below privateBrowsingStateChanged does not affect their lifetime.
@@ -1805,20 +1926,29 @@ void Page::setMockMediaPlaybackTargetPickerState(const String& name, MediaPlayba
 
 void Page::setPlaybackTarget(uint64_t contextId, Ref<MediaPlaybackTarget>&& target)
 {
-    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext())
+    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
+        if (!frame->document())
+            continue;
         frame->document()->setPlaybackTarget(contextId, target.copyRef());
+    }
 }
 
 void Page::playbackTargetAvailabilityDidChange(uint64_t contextId, bool available)
 {
-    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext())
+    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
+        if (!frame->document())
+            continue;
         frame->document()->playbackTargetAvailabilityDidChange(contextId, available);
+    }
 }
 
 void Page::setShouldPlayToPlaybackTarget(uint64_t clientId, bool shouldPlay)
 {
-    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext())
+    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
+        if (!frame->document())
+            continue;
         frame->document()->setShouldPlayToPlaybackTarget(clientId, shouldPlay);
+    }
 }
 #endif
 
@@ -1869,64 +1999,24 @@ void Page::setResourceUsageOverlayVisible(bool visible)
 }
 #endif
 
-bool Page::canTabSuspend()
+bool Page::isAlwaysOnLoggingAllowed() const
 {
-    if (!s_tabSuspensionIsEnabled)
-        return false;
-    if (m_isPrerender)
-        return false;
-    if (isVisible())
-        return false;
-    if (m_pageThrottler.activityState() != PageActivityState::NoFlags)
-        return false;
-
-    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
-        if (frame->loader().state() != FrameStateComplete)
-            return false;
-        if (frame->loader().isLoading())
-            return false;
-        if (!frame->document() || !frame->document()->canSuspendActiveDOMObjectsForDocumentSuspension(nullptr))
-            return false;
-    }
-
-    return true;
+    return m_sessionID.isAlwaysOnLoggingAllowed();
 }
 
-void Page::setIsTabSuspended(bool shouldSuspend)
+String Page::captionUserPreferencesStyleSheet()
 {
-    if (m_isTabSuspended == shouldSuspend)
+    return m_captionUserPreferencesStyleSheet;
+}
+
+void Page::setCaptionUserPreferencesStyleSheet(const String& styleSheet)
+{
+    if (m_captionUserPreferencesStyleSheet == styleSheet)
         return;
-    m_isTabSuspended = shouldSuspend;
 
-    for (Frame* frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
-        if (auto* document = frame->document()) {
-            if (shouldSuspend)
-                document->suspend(ActiveDOMObject::PageWillBeSuspended);
-            else
-                document->resume(ActiveDOMObject::PageWillBeSuspended);
-        }
-    }
-}
-
-void Page::setTabSuspensionEnabled(bool enable)
-{
-    s_tabSuspensionIsEnabled = enable;
-}
-
-void Page::updateTabSuspensionState()
-{
-    if (canTabSuspend()) {
-        const auto tabSuspensionDelay = std::chrono::minutes(1);
-        m_tabSuspensionTimer.startOneShot(tabSuspensionDelay);
-        return;
-    }
-    m_tabSuspensionTimer.stop();
-    setIsTabSuspended(false);
-}
-
-void Page::tabSuspensionTimerFired()
-{
-    setIsTabSuspended(canTabSuspend());
+    m_captionUserPreferencesStyleSheet = styleSheet;
+    
+    invalidateInjectedStyleSheetCacheInAllFrames();
 }
 
 } // namespace WebCore

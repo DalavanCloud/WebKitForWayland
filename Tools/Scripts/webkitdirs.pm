@@ -101,6 +101,7 @@ use constant {
     Efl      => "Efl",
     iOS      => "iOS",
     Mac      => "Mac",
+    JSCOnly  => "JSCOnly",
     WinCairo => "WinCairo",
     WPE      => "WPE",
     Unknown  => "Unknown"
@@ -139,8 +140,6 @@ my $isCMakeBuild;
 my $isWin64;
 my $isInspectorFrontend;
 my $portName;
-my $shouldTargetWebProcess;
-my $shouldUseXPCServiceForWebProcess;
 my $shouldUseGuardMalloc;
 my $shouldNotUseNinja;
 my $xcodeVersion;
@@ -345,7 +344,7 @@ sub determineArchitecture
             } elsif ($xcodeSDK =~ /^iphonesimulator/) {
                 $architecture = 'x86_64';
             } elsif ($xcodeSDK =~ /^iphoneos/) {
-                $architecture = 'armv7';
+                $architecture = 'arm64';
             }
         }
     } elsif (isCMakeBuild()) {
@@ -451,6 +450,7 @@ sub argumentsForConfiguration()
     push(@args, '--64-bit') if (isWin64());
     push(@args, '--gtk') if isGtk();
     push(@args, '--efl') if isEfl();
+    push(@args, '--jsc-only') if isJSCOnly();
     push(@args, '--wincairo') if isWinCairo();
     push(@args, '--inspector-frontend') if isInspectorFrontend();
     return @args;
@@ -647,7 +647,7 @@ sub executableProductDir
     my $productDirectory = productDir();
 
     my $binaryDirectory;
-    if (isEfl() || isGtk()) {
+    if (isEfl() || isGtk() || isJSCOnly()) {
         $binaryDirectory = "bin";
     } elsif (isAnyWindows()) {
         $binaryDirectory = isWin64() ? "bin64" : "bin32";
@@ -1051,6 +1051,7 @@ sub determinePortName()
     my %argToPortName = (
         efl => Efl,
         gtk => GTK,
+        'jsc-only' => JSCOnly,
         wincairo => WinCairo,
         wpe => WPE
     );
@@ -1082,6 +1083,7 @@ sub determinePortName()
             my $portsChoice = join "\n\t", qw(
                 --efl
                 --gtk
+                --jsc-only
                 --wpe
             );
             die "Please specify which WebKit port to build using one of the following options:"
@@ -1108,6 +1110,11 @@ sub isEfl()
 sub isGtk()
 {
     return portName() eq GTK;
+}
+
+sub isJSCOnly()
+{
+    return portName() eq JSCOnly;
 }
 
 sub isWPE()
@@ -1392,30 +1399,6 @@ sub iosVersion()
 sub isWindowsNT()
 {
     return $ENV{'OS'} eq 'Windows_NT';
-}
-
-sub shouldTargetWebProcess
-{
-    determineShouldTargetWebProcess();
-    return $shouldTargetWebProcess;
-}
-
-sub determineShouldTargetWebProcess
-{
-    return if defined($shouldTargetWebProcess);
-    $shouldTargetWebProcess = checkForArgumentAndRemoveFromARGV("--target-web-process");
-}
-
-sub shouldUseXPCServiceForWebProcess
-{
-    determineShouldUseXPCServiceForWebProcess();
-    return $shouldUseXPCServiceForWebProcess;
-}
-
-sub determineShouldUseXPCServiceForWebProcess
-{
-    return if defined($shouldUseXPCServiceForWebProcess);
-    $shouldUseXPCServiceForWebProcess = checkForArgumentAndRemoveFromARGV("--use-web-process-xpc-service");
 }
 
 sub debugger
@@ -1785,8 +1768,6 @@ sub buildXCodeProject($$@)
         push(@extraOptions, "clean");
     }
 
-    push(@extraOptions, ("-sdk", xcodeSDK())) if isIOSWebKit();
-
     chomp($ENV{DSYMUTIL_NUM_THREADS} = `sysctl -n hw.activecpu`);
     return system "xcodebuild", "-project", "$project.xcodeproj", @extraOptions;
 }
@@ -1872,7 +1853,7 @@ sub isCachedArgumentfileOutOfDate($@)
 
 sub wrapperPrefixIfNeeded()
 {
-    if (isAnyWindows()) {
+    if (isAnyWindows() || isJSCOnly()) {
         return ();
     }
     if (isAppleMacWebKit()) {
@@ -2027,8 +2008,8 @@ sub generateBuildSystemFromCMakeProject
         push @args, '-G "Visual Studio 14 2015 Win64"';
     }
 
-    # GTK+ has a production mode, but build-webkit should always use developer mode.
-    push @args, "-DDEVELOPER_MODE=ON" if isEfl() || isGtk() || isWPE();
+    # Some ports have production mode, but build-webkit should always use developer mode.
+    push @args, "-DDEVELOPER_MODE=ON" if isEfl() || isGtk() || isJSCOnly() || isWPE();
 
     # Don't warn variables which aren't used by cmake ports.
     push @args, "--no-warn-unused-cli";
@@ -2040,7 +2021,7 @@ sub generateBuildSystemFromCMakeProject
     # Compiler options to keep floating point values consistent
     # between 32-bit and 64-bit architectures.
     determineArchitecture();
-    if ($architecture ne "x86_64" && !isARM() && !isCrossCompilation() && !isAnyWindows()) {
+    if ($architecture eq "i686" && !isCrossCompilation() && !isAnyWindows()) {
         $ENV{'CXXFLAGS'} = "-march=pentium4 -msse2 -mfpmath=sse " . ($ENV{'CXXFLAGS'} || "");
     }
 
@@ -2066,8 +2047,8 @@ sub buildCMakeGeneratedProject($)
     my @args = ("--build", $buildPath, "--config", $config);
     push @args, ("--", $makeArgs) if $makeArgs;
 
-    # GTK can use a build script to preserve colors and pretty-printing.
-    if (isGtk() && -e "$buildPath/build.sh") {
+    # GTK and JSCOnly can use a build script to preserve colors and pretty-printing.
+    if ((isGtk() || isJSCOnly()) && -e "$buildPath/build.sh") {
         chdir "$buildPath" or die;
         $command = "$buildPath/build.sh";
         @args = ($makeArgs);
@@ -2188,12 +2169,10 @@ Usage: @{[basename($0)]} [options] [args ...]
   --help                            Show this help message
   --no-saved-state                  Launch the application without state restoration (OS X 10.7 and later)
   -g|--guard-malloc                 Enable Guard Malloc (OS X only)
-  --use-web-process-xpc-service     Launch the Web Process as an XPC Service (OS X only)
 EOF
 
     if ($includeOptionsForDebugging) {
         print STDERR <<EOF;
-  --target-web-process              Debug the web process
   --use-gdb                         Use GDB (this is the default when using Xcode 4.4 or earlier)
   --use-lldb                        Use LLDB (this is the default when using Xcode 4.5 or later)
 EOF
@@ -2210,7 +2189,6 @@ sub argumentsForRunAndDebugMacWebKitApp()
         # FIXME: Don't set ApplePersistenceIgnoreState once all supported OS versions respect ApplePersistenceIgnoreStateQuietly (rdar://15032886).
         push @args, ("-ApplePersistenceIgnoreState", "YES");
     }
-    push @args, ("-WebKit2UseXPCServiceForWebProcess", "YES") if shouldUseXPCServiceForWebProcess();
     unshift @args, @ARGV;
 
     return @args;
@@ -2546,23 +2524,8 @@ sub execMacWebKitAppForDebugging($)
     setupMacWebKitEnvironment($productDir);
 
     my @architectureFlags = ($architectureSwitch, architecture());
-    if (!shouldTargetWebProcess()) {
-        print "Starting @{[basename($appPath)]} under $debugger with DYLD_FRAMEWORK_PATH set to point to built WebKit in $productDir.\n";
-        exec { $debuggerPath } $debuggerPath, @architectureFlags, $argumentsSeparator, $appPath, argumentsForRunAndDebugMacWebKitApp() or die;
-    } else {
-        if (shouldUseXPCServiceForWebProcess()) {
-            die "Targeting the Web Process is not compatible with using an XPC Service for the Web Process at this time.";
-        }
-        
-        my $webProcessShimPath = File::Spec->catfile($productDir, "SecItemShim.dylib");
-        my $webProcessPath = File::Spec->catdir($productDir, "WebProcess.app");
-        my $webKit2ExecutablePath = File::Spec->catfile($productDir, "WebKit2.framework", "WebKit2");
-
-        appendToEnvironmentVariableList("DYLD_INSERT_LIBRARIES", $webProcessShimPath);
-
-        print "Starting WebProcess under $debugger with DYLD_FRAMEWORK_PATH set to point to built WebKit in $productDir.\n";
-        exec { $debuggerPath } $debuggerPath, @architectureFlags, $argumentsSeparator, $webProcessPath, $webKit2ExecutablePath, "-type", "webprocess", "-client-executable", $appPath or die;
-    }
+    print "Starting @{[basename($appPath)]} under $debugger with DYLD_FRAMEWORK_PATH set to point to built WebKit in $productDir.\n";
+    exec { $debuggerPath } $debuggerPath, @architectureFlags, $argumentsSeparator, $appPath, argumentsForRunAndDebugMacWebKitApp() or die;
 }
 
 sub debugSafari

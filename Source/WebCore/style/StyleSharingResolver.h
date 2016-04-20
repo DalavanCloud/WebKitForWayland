@@ -26,12 +26,15 @@
 #ifndef StyleSharingResolver_h
 #define StyleSharingResolver_h
 
+#include <wtf/HashMap.h>
+
 namespace WebCore {
 
 class Document;
 class DocumentRuleSets;
 class Element;
 class Node;
+class RenderStyle;
 class RuleSet;
 class SelectorFilter;
 class SpaceSplitString;
@@ -39,17 +42,19 @@ class StyledElement;
 
 namespace Style {
 
+class Update;
+
 class SharingResolver {
 public:
     SharingResolver(const Document&, const DocumentRuleSets&, const SelectorFilter&);
 
-    const Element* resolve(const Element&) const;
+    RefPtr<RenderStyle> resolve(const Element&, const Update&);
 
 private:
     struct Context;
 
     StyledElement* findSibling(const Context&, Node*, unsigned& count) const;
-    Node* locateCousinList(Element* parent, unsigned& visitedNodeCount) const;
+    Node* locateCousinList(const Element* parent) const;
     bool canShareStyleWithElement(const Context&, const StyledElement& candidateElement) const;
     bool styleSharingCandidateMatchesRuleSet(const StyledElement&, const RuleSet*) const;
     bool sharingCandidateHasIdenticalStyleAffectingAttributes(const Context&, const StyledElement& sharingCandidate) const;
@@ -58,6 +63,8 @@ private:
     const Document& m_document;
     const DocumentRuleSets& m_ruleSets;
     const SelectorFilter& m_selectorFilter;
+
+    HashMap<const Element*, const Element*> m_elementsSharingStyle;
 };
 
 }

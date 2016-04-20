@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2009, 2010 Google Inc. All rights reserved.
  * Copyright (C) 2009 Joseph Pecoraro
- * Copyright (C) 2013 Apple Inc. All rights reserved.
+ * Copyright (C) 2013, 2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -32,15 +32,15 @@
 
 WebInspector.DOMNode = class DOMNode extends WebInspector.Object
 {
-    constructor(domAgent, doc, isInShadowTree, payload)
+    constructor(domTreeManager, doc, isInShadowTree, payload)
     {
         super();
 
-        this._domAgent = domAgent;
+        this._domTreeManager = domTreeManager;
         this._isInShadowTree = isInShadowTree;
 
         this.id = payload.nodeId;
-        domAgent._idToDOMNode[this.id] = this;
+        this._domTreeManager._idToDOMNode[this.id] = this;
 
         this._nodeType = payload.nodeType;
         this._nodeName = payload.nodeName;
@@ -48,6 +48,7 @@ WebInspector.DOMNode = class DOMNode extends WebInspector.Object
         this._nodeValue = payload.nodeValue;
         this._pseudoType = payload.pseudoType;
         this._computedRole = payload.role;
+        this._contentSecurityPolicyHash = payload.contentSecurityPolicyHash;
 
         if (this._nodeType === Node.DOCUMENT_NODE)
             this.ownerDocument = this;
@@ -74,13 +75,13 @@ WebInspector.DOMNode = class DOMNode extends WebInspector.Object
         if (payload.shadowRoots) {
             for (var i = 0; i < payload.shadowRoots.length; ++i) {
                 var root = payload.shadowRoots[i];
-                var node = new WebInspector.DOMNode(this._domAgent, this.ownerDocument, true, root);
+                var node = new WebInspector.DOMNode(this._domTreeManager, this.ownerDocument, true, root);
                 this._shadowRoots.push(node);
             }
         }
 
         if (payload.templateContent) {
-            this._templateContent = new WebInspector.DOMNode(this._domAgent, this.ownerDocument, true, payload.templateContent);
+            this._templateContent = new WebInspector.DOMNode(this._domTreeManager, this.ownerDocument, true, payload.templateContent);
             this._templateContent.parentNode = this;
         }
 
@@ -90,14 +91,14 @@ WebInspector.DOMNode = class DOMNode extends WebInspector.Object
         this._pseudoElements = new Map;
         if (payload.pseudoElements) {
             for (var i = 0; i < payload.pseudoElements.length; ++i) {
-                var node = new WebInspector.DOMNode(this._domAgent, this.ownerDocument, this._isInShadowTree, payload.pseudoElements[i]);
+                var node = new WebInspector.DOMNode(this._domTreeManager, this.ownerDocument, this._isInShadowTree, payload.pseudoElements[i]);
                 node.parentNode = this;
                 this._pseudoElements.set(node.pseudoType(), node);
             }
         }
 
         if (payload.contentDocument) {
-            this._contentDocument = new WebInspector.DOMNode(domAgent, null, false, payload.contentDocument);
+            this._contentDocument = new WebInspector.DOMNode(this._domTreeManager, null, false, payload.contentDocument);
             this._children = [this._contentDocument];
             this._renumber();
         }
@@ -226,6 +227,11 @@ WebInspector.DOMNode = class DOMNode extends WebInspector.Object
     computedRole()
     {
         return this._computedRole;
+    }
+
+    contentSecurityPolicyHash()
+    {
+        return this._contentSecurityPolicyHash;
     }
 
     hasAttributes()
@@ -526,7 +532,7 @@ WebInspector.DOMNode = class DOMNode extends WebInspector.Object
 
     _insertChild(prev, payload)
     {
-        var node = new WebInspector.DOMNode(this._domAgent, this.ownerDocument, this._isInShadowTree, payload);
+        var node = new WebInspector.DOMNode(this._domTreeManager, this.ownerDocument, this._isInShadowTree, payload);
         if (!prev) {
             if (!this._children) {
                 // First node
@@ -560,7 +566,7 @@ WebInspector.DOMNode = class DOMNode extends WebInspector.Object
 
         this._children = this._shadowRoots.slice();
         for (var i = 0; i < payloads.length; ++i) {
-            var node = new WebInspector.DOMNode(this._domAgent, this.ownerDocument, this._isInShadowTree, payloads[i]);
+            var node = new WebInspector.DOMNode(this._domTreeManager, this.ownerDocument, this._isInShadowTree, payloads[i]);
             this._children.push(node);
         }
         this._renumber();

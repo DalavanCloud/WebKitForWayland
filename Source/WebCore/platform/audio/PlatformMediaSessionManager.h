@@ -82,6 +82,7 @@ public:
     virtual bool sessionWillBeginPlayback(PlatformMediaSession&);
     virtual void sessionWillEndPlayback(PlatformMediaSession&);
     virtual bool sessionCanLoadMedia(const PlatformMediaSession&) const;
+    virtual void clientCharacteristicsChanged(PlatformMediaSession&) { }
 
 #if PLATFORM(IOS)
     virtual void configureWireLessTargetMonitoring() { }
@@ -99,7 +100,7 @@ protected:
     explicit PlatformMediaSessionManager();
 
     void addSession(PlatformMediaSession&);
-    void removeSession(PlatformMediaSession&);
+    virtual void removeSession(PlatformMediaSession&);
 
     Vector<PlatformMediaSession*> sessions() { return m_sessions; }
 
@@ -109,16 +110,16 @@ private:
     void updateSessionState();
 
     // RemoteCommandListenerClient
-    WEBCORE_EXPORT virtual void didReceiveRemoteControlCommand(PlatformMediaSession::RemoteControlCommandType) override;
+    WEBCORE_EXPORT void didReceiveRemoteControlCommand(PlatformMediaSession::RemoteControlCommandType) override;
 
     // AudioHardwareListenerClient
-    virtual void audioHardwareDidBecomeActive() override { }
-    virtual void audioHardwareDidBecomeInactive() override { }
-    virtual void audioOutputDeviceChanged() override;
+    void audioHardwareDidBecomeActive() override { }
+    void audioHardwareDidBecomeInactive() override { }
+    void audioOutputDeviceChanged() override;
 
     // SystemSleepListener
-    virtual void systemWillSleep() override;
-    virtual void systemDidWake() override;
+    void systemWillSleep() override;
+    void systemDidWake() override;
 
     SessionRestrictions m_restrictions[PlatformMediaSession::WebAudio + 1];
     Vector<PlatformMediaSession*> m_sessions;

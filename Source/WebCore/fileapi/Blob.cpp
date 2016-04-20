@@ -42,8 +42,8 @@ namespace WebCore {
 
 class BlobURLRegistry final : public URLRegistry {
 public:
-    virtual void registerURL(SecurityOrigin*, const URL&, URLRegistrable*) override;
-    virtual void unregisterURL(const URL&) override;
+    void registerURL(SecurityOrigin*, const URL&, URLRegistrable*) override;
+    void unregisterURL(const URL&) override;
 
     static URLRegistry& registry();
 };
@@ -77,7 +77,7 @@ Blob::Blob()
     ThreadableBlobRegistry::registerBlobURL(m_internalURL, Vector<BlobPart>(), String());
 }
 
-Blob::Blob(Vector<char> data, const String& contentType)
+Blob::Blob(Vector<uint8_t> data, const String& contentType)
     : m_type(contentType)
     , m_size(data.size())
 {

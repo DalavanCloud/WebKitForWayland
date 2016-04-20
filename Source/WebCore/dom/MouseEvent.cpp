@@ -189,6 +189,11 @@ bool MouseEvent::canTriggerActivationBehavior(const Event& event)
     return event.type() == eventNames().clickEvent && (!is<MouseEvent>(event) || downcast<MouseEvent>(event).button() != RightButton);
 }
 
+bool MouseEvent::relatedTargetScoped() const
+{
+    return (isTrusted() && m_relatedTarget) || UIEvent::relatedTargetScoped();
+}
+
 int MouseEvent::which() const
 {
     // For the DOM, the return values for left, middle and right mouse buttons are 0, 1, 2, respectively.
@@ -249,40 +254,6 @@ Ref<Event> MouseEvent::cloneFor(HTMLIFrameElement* iframe) const
         0);
     clonedMouseEvent->setForce(force());
     return WTFMove(clonedMouseEvent);
-}
-
-Ref<SimulatedMouseEvent> SimulatedMouseEvent::create(const AtomicString& eventType, AbstractView* view, PassRefPtr<Event> underlyingEvent, Element* target)
-{
-    return adoptRef(*new SimulatedMouseEvent(eventType, view, underlyingEvent, target));
-}
-
-SimulatedMouseEvent::~SimulatedMouseEvent()
-{
-}
-
-SimulatedMouseEvent::SimulatedMouseEvent(const AtomicString& eventType, AbstractView* view, PassRefPtr<Event> underlyingEvent, Element* target)
-    : MouseEvent(eventType, true, true, underlyingEvent ? underlyingEvent->timeStamp() : currentTime(), view, 0, 0, 0, 0, 0,
-#if ENABLE(POINTER_LOCK)
-                 0, 0,
-#endif
-                 false, false, false, false, 0, 0, 0, 0, true)
-{
-    if (UIEventWithKeyState* keyStateEvent = findEventWithKeyState(underlyingEvent.get())) {
-        m_ctrlKey = keyStateEvent->ctrlKey();
-        m_altKey = keyStateEvent->altKey();
-        m_shiftKey = keyStateEvent->shiftKey();
-        m_metaKey = keyStateEvent->metaKey();
-    }
-    setUnderlyingEvent(underlyingEvent.get());
-
-    if (is<MouseEvent>(this->underlyingEvent())) {
-        MouseEvent& mouseEvent = downcast<MouseEvent>(*this->underlyingEvent());
-        m_screenLocation = mouseEvent.screenLocation();
-        initCoordinates(mouseEvent.clientLocation());
-    } else if (target) {
-        m_screenLocation = target->screenRect().center();
-        initCoordinates(LayoutPoint(target->clientRect().center()));
-    }
 }
 
 } // namespace WebCore

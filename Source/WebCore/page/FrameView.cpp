@@ -40,7 +40,6 @@
 #include "EventHandler.h"
 #include "FloatRect.h"
 #include "FocusController.h"
-#include "FontLoader.h"
 #include "FrameLoader.h"
 #include "FrameLoaderClient.h"
 #include "FrameSelection.h"
@@ -208,7 +207,6 @@ FrameView::FrameView(Frame& frame)
     , m_delayedScrollEventTimer(*this, &FrameView::sendScrollEvent)
     , m_isTrackingRepaints(false)
     , m_shouldUpdateWhileOffscreen(true)
-    , m_exposedRect(FloatRect::infiniteRect())
     , m_deferSetNeedsLayoutCount(0)
     , m_setNeedsLayoutWasDeferred(false)
     , m_speculativeTilingEnabled(false)
@@ -1209,7 +1207,7 @@ inline void FrameView::forceLayoutParentViewIfNeeded()
 void FrameView::layout(bool allowSubtree)
 {
     LOG(Layout, "FrameView %p (%dx%d) layout, main frameview %d, allowSubtree=%d", this, size().width(), size().height(), frame().isMainFrame(), allowSubtree);
-    if (isInLayout()) {
+    if (isInRenderTreeLayout()) {
         LOG(Layout, "  in layout, bailing");
         return;
     }
@@ -1397,11 +1395,11 @@ void FrameView::layout(bool allowSubtree)
         RenderView::RepaintRegionAccumulator repaintRegionAccumulator(&root->view());
 
         ASSERT(m_layoutPhase == InPreLayout);
-        m_layoutPhase = InLayout;
+        m_layoutPhase = InRenderTreeLayout;
 
         forceLayoutParentViewIfNeeded();
 
-        ASSERT(m_layoutPhase == InLayout);
+        ASSERT(m_layoutPhase == InRenderTreeLayout);
 
         root->layout();
 #if ENABLE(IOS_TEXT_AUTOSIZING)
@@ -1420,7 +1418,7 @@ void FrameView::layout(bool allowSubtree)
             root->layout();
 #endif
 
-        ASSERT(m_layoutPhase == InLayout);
+        ASSERT(m_layoutPhase == InRenderTreeLayout);
         m_layoutRoot = nullptr;
         // Close block here to end the scope of changeSchedulingEnabled and SubtreeLayoutStateMaintainer.
     }
@@ -1629,6 +1627,24 @@ bool FrameView::usesAsyncScrolling() const
     }
 #endif
     return false;
+}
+
+bool FrameView::usesMockScrollAnimator() const
+{
+    return Settings::usesMockScrollAnimator();
+}
+
+void FrameView::logMockScrollAnimatorMessage(const String& message) const
+{
+    Document* document = frame().document();
+    if (!document)
+        return;
+    StringBuilder builder;
+    if (frame().isMainFrame())
+        builder.appendLiteral("Main");
+    builder.appendLiteral("FrameView: ");
+    builder.append(message);
+    document->addConsoleMessage(MessageSource::Other, MessageLevel::Debug, builder.toString());
 }
 
 void FrameView::setCannotBlitToWindow()
@@ -2119,6 +2135,13 @@ void FrameView::setScrollPosition(const ScrollPosition& scrollPosition)
     ScrollView::setScrollPosition(scrollPosition);
 }
 
+void FrameView::contentsResized()
+{
+    // For non-delegated scrolling, adjustTiledBackingScrollability() is called via addedOrRemovedScrollbar() which occurs less often.
+    if (delegatesScrolling())
+        adjustTiledBackingScrollability();
+}
+
 void FrameView::delegatesScrollingDidChange()
 {
     // When we switch to delgatesScrolling mode, we should destroy the scrolling/clipping layers in RenderLayerCompositor.
@@ -2448,7 +2471,52 @@ void FrameView::addedOrRemovedScrollbar()
         if (renderView->usesCompositing())
             renderView->compositor().frameViewDidAddOrRemoveScrollbars();
     }
+
+    adjustTiledBackingScrollability();
 }
+
+void FrameView::adjustTiledBackingScrollability()
+{
+    auto* tiledBacking = this->tiledBacking();
+    if (!tiledBacking)
+        return;
+    
+    bool horizontallyScrollable;
+    bool verticallyScrollable;
+    bool clippedByAncestorView = static_cast<bool>(m_viewExposedRect);
+
+#if PLATFORM(IOS)
+    if (Page* page = frame().page())
+        clippedByAncestorView |= page->enclosedInScrollView();
+#endif
+
+    if (delegatesScrolling()) {
+        IntSize documentSize = contentsSize();
+        IntSize visibleSize = this->visibleSize();
+        
+        horizontallyScrollable = clippedByAncestorView || documentSize.width() > visibleSize.width();
+        verticallyScrollable = clippedByAncestorView || documentSize.height() > visibleSize.height();
+    } else {
+        horizontallyScrollable = clippedByAncestorView || horizontalScrollbar();
+        verticallyScrollable = clippedByAncestorView || verticalScrollbar();
+    }
+
+    TiledBacking::Scrollability scrollability = TiledBacking::NotScrollable;
+    if (horizontallyScrollable)
+        scrollability = TiledBacking::HorizontallyScrollable;
+
+    if (verticallyScrollable)
+        scrollability |= TiledBacking::VerticallyScrollable;
+
+    tiledBacking->setScrollability(scrollability);
+}
+
+#if PLATFORM(IOS)
+void FrameView::unobscuredContentSizeChanged()
+{
+    adjustTiledBackingScrollability();
+}
+#endif
 
 static LayerFlushThrottleState::Flags determineLayerFlushThrottleState(Page& page)
 {
@@ -3055,6 +3123,25 @@ void FrameView::flushAnyPendingPostLayoutTasks()
         updateEmbeddedObjectsTimerFired();
 }
 
+void FrameView::queuePostLayoutCallback(std::function<void()> callback)
+{
+    m_postLayoutCallbackQueue.append(callback);
+}
+
+void FrameView::flushPostLayoutTasksQueue()
+{
+    if (m_nestedLayoutCount > 1)
+        return;
+
+    if (!m_postLayoutCallbackQueue.size())
+        return;
+
+    const auto queue = m_postLayoutCallbackQueue;
+    m_postLayoutCallbackQueue.clear();
+    for (size_t i = 0; i < queue.size(); ++i)
+        queue[i]();
+}
+
 void FrameView::performPostLayoutTasks()
 {
     LOG(Layout, "FrameView %p performPostLayoutTasks", this);
@@ -3064,6 +3151,8 @@ void FrameView::performPostLayoutTasks()
     m_postLayoutTasksTimer.stop();
 
     frame().selection().updateAppearanceAfterLayout();
+
+    flushPostLayoutTasksQueue();
 
     if (m_nestedLayoutCount <= 1 && frame().document()->documentElement())
         fireLayoutRelatedMilestonesIfNeeded();
@@ -3130,7 +3219,7 @@ IntSize FrameView::sizeForResizeEvent() const
 
 void FrameView::sendResizeEventIfNeeded()
 {
-    if (isInLayout() || needsLayout())
+    if (isInRenderTreeLayout() || needsLayout())
         return;
 
     RenderView* renderView = this->renderView();
@@ -3502,11 +3591,11 @@ float FrameView::adjustScrollStepForFixedContent(float step, ScrollbarOrientatio
     return Scrollbar::pageStep(unobscuredContentRect.height(), unobscuredContentRect.height() - topObscuredArea - bottomObscuredArea);
 }
 
-void FrameView::invalidateScrollbarRect(Scrollbar* scrollbar, const IntRect& rect)
+void FrameView::invalidateScrollbarRect(Scrollbar& scrollbar, const IntRect& rect)
 {
     // Add in our offset within the FrameView.
     IntRect dirtyRect = rect;
-    dirtyRect.moveBy(scrollbar->location());
+    dirtyRect.moveBy(scrollbar.location());
     invalidateRect(dirtyRect);
 }
 
@@ -3527,11 +3616,8 @@ void FrameView::setVisibleScrollerThumbRect(const IntRect& scrollerThumb)
     if (!frame().isMainFrame())
         return;
 
-    Page* page = frame().page();
-    if (!page)
-        return;
-
-    page->chrome().client().notifyScrollerThumbIsVisibleInRect(scrollerThumb);
+    if (Page* page = frame().page())
+        page->chrome().client().notifyScrollerThumbIsVisibleInRect(scrollerThumb);
 }
 
 ScrollableArea* FrameView::enclosingScrollableArea() const
@@ -4177,7 +4263,8 @@ bool FrameView::qualifiesAsVisuallyNonEmpty() const
         return true;
 
     // Require the document to grow a bit.
-    static const int documentHeightThreshold = 200;
+    // Using a value of 48 allows the header on Google's search page to render immediately before search results populate later.
+    static const int documentHeightThreshold = 48;
     LayoutRect overflowRect = documentElement->renderBox()->layoutOverflowRect();
     if (snappedIntRect(overflowRect).height() < documentHeightThreshold)
         return false;
@@ -4523,12 +4610,6 @@ bool FrameView::containsScrollableArea(ScrollableArea* scrollableArea) const
     return m_scrollableAreas && m_scrollableAreas->contains(scrollableArea);
 }
 
-void FrameView::clearScrollableAreas()
-{
-    if (m_scrollableAreas)
-        m_scrollableAreas->clear();
-}
-
 void FrameView::scrollableAreaSetChanged()
 {
     if (auto* page = frame().page()) {
@@ -4833,24 +4914,31 @@ void FrameView::notifyWidgets(WidgetNotification notification)
         widget->notifyWidget(notification);
 }
 
-void FrameView::setExposedRect(FloatRect exposedRect)
+void FrameView::setViewExposedRect(Optional<FloatRect> viewExposedRect)
 {
-    if (m_exposedRect == exposedRect)
+    if (m_viewExposedRect == viewExposedRect)
         return;
-    m_exposedRect = exposedRect;
+
+    LOG_WITH_STREAM(Scrolling, stream << "FrameView " << this << " setViewExposedRect " << (viewExposedRect ? viewExposedRect.value() : FloatRect()));
+
+    bool hasRectChanged = !m_viewExposedRect == !viewExposedRect;
+    m_viewExposedRect = viewExposedRect;
 
     // FIXME: We should support clipping to the exposed rect for subframes as well.
     if (!frame().isMainFrame())
         return;
+
     if (TiledBacking* tiledBacking = this->tiledBacking()) {
+        if (hasRectChanged)
+            adjustTiledBackingScrollability();
         adjustTiledBackingCoverage();
-        tiledBacking->setTiledScrollingIndicatorPosition(exposedRect.location());
+        tiledBacking->setTiledScrollingIndicatorPosition(m_viewExposedRect ? m_viewExposedRect.value().location() : FloatPoint());
     }
 
     if (auto* view = renderView())
         view->compositor().scheduleLayerFlush(false /* canThrottle */);
 
-    frame().mainFrame().pageOverlayController().didChangeExposedRect();
+    frame().mainFrame().pageOverlayController().didChangeViewExposedRect();
 }
     
 void FrameView::setViewportSizeForCSSViewportUnits(IntSize size)

@@ -23,6 +23,7 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#import "config.h"
 #import "InjectedBundle.h"
 
 #import <Foundation/Foundation.h>
@@ -37,13 +38,26 @@
 
 namespace WTR {
 
-void InjectedBundle::platformInitialize(WKTypeRef)
+static bool shouldUseRTLScrollbars(WKTypeRef initializationUserData)
+{
+    if (!initializationUserData || WKGetTypeID(initializationUserData) != WKDictionaryGetTypeID())
+        return false;
+
+    WKTypeRef item = WKDictionaryGetItemForKey(static_cast<WKDictionaryRef>(initializationUserData), adoptWK(WKStringCreateWithUTF8CString("UseRTLScrollbars")).get());
+    if (!item || WKGetTypeID(item) != WKBooleanGetTypeID())
+        return false;
+
+    return WKBooleanGetValue(static_cast<WKBooleanRef>(item));
+}
+
+void InjectedBundle::platformInitialize(WKTypeRef initializationUserData)
 {
     static const int NoFontSmoothing = 0;
     static const int BlueTintedAppearance = 1;
 
     // Work around missing /etc/catalog <rdar://problem/4292995>.
     setenv("XML_CATALOG_FILES", "", 0);
+    setenv("XTYPE_ALLOW_AUTOACTIVATION", "1", 0);
 
     // Language was set up earlier in main(). Don't clobber it.
     NSArray *languages = [[[NSUserDefaults standardUserDefaults] volatileDomainForName:NSArgumentDomain] valueForKey:@"AppleLanguages"];
@@ -80,6 +94,13 @@ void InjectedBundle::platformInitialize(WKTypeRef)
         @"AppleEnableSwipeNavigateWithScrolls": @YES,
         @"com.apple.swipescrolldirection": @1,
     };
+
+    if (shouldUseRTLScrollbars(initializationUserData)) {
+        NSMutableDictionary *newDictionary = [dict mutableCopy];
+        [newDictionary setValue:@YES forKey:@"AppleTextDirection"];
+        [newDictionary setValue:@YES forKey:@"NSForceRightToLeftWritingDirection"];
+        dict = [newDictionary autorelease];
+    }
 
     [[NSUserDefaults standardUserDefaults] setVolatileDomain:dict forName:NSArgumentDomain];
 

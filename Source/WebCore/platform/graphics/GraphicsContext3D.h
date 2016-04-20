@@ -728,6 +728,7 @@ public:
             , shareResources(true)
             , preferDiscreteGPU(false)
             , forceSoftwareRenderer(false)
+            , useGLES3(false)
             , devicePixelRatio(1)
         {
         }
@@ -742,6 +743,7 @@ public:
         bool shareResources;
         bool preferDiscreteGPU;
         bool forceSoftwareRenderer;
+        bool useGLES3;
         float devicePixelRatio;
     };
 
@@ -1245,7 +1247,7 @@ public:
         ImageSource* m_decoder;
         RefPtr<cairo_surface_t> m_imageSurface;
 #elif USE(CG)
-        CGImageRef m_cgImage;
+        RetainPtr<CGImageRef> m_cgImage;
         RetainPtr<CGImageRef> m_decodedImage;
         RetainPtr<CFDataRef> m_pixelData;
         std::unique_ptr<uint8_t[]> m_formalizedRGBA8Data;

@@ -1008,16 +1008,16 @@ void GraphicsLayerCA::setContentsToSolidColor(const Color& color)
 void GraphicsLayerCA::setContentsToImage(Image* image)
 {
     if (image) {
-        CGImageRef newImage = image->nativeImageForCurrentFrame();
+        auto newImage = image->nativeImageForCurrentFrame();
         if (!newImage)
             return;
 
         // FIXME: probably don't need m_uncorrectedContentsImage at all now.
-        if (m_uncorrectedContentsImage && m_uncorrectedContentsImage.get() == newImage)
+        if (m_uncorrectedContentsImage == newImage)
             return;
         
-        m_uncorrectedContentsImage = newImage;
-        m_pendingContentsImage = newImage;
+        m_uncorrectedContentsImage = WTFMove(newImage);
+        m_pendingContentsImage = m_uncorrectedContentsImage;
 
         m_contentsLayerPurpose = ContentsLayerForImage;
         if (!m_contentsLayer)
@@ -1496,9 +1496,9 @@ bool GraphicsLayerCA::platformCALayerShouldTemporarilyRetainTileCohorts(Platform
     return client().shouldTemporarilyRetainTileCohorts(this);
 }
 
-IntSize GraphicsLayerCA::platformCALayerTileSize() const
+bool GraphicsLayerCA::platformCALayerUseGiantTiles() const
 {
-    return client().tileSize();
+    return client().useGiantTiles();
 }
 
 static PlatformCALayer::LayerType layerTypeForCustomBackdropAppearance(GraphicsLayer::CustomAppearance appearance)
@@ -2675,11 +2675,8 @@ void GraphicsLayerCA::repaintLayerDirtyRects()
         return;
     }
 
-    if (!m_dirtyRects.size())
-        return;
-
-    for (size_t i = 0; i < m_dirtyRects.size(); ++i)
-        m_layer->setNeedsDisplayInRect(m_dirtyRects[i]);
+    for (auto& dirtyRect : m_dirtyRects)
+        m_layer->setNeedsDisplayInRect(dirtyRect);
     
     m_dirtyRects.clear();
 }

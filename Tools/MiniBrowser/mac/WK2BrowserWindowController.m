@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,6 +35,7 @@
 #import <WebKit/WKUIDelegate.h>
 #import <WebKit/WKWebViewConfigurationPrivate.h>
 #import <WebKit/WKWebViewPrivate.h>
+#import <WebKit/WKWebsiteDataStorePrivate.h>
 #import <WebKit/WebNSURLExtras.h>
 
 static void* keyValueObservingContext = &keyValueObservingContext;
@@ -109,7 +110,7 @@ static void* keyValueObservingContext = &keyValueObservingContext;
 {
     [urlText setStringValue:[self addProtocolIfNecessary:[urlText stringValue]]];
 
-    [_webView loadRequest:[NSURLRequest requestWithURL:[NSURL _web_URLWithUserTypedString:[urlText stringValue]]]];
+    [_webView loadRequest:[NSURLRequest requestWithURL:[NSURL _webkit_URLWithUserTypedString:[urlText stringValue]]]];
 }
 
 - (IBAction)showHideWebView:(id)sender
@@ -345,6 +346,8 @@ static CGFloat viewScaleForMenuItemTag(NSInteger tag)
     preferences._resourceUsageOverlayVisible = settings.resourceUsageOverlayVisible;
     preferences._displayListDrawingEnabled = settings.displayListDrawingEnabled;
 
+    _webView.configuration.websiteDataStore._resourceLoadStatisticsEnabled = settings.resourceLoadStatisticsEnabled;
+
     BOOL useTransparentWindows = settings.useTransparentWindows;
     if (useTransparentWindows != !_webView._drawsBackground) {
         [self.window setOpaque:!useTransparentWindows];
@@ -479,7 +482,7 @@ static NSSet *dataTypes()
 
 - (IBAction)fetchWebsiteData:(id)sender
 {
-    [_configuration.websiteDataStore fetchDataRecordsOfTypes:dataTypes() completionHandler:^(NSArray *websiteDataRecords) {
+    [_configuration.websiteDataStore _fetchDataRecordsOfTypes:dataTypes() withOptions:_WKWebsiteDataStoreFetchOptionComputeSizes completionHandler:^(NSArray *websiteDataRecords) {
         NSLog(@"did fetch website data %@.", websiteDataRecords);
     }];
 }

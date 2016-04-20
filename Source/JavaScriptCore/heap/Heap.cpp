@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2003-2009, 2011, 2013-2015 Apple Inc. All rights reserved.
+ *  Copyright (C) 2003-2009, 2011, 2013-2016 Apple Inc. All rights reserved.
  *  Copyright (C) 2007 Eric Seidel <eric@webkit.org>
  *
  *  This library is free software; you can redistribute it and/or
@@ -33,7 +33,9 @@
 #include "GCIncomingRefCountedSetInlines.h"
 #include "HeapHelperPool.h"
 #include "HeapIterationScope.h"
+#include "HeapProfiler.h"
 #include "HeapRootVisitor.h"
+#include "HeapSnapshot.h"
 #include "HeapStatistics.h"
 #include "HeapVerifier.h"
 #include "IncrementalSweeper.h"
@@ -43,6 +45,7 @@
 #include "JSLock.h"
 #include "JSVirtualMachineInternal.h"
 #include "SamplingProfiler.h"
+#include "ShadowChicken.h"
 #include "Tracing.h"
 #include "TypeProfilerLog.h"
 #include "UnlinkedCodeBlock.h"
@@ -50,6 +53,7 @@
 #include "WeakSetInlines.h"
 #include <algorithm>
 #include <wtf/CurrentTime.h>
+#include <wtf/MainThread.h>
 #include <wtf/ParallelVectorIterator.h>
 #include <wtf/ProcessID.h>
 #include <wtf/RAMSize.h>
@@ -380,6 +384,7 @@ void Heap::lastChanceToFinalize()
     RELEASE_ASSERT(!m_vm->entryScope);
     RELEASE_ASSERT(m_operationInProgress == NoOperation);
 
+    m_arrayBuffers.lastChanceToFinalize();
     m_codeBlocks.lastChanceToFinalize();
     m_objectSpace.lastChanceToFinalize();
     releaseDelayedReleasedObjects();
@@ -514,8 +519,6 @@ void Heap::completeAllDFGPlans()
 
 void Heap::markRoots(double gcStartTime, void* stackOrigin, void* stackTop, MachineThreads::RegisterState& calleeSavedRegisters)
 {
-    SamplingRegion samplingRegion("Garbage Collection: Marking");
-
     GCPHASE(MarkRoots);
     ASSERT(isValidThreadState(m_vm));
 
@@ -596,6 +599,7 @@ void Heap::markRoots(double gcStartTime, void* stackOrigin, void* stackTop, Mach
         visitStrongHandles(heapRootVisitor);
         visitHandleStack(heapRootVisitor);
         visitSamplingProfiler();
+        visitShadowChicken();
         traceCodeBlocksAndJITStubRoutines();
         converge();
     }
@@ -759,6 +763,65 @@ void Heap::removeDeadCompilerWorklistEntries()
 #endif
 }
 
+bool Heap::isHeapSnapshotting() const
+{
+    HeapProfiler* heapProfiler = m_vm->heapProfiler();
+    if (UNLIKELY(heapProfiler))
+        return heapProfiler->activeSnapshotBuilder();
+    return false;
+}
+
+struct GatherHeapSnapshotData : MarkedBlock::CountFunctor {
+    GatherHeapSnapshotData(HeapSnapshotBuilder& builder)
+        : m_builder(builder)
+    {
+    }
+
+    IterationStatus operator()(JSCell* cell)
+    {
+        cell->methodTable()->heapSnapshot(cell, m_builder);
+        return IterationStatus::Continue;
+    }
+
+    HeapSnapshotBuilder& m_builder;
+};
+
+void Heap::gatherExtraHeapSnapshotData(HeapProfiler& heapProfiler)
+{
+    GCPHASE(GatherExtraHeapSnapshotData);
+    if (HeapSnapshotBuilder* builder = heapProfiler.activeSnapshotBuilder()) {
+        HeapIterationScope heapIterationScope(*this);
+        GatherHeapSnapshotData functor(*builder);
+        m_objectSpace.forEachLiveCell(heapIterationScope, functor);
+    }
+}
+
+struct RemoveDeadHeapSnapshotNodes : MarkedBlock::CountFunctor {
+    RemoveDeadHeapSnapshotNodes(HeapSnapshot& snapshot)
+        : m_snapshot(snapshot)
+    {
+    }
+
+    IterationStatus operator()(JSCell* cell)
+    {
+        m_snapshot.sweepCell(cell);
+        return IterationStatus::Continue;
+    }
+
+    HeapSnapshot& m_snapshot;
+};
+
+void Heap::removeDeadHeapSnapshotNodes(HeapProfiler& heapProfiler)
+{
+    GCPHASE(RemoveDeadHeapSnapshotNodes);
+    if (HeapSnapshot* snapshot = heapProfiler.mostRecentSnapshot()) {
+        HeapIterationScope heapIterationScope(*this);
+        RemoveDeadHeapSnapshotNodes functor(*snapshot);
+        m_objectSpace.forEachDeadCell(heapIterationScope, functor);
+        snapshot->shrinkToFit();
+    }
+}
+
 void Heap::visitProtectedObjects(HeapRootVisitor& heapRootVisitor)
 {
     GCPHASE(VisitProtectedObjects);
@@ -837,6 +900,11 @@ void Heap::visitSamplingProfiler()
         samplingProfiler->getLock().unlock();
     }
 #endif // ENABLE(SAMPLING_PROFILER)
+}
+
+void Heap::visitShadowChicken()
+{
+    m_vm->shadowChicken().visitChildren(m_slotVisitor);
 }
 
 void Heap::traceCodeBlocksAndJITStubRoutines()
@@ -1023,24 +1091,12 @@ void Heap::addToRememberedSet(const JSCell* cell)
     m_slotVisitor.appendToMarkStack(const_cast<JSCell*>(cell));
 }
 
-void* Heap::copyBarrier(const JSCell*, void*& pointer)
-{
-    // Do nothing for now, except making sure that the low bits are masked off. This helps to
-    // simulate enough of this barrier that at least we can test the low bits assumptions.
-    pointer = bitwise_cast<void*>(
-        bitwise_cast<uintptr_t>(pointer) & ~static_cast<uintptr_t>(CopyBarrierBase::spaceBits));
-    
-    return pointer;
-}
-
 void Heap::collectAndSweep(HeapOperation collectionType)
 {
     if (!m_isSafeToCollect)
         return;
 
     collect(collectionType);
-
-    SamplingRegion samplingRegion("Garbage Collection: Sweeping");
 
     DeferGCForAWhile deferGC(*this);
     m_objectSpace.sweep();
@@ -1071,13 +1127,13 @@ NEVER_INLINE void Heap::collectImpl(HeapOperation collectionType, void* stackOri
         before = currentTimeMS();
     }
     
-    SamplingRegion samplingRegion("Garbage Collection");
-    
     if (vm()->typeProfiler()) {
         DeferGCForAWhile awhile(*this);
         vm()->typeProfilerLog()->processLogEntries(ASCIILiteral("GC"));
     }
-    
+
+    vm()->shadowChicken().update(*vm(), vm()->topCallFrame);
+
     RELEASE_ASSERT(!m_deferralDepth);
     ASSERT(vm()->currentThreadIsHoldingAPILock());
     RELEASE_ASSERT(vm()->atomicStringTable() == wtfThreadData().atomicStringTable());
@@ -1125,6 +1181,7 @@ NEVER_INLINE void Heap::collectImpl(HeapOperation collectionType, void* stackOri
     removeDeadCompilerWorklistEntries();
     deleteUnmarkedCompiledCode();
     deleteSourceProviderCaches();
+
     notifyIncrementalSweeper();
     writeBarrierCurrentlyExecutingCodeBlocks();
 
@@ -1406,6 +1463,11 @@ void Heap::didFinishCollection(double gcStartTime)
     if (Options::logGC() == GCLogging::Verbose)
         GCLogging::dumpObjectGraph(this);
 
+    if (HeapProfiler* heapProfiler = m_vm->heapProfiler()) {
+        gatherExtraHeapSnapshotData(*heapProfiler);
+        removeDeadHeapSnapshotNodes(*heapProfiler);
+    }
+
     RELEASE_ASSERT(m_operationInProgress == EdenCollection || m_operationInProgress == FullCollection);
     m_operationInProgress = NoOperation;
     JAVASCRIPTCORE_GC_END();
@@ -1546,10 +1608,7 @@ public:
 void Heap::zombifyDeadObjects()
 {
     // Sweep now because destructors will crash once we're zombified.
-    {
-        SamplingRegion samplingRegion("Garbage Collection: Sweeping");
-        m_objectSpace.zombifySweep();
-    }
+    m_objectSpace.zombifySweep();
     HeapIterationScope iterationScope(*this);
     m_objectSpace.forEachDeadCell<Zombify>(iterationScope);
 }

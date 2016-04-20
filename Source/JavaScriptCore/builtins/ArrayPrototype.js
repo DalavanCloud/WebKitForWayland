@@ -169,7 +169,28 @@ function filter(callback /*, thisArg */)
         throw new @TypeError("Array.prototype.filter callback must be a function");
     
     var thisArg = arguments.length > 1 ? arguments[1] : @undefined;
-    var result = [];
+
+    // Do 9.4.2.3 ArraySpeciesCreate
+    var result;
+    var constructor;
+    if (@isArray(array)) {
+        constructor = array.constructor;
+        // We have this check so that if some array from a different global object
+        // calls this map they don't get an array with the Array.prototype of the
+        // other global object.
+        if (@isArrayConstructor(constructor) && @Array !== constructor)
+            constructor = @undefined;
+        if (@isObject(constructor)) {
+            constructor = constructor[@symbolSpecies];
+            if (constructor === null)
+                constructor = @undefined;
+        }
+    }
+    if (constructor === @undefined) {
+        result = [];
+    } else
+        result = new constructor(0);
+
     var nextIndex = 0;
     for (var i = 0; i < length; i++) {
         if (!(i in array))
@@ -200,8 +221,28 @@ function map(callback /*, thisArg */)
         throw new @TypeError("Array.prototype.map callback must be a function");
     
     var thisArg = arguments.length > 1 ? arguments[1] : @undefined;
-    var result = [];
-    result.length = length;
+
+    // Do 9.4.2.3 ArraySpeciesCreate
+    var result;
+    var constructor;
+    if (@isArray(array)) {
+        constructor = array.constructor;
+        // We have this check so that if some array from a different global object
+        // calls this map they don't get an array with the Array.prototype of the
+        // other global object.
+        if (@isArrayConstructor(constructor) && @Array !== constructor)
+            constructor = @undefined;
+        if (@isObject(constructor)) {
+            constructor = constructor[@symbolSpecies];
+            if (constructor === null)
+                constructor = @undefined;
+        }
+    }
+    if (constructor === @undefined) {
+        result = @Array(length);
+    } else
+        result = new constructor(length);
+
     var nextIndex = 0;
     for (var i = 0; i < length; i++) {
         if (!(i in array))
@@ -603,6 +644,94 @@ function sort(comparator)
         stringSort(array);
 
     return array;
+}
+
+function concatSlowPath()
+{
+    "use strict";
+
+    var argCount = arguments.length;
+    var result = new this.species(0);
+    var resultIsArray = @isJSArray(result);
+
+    var currentElement = this.array;
+    var resultIndex = 0;
+    var argIndex = 0;
+
+    do {
+        var spreadable = @isObject(currentElement) && currentElement[@symbolIsConcatSpreadable];
+        if ((spreadable == @undefined && @isArray(currentElement)) || spreadable) {
+            var length = @toLength(currentElement.length);
+            if (resultIsArray && @isJSArray(currentElement)
+                && @appendMemcpy(result, currentElement)) {
+
+                resultIndex += length;
+            } else {
+                if (length + resultIndex > @MAX_SAFE_INTEGER)
+                    throw @TypeError("length exceeded the maximum safe integer");
+                for (var i = 0; i < length; i++) {
+                    if (i in currentElement)
+                        @putByValDirect(result, resultIndex, currentElement[i]);
+                    resultIndex++;
+                }
+            }
+        } else {
+            if (resultIndex >= @MAX_SAFE_INTEGER)
+                throw @TypeError("length exceeded the maximum safe integer");
+            @putByValDirect(result, resultIndex++, currentElement);
+        }
+        currentElement = arguments[argIndex];
+    } while (argIndex++ < argCount);
+
+    result.length = resultIndex;
+    return result;
+}
+
+function concat(first)
+{
+    "use strict";
+
+    if (this == null) {
+        if (this === null)
+            throw new @TypeError("Array.prototype.concat requires that |this| not be null");
+        throw new @TypeError("Array.prototype.concat requires that |this| not be undefined");
+    }
+
+    var array = @Object(this);
+
+    var constructor;
+    if (@isArray(array)) {
+        constructor = array.constructor;
+        // We have this check so that if some array from a different global object
+        // calls this map they don't get an array with the Array.prototype of the
+        // other global object.
+        if (@isArrayConstructor(constructor) && @Array !== constructor)
+            constructor = @undefined;
+        if (@isObject(constructor)) {
+            constructor = constructor[@symbolSpecies];
+            if (constructor === null)
+                constructor = @Array;
+        }
+    }
+    if (constructor === @undefined)
+        constructor = @Array;
+
+    var result;
+    if (arguments.length === 1
+        && constructor === @Array
+        && @isJSArray(array)
+        && @isJSArray(first)
+        // FIXME: these get_by_ids should be "in"s but using "in" here is a 10% regression.
+        // https://bugs.webkit.org/show_bug.cgi?id=155590
+        && array[@symbolIsConcatSpreadable] == @undefined
+        && first[@symbolIsConcatSpreadable] == @undefined) {
+
+        result = @concatMemcpy(array, first);
+        if (result !== null)
+            return result;
+    }
+
+    return @concatSlowPath.@apply({ array: array, species: constructor }, arguments);
 }
 
 function copyWithin(target, start /*, end */)

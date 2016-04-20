@@ -39,8 +39,8 @@ class MathMLElement : public StyledElement {
 public:
     static Ref<MathMLElement> create(const QualifiedName& tagName, Document&);
 
-    int colSpan() const;
-    int rowSpan() const;
+    unsigned colSpan() const;
+    unsigned rowSpan() const;
 
     bool isMathMLToken() const
     {
@@ -59,12 +59,12 @@ public:
 protected:
     MathMLElement(const QualifiedName& tagName, Document&);
 
-    virtual void parseAttribute(const QualifiedName&, const AtomicString&) override;
-    virtual bool childShouldCreateRenderer(const Node&) const override;
-    virtual void attributeChanged(const QualifiedName&, const AtomicString& oldValue, const AtomicString& newValue, AttributeModificationReason) override;
+    void parseAttribute(const QualifiedName&, const AtomicString&) override;
+    bool childShouldCreateRenderer(const Node&) const override;
+    void attributeChanged(const QualifiedName&, const AtomicString& oldValue, const AtomicString& newValue, AttributeModificationReason) override;
 
-    virtual bool isPresentationAttribute(const QualifiedName&) const override;
-    virtual void collectStyleForPresentationAttribute(const QualifiedName&, const AtomicString&, MutableStyleProperties&) override;
+    bool isPresentationAttribute(const QualifiedName&) const override;
+    void collectStyleForPresentationAttribute(const QualifiedName&, const AtomicString&, MutableStyleProperties&) override;
 
     bool isPhrasingContent(const Node&) const;
     bool isFlowContent(const Node&) const;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008, 2009, 2012-2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2008-2009, 2012-2016 Apple Inc. All rights reserved.
  * Copyright (C) 2008 Cameron Zwarich <cwzwarich@uwaterloo.ca>
  * Copyright (C) 2012 Igalia, S.L.
  *
@@ -63,8 +63,6 @@ void Label::setLocation(unsigned location)
 
 ParserError BytecodeGenerator::generate()
 {
-    SamplingRegion samplingRegion("Bytecode Generation");
-
     m_codeBlock->setThisRegister(m_thisRegister.virtualRegister());
     
     // If we have declared a variable named "arguments" and we are using arguments then we should
@@ -225,25 +223,29 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, FunctionNode* functionNode, Unlinke
     functionSymbolTable->setUsesNonStrictEval(m_usesNonStrictEval);
     int symbolTableConstantIndex = addConstantValue(functionSymbolTable)->index();
 
-    Vector<Identifier> boundParameterProperties;
     FunctionParameters& parameters = *functionNode->parameters(); 
-    if (!parameters.hasDefaultParameterValues()) { 
-        // If we do have default parameters, they will be allocated in a separate scope.
-        for (size_t i = 0; i < parameters.size(); i++) {
-            auto pattern = parameters.at(i).first;
-            if (pattern->isBindingNode())
-                continue;
-            pattern->collectBoundIdentifiers(boundParameterProperties);
-        }
+    // http://www.ecma-international.org/ecma-262/6.0/index.html#sec-functiondeclarationinstantiation
+    // This implements IsSimpleParameterList in the Ecma 2015 spec.
+    // If IsSimpleParameterList is false, we will create a strict-mode like arguments object.
+    // IsSimpleParameterList is false if the argument list contains any default parameter values,
+    // a rest parameter, or any destructuring patterns.
+    bool isSimpleParameterList = true;
+    // If we do have default parameters, destructuring parameters, or a rest parameter, our parameters will be allocated in a different scope.
+    for (size_t i = 0; i < parameters.size(); i++) {
+        std::pair<DestructuringPatternNode*, ExpressionNode*> parameter = parameters.at(i);
+        bool hasDefaultParameterValue = !!parameter.second;
+        auto pattern = parameter.first;
+        bool isSimpleParameter = !hasDefaultParameterValue && pattern->isBindingNode();
+        isSimpleParameterList &= isSimpleParameter;
     }
 
     SourceParseMode parseMode = codeBlock->parseMode();
 
-    bool containsArrowOrEvalButNotInArrowBlock = needsToUpdateArrowFunctionContext() && !m_codeBlock->isArrowFunction();
+    bool containsArrowOrEvalButNotInArrowBlock = ((functionNode->usesArrowFunction() && functionNode->doAnyInnerArrowFunctionsUseAnyFeature()) || functionNode->usesEval()) && !m_codeBlock->isArrowFunction();
     bool shouldCaptureSomeOfTheThings = m_shouldEmitDebugHooks || functionNode->needsActivation() || containsArrowOrEvalButNotInArrowBlock;
 
     bool shouldCaptureAllOfTheThings = m_shouldEmitDebugHooks || codeBlock->usesEval();
-    bool needsArguments = (functionNode->usesArguments() || codeBlock->usesEval() || (functionNode->usesArrowFunction() && !codeBlock->isArrowFunction()));
+    bool needsArguments = (functionNode->usesArguments() || codeBlock->usesEval() || (functionNode->usesArrowFunction() && !codeBlock->isArrowFunction() && isArgumentsUsedInInnerArrowFunction()));
 
     // Generator never provides "arguments". "arguments" reference will be resolved in an upper generator function scope.
     if (parseMode == SourceParseMode::GeneratorBodyMode)
@@ -293,6 +295,7 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, FunctionNode* functionNode, Unlinke
     m_calleeRegister.setIndex(JSStack::Callee);
 
     initializeParameters(parameters);
+    ASSERT(!(isSimpleParameterList && m_restParameter));
 
     // Before emitting a scope creation, emit a generator prologue that contains jump based on a generator's state.
     if (parseMode == SourceParseMode::GeneratorBodyMode) {
@@ -321,7 +324,7 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, FunctionNode* functionNode, Unlinke
         // We can allocate the "var" environment if we don't have default parameter expressions. If we have
         // default parameter expressions, we have to hold off on allocating the "var" environment because
         // the parent scope of the "var" environment is the parameter environment.
-        if (!parameters.hasDefaultParameterValues())
+        if (isSimpleParameterList)
             initializeVarLexicalEnvironment(symbolTableConstantIndex);
     }
 
@@ -357,13 +360,6 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, FunctionNode* functionNode, Unlinke
         m_argumentsRegister->ref();
     }
     
-    // http://www.ecma-international.org/ecma-262/6.0/index.html#sec-functiondeclarationinstantiation
-    // This implements IsSimpleParameterList in the Ecma 2015 spec.
-    // If IsSimpleParameterList is false, we will create a strict-mode like arguments object.
-    // IsSimpleParameterList is false if the argument list contains any default parameter values,
-    // a rest parameter, or any destructuring patterns.
-    // FIXME: Take into account destructuring to make isSimpleParameterList false. https://bugs.webkit.org/show_bug.cgi?id=151450
-    bool isSimpleParameterList = !parameters.hasDefaultParameterValues() && !m_restParameter;
     if (needsArguments && !codeBlock->isStrictMode() && isSimpleParameterList) {
         // If we captured any formal parameter by name, then we use ScopedArguments. Otherwise we
         // use DirectArguments. With ScopedArguments, we lift all of our arguments into the
@@ -414,9 +410,9 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, FunctionNode* functionNode, Unlinke
             emitOpcode(op_create_direct_arguments);
             instructions().append(m_argumentsRegister->index());
         }
-    } else if (!parameters.hasDefaultParameterValues()) {
+    } else if (isSimpleParameterList) {
         // Create the formal parameters the normal way. Any of them could be captured, or not. If
-        // captured, lift them into the scope. We can not do this if we have default parameter expressions
+        // captured, lift them into the scope. We cannot do this if we have default parameter expressions
         // because when default parameter expressions exist, they belong in their own lexical environment
         // separate from the "var" lexical environment.
         for (unsigned i = 0; i < parameters.size(); ++i) {
@@ -447,16 +443,11 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, FunctionNode* functionNode, Unlinke
     }
     
     if (needsArguments && (codeBlock->isStrictMode() || !isSimpleParameterList)) {
-        // Allocate an out-of-bands arguments object.
-        emitOpcode(op_create_out_of_band_arguments);
+        // Allocate a cloned arguments object.
+        emitOpcode(op_create_cloned_arguments);
         instructions().append(m_argumentsRegister->index());
     }
     
-    // Now declare all variables.
-    for (const Identifier& ident : boundParameterProperties) {
-        ASSERT(!parameters.hasDefaultParameterValues());
-        createVariable(ident, varKind(ident.impl()), functionSymbolTable);
-    }
     for (FunctionMetadataNode* function : functionNode->functionStack()) {
         const Identifier& ident = function->ident();
         createVariable(ident, varKind(ident.impl()), functionSymbolTable);
@@ -566,14 +557,19 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, FunctionNode* functionNode, Unlinke
 
     // All "addVar()"s needs to happen before "initializeDefaultParameterValuesAndSetupFunctionScopeStack()" is called
     // because a function's default parameter ExpressionNodes will use temporary registers.
-    m_TDZStack.append(std::make_pair(*parentScopeTDZVariables, false));
-    initializeDefaultParameterValuesAndSetupFunctionScopeStack(parameters, functionNode, functionSymbolTable, symbolTableConstantIndex, captures);
+    pushTDZVariables(*parentScopeTDZVariables, TDZCheckOptimization::DoNotOptimize);
+    initializeDefaultParameterValuesAndSetupFunctionScopeStack(parameters, isSimpleParameterList, functionNode, functionSymbolTable, symbolTableConstantIndex, captures);
     
     // Loading |this| inside an arrow function must be done after initializeDefaultParameterValuesAndSetupFunctionScopeStack()
     // because that function sets up the SymbolTable stack and emitLoadThisFromArrowFunctionLexicalEnvironment()
     // consults the SymbolTable stack
-    if (SourceParseMode::ArrowFunctionMode == parseMode && (functionNode->usesThis() || isDerivedClassContext() || isDerivedConstructorContext()))
-        emitLoadThisFromArrowFunctionLexicalEnvironment();
+    if (SourceParseMode::ArrowFunctionMode == parseMode) {
+        if (functionNode->usesThis() || functionNode->usesSuperProperty())
+            emitLoadThisFromArrowFunctionLexicalEnvironment();
+    
+        if (m_scopeNode->usesNewTarget() || m_scopeNode->usesSuperCall())
+            emitLoadNewTargetFromArrowFunctionLexicalEnvironment();
+    }
     
     if (needsToUpdateArrowFunctionContext() && !codeBlock->isArrowFunction()) {
         initializeArrowFunctionContextScopeIfNeeded(functionSymbolTable);
@@ -582,7 +578,8 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, FunctionNode* functionNode, Unlinke
         emitPutDerivedConstructorToArrowFunctionContextScope();
     }
 
-    pushLexicalScope(m_scopeNode, TDZCheckOptimization::Optimize);
+    bool shouldInitializeBlockScopedFunctions = false; // We generate top-level function declarations in ::generate().
+    pushLexicalScope(m_scopeNode, TDZCheckOptimization::Optimize, NestedScopeType::IsNotNested, nullptr, shouldInitializeBlockScopedFunctions);
 }
 
 BytecodeGenerator::BytecodeGenerator(VM& vm, EvalNode* evalNode, UnlinkedEvalCodeBlock* codeBlock, DebuggerMode debuggerMode, ProfilerMode profilerMode, const VariableEnvironment* parentScopeTDZVariables)
@@ -622,18 +619,25 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, EvalNode* evalNode, UnlinkedEvalCod
         variables.append(Identifier::fromUid(m_vm, entry.key.get()));
     }
     codeBlock->adoptVariables(variables);
+    
+    if (evalNode->usesSuperCall() || evalNode->usesNewTarget())
+        m_newTargetRegister = addVar();
 
-    m_TDZStack.append(std::make_pair(*parentScopeTDZVariables, false));
-
-    if (codeBlock->isArrowFunctionContext() && evalNode->usesThis())
+    pushTDZVariables(*parentScopeTDZVariables, TDZCheckOptimization::DoNotOptimize);
+    
+    if (codeBlock->isArrowFunctionContext() && (evalNode->usesThis() || evalNode->usesSuperProperty()))
         emitLoadThisFromArrowFunctionLexicalEnvironment();
 
-    if (needsToUpdateArrowFunctionContext() && !codeBlock->isArrowFunctionContext()) {
+    if (evalNode->usesSuperCall() || evalNode->usesNewTarget())
+        emitLoadNewTargetFromArrowFunctionLexicalEnvironment();
+
+    if (needsToUpdateArrowFunctionContext() && !codeBlock->isArrowFunctionContext() && !isDerivedConstructorContext()) {
         initializeArrowFunctionContextScopeIfNeeded();
         emitPutThisToArrowFunctionContextScope();
     }
     
-    pushLexicalScope(m_scopeNode, TDZCheckOptimization::Optimize);
+    bool shouldInitializeBlockScopedFunctions = false; // We generate top-level function declarations in ::generate().
+    pushLexicalScope(m_scopeNode, TDZCheckOptimization::Optimize, NestedScopeType::IsNotNested, nullptr, shouldInitializeBlockScopedFunctions);
 }
 
 BytecodeGenerator::BytecodeGenerator(VM& vm, ModuleProgramNode* moduleProgramNode, UnlinkedModuleProgramCodeBlock* codeBlock, DebuggerMode debuggerMode, ProfilerMode profilerMode, const VariableEnvironment* parentScopeTDZVariables)
@@ -715,8 +719,9 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, ModuleProgramNode* moduleProgramNod
     else
         constantSymbolTable = addConstantValue(moduleEnvironmentSymbolTable->cloneScopePart(*m_vm));
 
-    m_TDZStack.append(std::make_pair(lexicalVariables, true));
-    m_symbolTableStack.append(SymbolTableStackEntry { Strong<SymbolTable>(*m_vm, moduleEnvironmentSymbolTable), m_topMostScope, false, constantSymbolTable->index() });
+    pushTDZVariables(lexicalVariables, TDZCheckOptimization::Optimize);
+    bool isWithScope = false;
+    m_symbolTableStack.append(SymbolTableStackEntry { Strong<SymbolTable>(*m_vm, moduleEnvironmentSymbolTable), m_topMostScope, isWithScope, constantSymbolTable->index() });
     emitPrefillStackTDZVariables(lexicalVariables, moduleEnvironmentSymbolTable);
 
     // makeFunction assumes that there's correct TDZ stack entries.
@@ -785,11 +790,11 @@ BytecodeGenerator::~BytecodeGenerator()
 }
 
 void BytecodeGenerator::initializeDefaultParameterValuesAndSetupFunctionScopeStack(
-    FunctionParameters& parameters, FunctionNode* functionNode, SymbolTable* functionSymbolTable, 
+    FunctionParameters& parameters, bool isSimpleParameterList, FunctionNode* functionNode, SymbolTable* functionSymbolTable, 
     int symbolTableConstantIndex, const std::function<bool (UniquedStringImpl*)>& captures)
 {
     Vector<std::pair<Identifier, RefPtr<RegisterID>>> valuesToMoveIntoVars;
-    if (parameters.hasDefaultParameterValues()) {
+    if (!isSimpleParameterList) {
         // Refer to the ES6 spec section 9.2.12: http://www.ecma-international.org/ecma-262/6.0/index.html#sec-functiondeclarationinstantiation
         // This implements step 21.
         VariableEnvironment environment;
@@ -856,25 +861,14 @@ void BytecodeGenerator::initializeDefaultParameterValuesAndSetupFunctionScopeSta
         pushScopedControlFlowContext();
     m_symbolTableStack.append(SymbolTableStackEntry{ Strong<SymbolTable>(*m_vm, functionSymbolTable), m_lexicalEnvironmentRegister, false, symbolTableConstantIndex });
 
+    m_varScopeSymbolTableIndex = m_symbolTableStack.size() - 1;
+
     // This completes step 28 of section 9.2.12.
     for (unsigned i = 0; i < valuesToMoveIntoVars.size(); i++) {
-        ASSERT(parameters.hasDefaultParameterValues());
+        ASSERT(!isSimpleParameterList);
         Variable var = variable(valuesToMoveIntoVars[i].first);
         RegisterID* scope = emitResolveScope(nullptr, var);
         emitPutToScope(scope, var, valuesToMoveIntoVars[i].second.get(), DoNotThrowIfNotFound, NotInitialization);
-    }
-
-    if (!parameters.hasDefaultParameterValues()) {
-        ASSERT(!valuesToMoveIntoVars.size());
-        // Initialize destructuring parameters the old way as if we don't have any default parameter values.
-        // If we have default parameter values, we handle this case above.
-        for (unsigned i = 0; i < parameters.size(); i++) {
-            DestructuringPatternNode* pattern = parameters.at(i).first;
-            if (!pattern->isBindingNode() && !pattern->isRestParameter()) {
-                RefPtr<RegisterID> parameterValue = &registerFor(virtualRegisterForArgument(1 + i));
-                pattern->bindValue(*this, parameterValue.get());
-            }
-        }
     }
 }
 
@@ -888,16 +882,18 @@ void BytecodeGenerator::initializeArrowFunctionContextScopeIfNeeded(SymbolTable*
         
         if (!m_codeBlock->isArrowFunction()) {
             ScopeOffset offset;
+            
+            if (isThisUsedInInnerArrowFunction()) {
+                offset = symbolTable->takeNextScopeOffset();
+                symbolTable->set(propertyNames().thisIdentifier.impl(), SymbolTableEntry(VarOffset(offset)));
+            }
 
-            offset = symbolTable->takeNextScopeOffset();
-            symbolTable->set(propertyNames().thisIdentifier.impl(), SymbolTableEntry(VarOffset(offset)));
-
-            if (m_codeType == FunctionCode) {
+            if (m_codeType == FunctionCode && isNewTargetUsedInInnerArrowFunction()) {
                 offset = symbolTable->takeNextScopeOffset();
                 symbolTable->set(propertyNames().newTargetLocalPrivateName.impl(), SymbolTableEntry(VarOffset(offset)));
             }
             
-            if (isConstructor() && constructorKind() == ConstructorKind::Derived) {
+            if (isConstructor() && constructorKind() == ConstructorKind::Derived && isSuperUsedInInnerArrowFunction()) {
                 offset = symbolTable->takeNextScopeOffset();
                 symbolTable->set(propertyNames().derivedConstructorPrivateName.impl(), SymbolTableEntry(VarOffset(offset)));
             }
@@ -907,28 +903,33 @@ void BytecodeGenerator::initializeArrowFunctionContextScopeIfNeeded(SymbolTable*
     }
 
     VariableEnvironment environment;
-    auto addResult = environment.add(propertyNames().thisIdentifier);
-    addResult.iterator->value.setIsCaptured();
-    addResult.iterator->value.setIsConst();
+
+    if (isThisUsedInInnerArrowFunction()) {
+        auto addResult = environment.add(propertyNames().thisIdentifier);
+        addResult.iterator->value.setIsCaptured();
+        addResult.iterator->value.setIsConst();
+    }
     
-    if (m_codeType == FunctionCode)  {
+    if (m_codeType == FunctionCode && isNewTargetUsedInInnerArrowFunction()) {
         auto addTarget = environment.add(propertyNames().newTargetLocalPrivateName);
         addTarget.iterator->value.setIsCaptured();
         addTarget.iterator->value.setIsLet();
     }
 
-    if (isConstructor() && constructorKind() == ConstructorKind::Derived) {
+    if (isConstructor() && constructorKind() == ConstructorKind::Derived && isSuperUsedInInnerArrowFunction()) {
         auto derivedConstructor = environment.add(propertyNames().derivedConstructorPrivateName);
         derivedConstructor.iterator->value.setIsCaptured();
         derivedConstructor.iterator->value.setIsLet();
     }
 
-    size_t size = m_symbolTableStack.size();
-    pushLexicalScopeInternal(environment, TDZCheckOptimization::Optimize, NestedScopeType::IsNotNested, nullptr, TDZRequirement::UnderTDZ, ScopeType::LetConstScope, ScopeRegisterType::Block);
+    if (environment.size() > 0) {
+        size_t size = m_symbolTableStack.size();
+        pushLexicalScopeInternal(environment, TDZCheckOptimization::Optimize, NestedScopeType::IsNotNested, nullptr, TDZRequirement::UnderTDZ, ScopeType::LetConstScope, ScopeRegisterType::Block);
 
-    ASSERT_UNUSED(size, m_symbolTableStack.size() == size + 1);
+        ASSERT_UNUSED(size, m_symbolTableStack.size() == size + 1);
 
-    m_arrowFunctionContextLexicalEnvironmentRegister = m_symbolTableStack.last().m_scope;
+        m_arrowFunctionContextLexicalEnvironmentRegister = m_symbolTableStack.last().m_scope;
+    }
 }
 
 RegisterID* BytecodeGenerator::initializeNextParameter()
@@ -1091,6 +1092,7 @@ UnlinkedValueProfile BytecodeGenerator::emitProfiledOpcode(OpcodeID opcodeID)
 void BytecodeGenerator::emitEnter()
 {
     emitOpcode(op_enter);
+    emitLogShadowChickenPrologueIfNecessary();
     emitWatchdog();
 }
 
@@ -1735,7 +1737,7 @@ bool BytecodeGenerator::instantiateLexicalVariables(const VariableEnvironment& l
     {
         ConcurrentJITLocker locker(symbolTable->m_lock);
         for (auto& entry : lexicalVariables) {
-            ASSERT(entry.value.isLet() || entry.value.isConst());
+            ASSERT(entry.value.isLet() || entry.value.isConst() || entry.value.isFunction());
             ASSERT(!entry.value.isVar());
             SymbolTableEntry symbolTableEntry = symbolTable->get(locker, entry.key.get());
             ASSERT(symbolTableEntry.isNull());
@@ -1782,6 +1784,9 @@ void BytecodeGenerator::emitPrefillStackTDZVariables(const VariableEnvironment& 
         if (entry.value.isImported() && !entry.value.isImportedNamespace())
             continue;
 
+        if (entry.value.isFunction())
+            continue;
+
         SymbolTableEntry symbolTableEntry = symbolTable->get(entry.key.get());
         ASSERT(!symbolTableEntry.isNull());
         VarOffset offset = symbolTableEntry.varOffset();
@@ -1793,10 +1798,17 @@ void BytecodeGenerator::emitPrefillStackTDZVariables(const VariableEnvironment& 
     }
 }
 
-void BytecodeGenerator::pushLexicalScope(VariableEnvironmentNode* node, TDZCheckOptimization tdzCheckOptimization, NestedScopeType nestedScopeType, RegisterID** constantSymbolTableResult)
+void BytecodeGenerator::pushLexicalScope(VariableEnvironmentNode* node, TDZCheckOptimization tdzCheckOptimization, NestedScopeType nestedScopeType, RegisterID** constantSymbolTableResult, bool shouldInitializeBlockScopedFunctions)
 {
     VariableEnvironment& environment = node->lexicalVariables();
-    pushLexicalScopeInternal(environment, tdzCheckOptimization, nestedScopeType, constantSymbolTableResult, TDZRequirement::UnderTDZ, ScopeType::LetConstScope, ScopeRegisterType::Block);
+    RegisterID* constantSymbolTableResultTemp = nullptr;
+    pushLexicalScopeInternal(environment, tdzCheckOptimization, nestedScopeType, &constantSymbolTableResultTemp, TDZRequirement::UnderTDZ, ScopeType::LetConstScope, ScopeRegisterType::Block);
+
+    if (shouldInitializeBlockScopedFunctions)
+        initializeBlockScopedFunctions(environment, node->functionStack(), constantSymbolTableResultTemp);
+
+    if (constantSymbolTableResult && constantSymbolTableResultTemp)
+        *constantSymbolTableResult = constantSymbolTableResultTemp;
 }
 
 void BytecodeGenerator::pushLexicalScopeInternal(VariableEnvironment& environment, TDZCheckOptimization tdzCheckOptimization, NestedScopeType nestedScopeType,
@@ -1862,13 +1874,91 @@ void BytecodeGenerator::pushLexicalScopeInternal(VariableEnvironment& environmen
         pushScopedControlFlowContext();
     }
 
-    m_symbolTableStack.append(SymbolTableStackEntry{ symbolTable, newScope, false, symbolTableConstantIndex });
-    bool canOptimizeTDZChecks = tdzCheckOptimization == TDZCheckOptimization::Optimize;
+    bool isWithScope = false;
+    m_symbolTableStack.append(SymbolTableStackEntry{ symbolTable, newScope, isWithScope, symbolTableConstantIndex });
     if (tdzRequirement == TDZRequirement::UnderTDZ)
-        m_TDZStack.append(std::make_pair(environment, canOptimizeTDZChecks));
+        pushTDZVariables(environment, tdzCheckOptimization);
 
     if (tdzRequirement == TDZRequirement::UnderTDZ)
         emitPrefillStackTDZVariables(environment, symbolTable.get());
+}
+
+void BytecodeGenerator::initializeBlockScopedFunctions(VariableEnvironment& environment, FunctionStack& functionStack, RegisterID* constantSymbolTable)
+{
+    /*
+     * We must transform block scoped function declarations in strict mode like so:
+     *
+     * function foo() {
+     *     if (c) {
+     *           function foo() { ... }
+     *           if (bar) { ... }
+     *           else { ... }
+     *           function baz() { ... }
+     *     }
+     * }
+     *
+     * to:
+     *
+     * function foo() {
+     *     if (c) {
+     *         let foo = function foo() { ... }
+     *         let baz = function baz() { ... }
+     *         if (bar) { ... }
+     *         else { ... }
+     *     }
+     * }
+     * 
+     * But without the TDZ checks.
+    */
+
+    if (!environment.size()) {
+        RELEASE_ASSERT(!functionStack.size());
+        return;
+    }
+
+    if (!functionStack.size())
+        return;
+
+    SymbolTable* symbolTable = m_symbolTableStack.last().m_symbolTable.get();
+    RegisterID* scope = m_symbolTableStack.last().m_scope;
+    RefPtr<RegisterID> temp = newTemporary();
+    int symbolTableIndex = constantSymbolTable ? constantSymbolTable->index() : 0;
+    for (FunctionMetadataNode* function : functionStack) {
+        const Identifier& name = function->ident();
+        auto iter = environment.find(name.impl());
+        RELEASE_ASSERT(iter != environment.end());
+        RELEASE_ASSERT(iter->value.isFunction());
+        // We purposefully don't hold the symbol table lock around this loop because emitNewFunctionExpressionCommon may GC.
+        SymbolTableEntry entry = symbolTable->get(name.impl()); 
+        RELEASE_ASSERT(!entry.isNull());
+        emitNewFunctionExpressionCommon(temp.get(), function);
+        bool isLexicallyScoped = true;
+        emitPutToScope(scope, variableForLocalEntry(name, entry, symbolTableIndex, isLexicallyScoped), temp.get(), DoNotThrowIfNotFound, Initialization);
+    }
+}
+
+void BytecodeGenerator::hoistSloppyModeFunctionIfNecessary(const Identifier& functionName)
+{
+    if (m_scopeNode->hasSloppyModeHoistedFunction(functionName.impl())) {
+        Variable currentFunctionVariable = variable(functionName);
+        RefPtr<RegisterID> currentValue;
+        if (RegisterID* local = currentFunctionVariable.local())
+            currentValue = local;
+        else {
+            RefPtr<RegisterID> scope = emitResolveScope(nullptr, currentFunctionVariable);
+            currentValue = emitGetFromScope(newTemporary(), scope.get(), currentFunctionVariable, DoNotThrowIfNotFound);
+        }
+        
+        ASSERT(m_varScopeSymbolTableIndex);
+        ASSERT(*m_varScopeSymbolTableIndex < m_symbolTableStack.size());
+        SymbolTableStackEntry& varScope = m_symbolTableStack[*m_varScopeSymbolTableIndex];
+        SymbolTable* varSymbolTable = varScope.m_symbolTable.get();
+        ASSERT(varSymbolTable->scopeType() == SymbolTable::ScopeType::VarScope);
+        SymbolTableEntry entry = varSymbolTable->get(functionName.impl());
+        ASSERT(!entry.isNull());
+        bool isLexicallyScoped = false;
+        emitPutToScope(varScope.m_scope, variableForLocalEntry(functionName, entry, varScope.m_symbolTableConstantIndex, isLexicallyScoped), currentValue.get(), DoNotThrowIfNotFound, NotInitialization);
+    }
 }
 
 void BytecodeGenerator::popLexicalScope(VariableEnvironmentNode* node)
@@ -2282,6 +2372,17 @@ RegisterID* BytecodeGenerator::emitInstanceOfCustom(RegisterID* dst, RegisterID*
     return dst;
 }
 
+RegisterID* BytecodeGenerator::emitTryGetById(RegisterID* dst, RegisterID* base, const Identifier& property)
+{
+    ASSERT_WITH_MESSAGE(!parseIndex(property), "Indexed properties are not supported with tryGetById.");
+
+    emitOpcode(op_try_get_by_id);
+    instructions().append(kill(dst));
+    instructions().append(base->index());
+    instructions().append(addConstant(property));
+    return dst;
+}
+
 RegisterID* BytecodeGenerator::emitGetById(RegisterID* dst, RegisterID* base, const Identifier& property)
 {
     ASSERT_WITH_MESSAGE(!parseIndex(property), "Indexed properties should be handled with get_by_val.");
@@ -2546,14 +2647,31 @@ void BytecodeGenerator::liftTDZCheckIfPossible(const Variable& variable)
     for (unsigned i = m_TDZStack.size(); i--;) {
         VariableEnvironment& environment = m_TDZStack[i].first;
         if (environment.contains(identifier)) {
-            bool isSyntacticallyAbleToOptimizeTDZ = m_TDZStack[i].second;
-            if (isSyntacticallyAbleToOptimizeTDZ) {
+            TDZCheckOptimization tdzCheckOptimizationCapability = m_TDZStack[i].second;
+            if (tdzCheckOptimizationCapability == TDZCheckOptimization::Optimize) {
                 bool wasRemoved = environment.remove(identifier);
                 RELEASE_ASSERT(wasRemoved);
             }
             break;
         }
     }
+}
+
+void BytecodeGenerator::pushTDZVariables(VariableEnvironment environment, TDZCheckOptimization optimization)
+{
+    if (!environment.size())
+        return;
+
+    Vector<UniquedStringImpl*, 4> functionsToRemove;
+    for (const auto& entry : environment) {
+        if (entry.value.isFunction())
+            functionsToRemove.append(entry.key.get());
+    }
+
+    for (UniquedStringImpl* function : functionsToRemove)
+        environment.remove(function);
+
+    m_TDZStack.append(std::make_pair(WTFMove(environment), optimization));
 }
 
 void BytecodeGenerator::getVariablesUnderTDZ(VariableEnvironment& result)
@@ -2676,9 +2794,8 @@ RegisterID* BytecodeGenerator::emitNewRegExp(RegisterID* dst, RegExp* regExp)
     return dst;
 }
 
-void BytecodeGenerator::emitNewFunctionExpressionCommon(RegisterID* dst, BaseFuncExprNode* func)
+void BytecodeGenerator::emitNewFunctionExpressionCommon(RegisterID* dst, FunctionMetadataNode* function)
 {
-    FunctionMetadataNode* function = func->metadata();
     unsigned index = m_codeBlock->addFunctionExpr(makeFunction(function));
 
     OpcodeID opcodeID = op_new_func_exp;
@@ -2704,21 +2821,34 @@ void BytecodeGenerator::emitNewFunctionExpressionCommon(RegisterID* dst, BaseFun
 
 RegisterID* BytecodeGenerator::emitNewFunctionExpression(RegisterID* dst, FuncExprNode* func)
 {
-    emitNewFunctionExpressionCommon(dst, func);
+    emitNewFunctionExpressionCommon(dst, func->metadata());
     return dst;
 }
 
 RegisterID* BytecodeGenerator::emitNewArrowFunctionExpression(RegisterID* dst, ArrowFuncExprNode* func)
 {
-    ASSERT(func->metadata()->parseMode() == SourceParseMode::ArrowFunctionMode);    
-    emitNewFunctionExpressionCommon(dst, func);
+    ASSERT(func->metadata()->parseMode() == SourceParseMode::ArrowFunctionMode);
+    emitNewFunctionExpressionCommon(dst, func->metadata());
     return dst;
 }
 
-RegisterID* BytecodeGenerator::emitNewDefaultConstructor(RegisterID* dst, ConstructorKind constructorKind, const Identifier& name)
+RegisterID* BytecodeGenerator::emitNewMethodDefinition(RegisterID* dst, MethodDefinitionNode* func)
+{
+    ASSERT(func->metadata()->parseMode() == SourceParseMode::GeneratorWrapperFunctionMode
+        || func->metadata()->parseMode() == SourceParseMode::GetterMode
+        || func->metadata()->parseMode() == SourceParseMode::SetterMode
+        || func->metadata()->parseMode() == SourceParseMode::MethodMode);
+    emitNewFunctionExpressionCommon(dst, func->metadata());
+    return dst;
+}
+
+RegisterID* BytecodeGenerator::emitNewDefaultConstructor(RegisterID* dst, ConstructorKind constructorKind, const Identifier& name,
+    const Identifier& ecmaName, const SourceCode& classSource)
 {
     UnlinkedFunctionExecutable* executable = m_vm->builtinExecutables()->createDefaultConstructor(constructorKind, name);
     executable->setInvalidTypeProfilingOffsets();
+    executable->setEcmaName(ecmaName);
+    executable->setClassSource(classSource);
 
     unsigned index = m_codeBlock->addFunctionExpr(executable);
 
@@ -2740,6 +2870,28 @@ RegisterID* BytecodeGenerator::emitNewFunction(RegisterID* dst, FunctionMetadata
     instructions().append(scopeRegister()->index());
     instructions().append(index);
     return dst;
+}
+
+void BytecodeGenerator::emitSetFunctionNameIfNeeded(ExpressionNode* valueNode, RegisterID* value, RegisterID* name)
+{
+    if (valueNode->isFuncExprNode()) {
+        FunctionMetadataNode* metadata = static_cast<FuncExprNode*>(valueNode)->metadata();
+        if (!metadata->ecmaName().isNull())
+            return;
+    } else if (valueNode->isClassExprNode()) {
+        ClassExprNode* classExprNode = static_cast<ClassExprNode*>(valueNode);
+        if (!classExprNode->ecmaName().isNull())
+            return;
+        if (classExprNode->hasStaticProperty(m_vm->propertyNames->name))
+            return;
+    } else
+        return;
+
+    // FIXME: We should use an op_call to an internal function here instead.
+    // https://bugs.webkit.org/show_bug.cgi?id=155547
+    emitOpcode(op_set_function_name);
+    instructions().append(value->index());
+    instructions().append(name->index());
 }
 
 RegisterID* BytecodeGenerator::emitCall(RegisterID* dst, RegisterID* func, ExpectedFunction expectedFunction, CallArguments& callArguments, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd)
@@ -2833,7 +2985,7 @@ RegisterID* BytecodeGenerator::emitCall(OpcodeID opcodeID, RegisterID* dst, Regi
 {
     ASSERT(opcodeID == op_call || opcodeID == op_call_eval || opcodeID == op_tail_call);
     ASSERT(func->refCount());
-
+    
     if (m_shouldEmitProfileHooks)
         emitMove(callArguments.profileHookRegister(), func);
 
@@ -2867,6 +3019,9 @@ RegisterID* BytecodeGenerator::emitCall(OpcodeID opcodeID, RegisterID* dst, Regi
 
     RefPtr<Label> done = newLabel();
     expectedFunction = emitExpectedFunctionSnippet(dst, func, expectedFunction, callArguments, done.get());
+    
+    if (opcodeID == op_tail_call)
+        emitLogShadowChickenTailIfNecessary();
     
     // Emit call.
     UnlinkedArrayProfile arrayProfile = newArrayProfile();
@@ -2918,6 +3073,9 @@ RegisterID* BytecodeGenerator::emitCallVarargs(OpcodeID opcode, RegisterID* dst,
     
     emitExpressionInfo(divot, divotStart, divotEnd);
 
+    if (opcode == op_tail_call_varargs)
+        emitLogShadowChickenTailIfNecessary();
+    
     // Emit call.
     UnlinkedArrayProfile arrayProfile = newArrayProfile();
     UnlinkedValueProfile profile = emitProfiledOpcode(opcode);
@@ -2935,6 +3093,20 @@ RegisterID* BytecodeGenerator::emitCallVarargs(OpcodeID opcode, RegisterID* dst,
         instructions().append(profileHookRegister->index());
     }
     return dst;
+}
+
+void BytecodeGenerator::emitLogShadowChickenPrologueIfNecessary()
+{
+    if (!m_shouldEmitDebugHooks && !Options::alwaysUseShadowChicken())
+        return;
+    emitOpcode(op_log_shadow_chicken_prologue);
+}
+
+void BytecodeGenerator::emitLogShadowChickenTailIfNecessary()
+{
+    if (!m_shouldEmitDebugHooks && !Options::alwaysUseShadowChicken())
+        return;
+    emitOpcode(op_log_shadow_chicken_tail);
 }
 
 void BytecodeGenerator::emitCallDefineProperty(RegisterID* newObj, RegisterID* propertyNameRegister,
@@ -4000,60 +4172,89 @@ void BytecodeGenerator::popIndexedForInScope(RegisterID* localRegister)
     m_forInContextStack.removeLast();
 }
 
-RegisterID* BytecodeGenerator::emitLoadArrowFunctionLexicalEnvironment()
+RegisterID* BytecodeGenerator::emitLoadArrowFunctionLexicalEnvironment(const Identifier& identifier)
 {
-    ASSERT(m_codeBlock->isArrowFunction() || m_codeBlock->isArrowFunctionContext() || constructorKind() == ConstructorKind::Derived);
+    ASSERT(m_codeBlock->isArrowFunction() || m_codeBlock->isArrowFunctionContext() || constructorKind() == ConstructorKind::Derived || m_codeType == EvalCode);
 
-    return emitResolveScope(nullptr, variable(propertyNames().thisIdentifier, ThisResolutionType::Scoped));
+    return emitResolveScope(nullptr, variable(identifier, ThisResolutionType::Scoped));
 }
 
 void BytecodeGenerator::emitLoadThisFromArrowFunctionLexicalEnvironment()
 {
-    emitGetFromScope(thisRegister(), emitLoadArrowFunctionLexicalEnvironment(), variable(propertyNames().thisIdentifier, ThisResolutionType::Scoped), DoNotThrowIfNotFound);
+    emitGetFromScope(thisRegister(), emitLoadArrowFunctionLexicalEnvironment(propertyNames().thisIdentifier), variable(propertyNames().thisIdentifier, ThisResolutionType::Scoped), DoNotThrowIfNotFound);
 }
     
 RegisterID* BytecodeGenerator::emitLoadNewTargetFromArrowFunctionLexicalEnvironment()
 {
-    m_isNewTargetLoadedInArrowFunction = true;
-
     Variable newTargetVar = variable(propertyNames().newTargetLocalPrivateName);
-    emitMove(m_newTargetRegister, emitGetFromScope(newTemporary(), emitLoadArrowFunctionLexicalEnvironment(), newTargetVar, ThrowIfNotFound));
+
+    return emitGetFromScope(m_newTargetRegister, emitLoadArrowFunctionLexicalEnvironment(propertyNames().newTargetLocalPrivateName), newTargetVar, ThrowIfNotFound);
     
-    return m_newTargetRegister;
 }
 
 RegisterID* BytecodeGenerator::emitLoadDerivedConstructorFromArrowFunctionLexicalEnvironment()
 {
     Variable protoScopeVar = variable(propertyNames().derivedConstructorPrivateName);
-    return emitGetFromScope(newTemporary(), emitLoadArrowFunctionLexicalEnvironment(), protoScopeVar, ThrowIfNotFound);
+    return emitGetFromScope(newTemporary(), emitLoadArrowFunctionLexicalEnvironment(propertyNames().derivedConstructorPrivateName), protoScopeVar, ThrowIfNotFound);
+}
+    
+bool BytecodeGenerator::isThisUsedInInnerArrowFunction()
+{
+    return m_scopeNode->doAnyInnerArrowFunctionsUseThis() || m_scopeNode->doAnyInnerArrowFunctionsUseSuperProperty() || m_scopeNode->doAnyInnerArrowFunctionsUseSuperCall() || m_scopeNode->doAnyInnerArrowFunctionsUseEval() || m_codeBlock->usesEval();
+}
+    
+bool BytecodeGenerator::isArgumentsUsedInInnerArrowFunction()
+{
+    return m_scopeNode->doAnyInnerArrowFunctionsUseArguments() || m_scopeNode->doAnyInnerArrowFunctionsUseEval();
+}
+
+bool BytecodeGenerator::isNewTargetUsedInInnerArrowFunction()
+{
+    return m_scopeNode->doAnyInnerArrowFunctionsUseNewTarget() || m_scopeNode->doAnyInnerArrowFunctionsUseSuperCall() || m_scopeNode->doAnyInnerArrowFunctionsUseEval() || m_codeBlock->usesEval();
+}
+
+bool BytecodeGenerator::isSuperUsedInInnerArrowFunction()
+{
+    return m_scopeNode->doAnyInnerArrowFunctionsUseSuperCall() || m_scopeNode->doAnyInnerArrowFunctionsUseSuperProperty() || m_scopeNode->doAnyInnerArrowFunctionsUseEval() || m_codeBlock->usesEval();
+}
+
+bool BytecodeGenerator::isSuperCallUsedInInnerArrowFunction()
+{
+    return m_scopeNode->doAnyInnerArrowFunctionsUseSuperCall() || m_scopeNode->doAnyInnerArrowFunctionsUseEval() || m_codeBlock->usesEval();
 }
     
 void BytecodeGenerator::emitPutNewTargetToArrowFunctionContextScope()
 {
-    ASSERT(m_arrowFunctionContextLexicalEnvironmentRegister != nullptr);
+    if (isNewTargetUsedInInnerArrowFunction()) {
+        ASSERT(m_arrowFunctionContextLexicalEnvironmentRegister);
         
-    Variable newTargetVar = variable(propertyNames().newTargetLocalPrivateName);
-    emitPutToScope(m_arrowFunctionContextLexicalEnvironmentRegister, newTargetVar, newTarget(), DoNotThrowIfNotFound, Initialization);
+        Variable newTargetVar = variable(propertyNames().newTargetLocalPrivateName);
+        emitPutToScope(m_arrowFunctionContextLexicalEnvironmentRegister, newTargetVar, newTarget(), DoNotThrowIfNotFound, Initialization);
+    }
 }
     
 void BytecodeGenerator::emitPutDerivedConstructorToArrowFunctionContextScope()
 {
     if ((isConstructor() && constructorKind() == ConstructorKind::Derived) || m_codeBlock->isClassContext()) {
-        ASSERT(m_arrowFunctionContextLexicalEnvironmentRegister);
+        if (isSuperUsedInInnerArrowFunction()) {
+            ASSERT(m_arrowFunctionContextLexicalEnvironmentRegister);
             
-        Variable protoScope = variable(propertyNames().derivedConstructorPrivateName);
-        emitPutToScope(m_arrowFunctionContextLexicalEnvironmentRegister, protoScope, &m_calleeRegister, DoNotThrowIfNotFound, Initialization);
+            Variable protoScope = variable(propertyNames().derivedConstructorPrivateName);
+            emitPutToScope(m_arrowFunctionContextLexicalEnvironmentRegister, protoScope, &m_calleeRegister, DoNotThrowIfNotFound, Initialization);
+        }
     }
 }
 
 void BytecodeGenerator::emitPutThisToArrowFunctionContextScope()
 {
-    ASSERT(isDerivedConstructorContext() || m_arrowFunctionContextLexicalEnvironmentRegister != nullptr);
+    if (isThisUsedInInnerArrowFunction() || (m_scopeNode->usesSuperCall() && m_codeType == EvalCode)) {
+        ASSERT(isDerivedConstructorContext() || m_arrowFunctionContextLexicalEnvironmentRegister != nullptr);
 
-    Variable thisVar = variable(propertyNames().thisIdentifier, ThisResolutionType::Scoped);
-    RegisterID* scope = isDerivedConstructorContext() ? emitLoadArrowFunctionLexicalEnvironment() : m_arrowFunctionContextLexicalEnvironmentRegister;
+        Variable thisVar = variable(propertyNames().thisIdentifier, ThisResolutionType::Scoped);
+        RegisterID* scope = isDerivedConstructorContext() ? emitLoadArrowFunctionLexicalEnvironment(propertyNames().thisIdentifier) : m_arrowFunctionContextLexicalEnvironmentRegister;
     
-    emitPutToScope(scope, thisVar, thisRegister(), DoNotThrowIfNotFound, NotInitialization);
+        emitPutToScope(scope, thisVar, thisRegister(), ThrowIfNotFound, NotInitialization);
+    }
 }
 
 void BytecodeGenerator::pushStructureForInScope(RegisterID* localRegister, RegisterID* indexRegister, RegisterID* propertyRegister, RegisterID* enumeratorRegister)

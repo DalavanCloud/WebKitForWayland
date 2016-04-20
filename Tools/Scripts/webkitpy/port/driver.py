@@ -132,6 +132,9 @@ class Driver(object):
         self._no_timeout = no_timeout
 
         self._driver_tempdir = None
+        self._driver_user_directory_suffix = None
+        self._driver_user_cache_directory = None
+
         # WebKitTestRunner/LayoutTestRelay can report back subprocess crashes by printing
         # "#CRASHED - PROCESSNAME".  Since those can happen at any time and ServerProcess
         # won't be aware of them (since the actual tool didn't crash, just a subprocess)
@@ -311,14 +314,22 @@ class Driver(object):
             self._start(pixel_tests, per_test_args)
             self._run_post_start_tasks()
 
+    def _append_environment_variable_path(self, environment, variable, path):
+        if variable in environment:
+            environment[variable] = environment[variable] + os.pathsep + path
+        else:
+            environment[variable] = path
+
     def _setup_environ_for_driver(self, environment):
-        environment['DYLD_LIBRARY_PATH'] = str(self._port._build_path())
-        environment['__XPC_DYLD_LIBRARY_PATH'] = environment['DYLD_LIBRARY_PATH']
-        environment['DYLD_FRAMEWORK_PATH'] = str(self._port._build_path())
+        build_root_path = str(self._port._build_path())
+        self._append_environment_variable_path(environment, 'DYLD_LIBRARY_PATH', build_root_path)
+        self._append_environment_variable_path(environment, '__XPC_DYLD_LIBRARY_PATH', build_root_path)
+        self._append_environment_variable_path(environment, 'DYLD_FRAMEWORK_PATH', build_root_path)
+        self._append_environment_variable_path(environment, '__XPC_DYLD_FRAMEWORK_PATH', build_root_path)
         # Use an isolated temp directory that can be deleted after testing (especially important on Mac, as
         # CoreMedia disk cache is in the temp directory).
         environment['TMPDIR'] = str(self._driver_tempdir)
-        environment['DIRHELPER_USER_DIR_SUFFIX'] = str(os.path.basename(str(self._driver_tempdir)))
+        environment['DIRHELPER_USER_DIR_SUFFIX'] = self._driver_user_directory_suffix
         # Put certain normally persistent files into the temp directory (e.g. IndexedDB storage).
         environment['DUMPRENDERTREE_TEMP'] = str(self._driver_tempdir)
         environment['LOCAL_RESOURCE_ROOT'] = str(self._port.layout_tests_dir())
@@ -336,6 +347,11 @@ class Driver(object):
         # however some subsystems on some platforms could end up using process default ones.
         self._port._clear_global_caches_and_temporary_files()
         self._driver_tempdir = self._port._driver_tempdir()
+        self._driver_user_directory_suffix = os.path.basename(str(self._driver_tempdir))
+        user_cache_directory = self._port._path_to_user_cache_directory(self._driver_user_directory_suffix)
+        if user_cache_directory:
+            self._port._filesystem.maybe_make_directory(user_cache_directory)
+            self._driver_user_cache_directory = user_cache_directory
         server_name = self._port.driver_name()
         environment = self._port.setup_environ_for_server(server_name)
         environment = self._setup_environ_for_driver(environment)
@@ -362,8 +378,10 @@ class Driver(object):
 
         if self._driver_tempdir:
             self._port._filesystem.rmtree(str(self._driver_tempdir))
-            self._port.remove_cache_directory(os.path.basename(str(self._driver_tempdir)))
             self._driver_tempdir = None
+        if self._driver_user_cache_directory:
+            self._port._filesystem.rmtree(self._driver_user_cache_directory)
+            self._driver_user_cache_directory = None
 
     def cmd_line(self, pixel_tests, per_test_args):
         cmd = self._command_wrapper()

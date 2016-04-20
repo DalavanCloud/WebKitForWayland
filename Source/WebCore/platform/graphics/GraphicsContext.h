@@ -110,7 +110,6 @@ struct GraphicsContextState {
     GraphicsContextState()
         : shouldAntialias(true)
         , shouldSmoothFonts(true)
-        , antialiasedFontDilationEnabled(true)
         , shouldSubpixelQuantizeFonts(true)
         , shadowsIgnoreTransforms(false)
 #if USE(CG)
@@ -142,10 +141,9 @@ struct GraphicsContextState {
         TextDrawingModeChange                   = 1 << 16,
         ShouldAntialiasChange                   = 1 << 17,
         ShouldSmoothFontsChange                 = 1 << 18,
-        AntialiasedFontDilationEnabledChange    = 1 << 19,
-        ShouldSubpixelQuantizeFontsChange       = 1 << 20,
-        DrawLuminanceMaskChange                 = 1 << 21,
-        ImageInterpolationQualityChange         = 1 << 22,
+        ShouldSubpixelQuantizeFontsChange       = 1 << 19,
+        DrawLuminanceMaskChange                 = 1 << 20,
+        ImageInterpolationQualityChange         = 1 << 21,
     };
     typedef uint32_t StateChangeFlags;
 
@@ -176,7 +174,6 @@ struct GraphicsContextState {
 
     bool shouldAntialias : 1;
     bool shouldSmoothFonts : 1;
-    bool antialiasedFontDilationEnabled : 1;
     bool shouldSubpixelQuantizeFonts : 1;
     bool shadowsIgnoreTransforms : 1;
 #if USE(CG)
@@ -294,9 +291,6 @@ public:
     WEBCORE_EXPORT void setShouldAntialias(bool);
     bool shouldAntialias() const { return m_state.shouldAntialias; }
 
-    WEBCORE_EXPORT void setAntialiasedFontDilationEnabled(bool);
-    bool antialiasedFontDilationEnabled() const { return m_state.antialiasedFontDilationEnabled; }
-
     WEBCORE_EXPORT void setShouldSmoothFonts(bool);
     bool shouldSmoothFonts() const { return m_state.shouldSmoothFonts; }
 
@@ -308,7 +302,7 @@ public:
     const GraphicsContextState& state() const { return m_state; }
 
 #if USE(CG) || USE(CAIRO)
-    WEBCORE_EXPORT void drawNativeImage(PassNativeImagePtr, const FloatSize& selfSize, const FloatRect& destRect, const FloatRect& srcRect, CompositeOperator = CompositeSourceOver, BlendMode = BlendModeNormal, ImageOrientation = DefaultImageOrientation);
+    WEBCORE_EXPORT void drawNativeImage(const NativeImagePtr&, const FloatSize& selfSize, const FloatRect& destRect, const FloatRect& srcRect, CompositeOperator = CompositeSourceOver, BlendMode = BlendModeNormal, ImageOrientation = ImageOrientation());
 #endif
 
 #if USE(CG)
@@ -390,7 +384,7 @@ public:
 
     float drawText(const FontCascade&, const TextRun&, const FloatPoint&, int from = 0, int to = -1);
     void drawGlyphs(const FontCascade&, const Font&, const GlyphBuffer&, int from, int numGlyphs, const FloatPoint&);
-    void drawEmphasisMarks(const FontCascade&, const TextRun& , const AtomicString& mark, const FloatPoint&, int from = 0, int to = -1);
+    void drawEmphasisMarks(const FontCascade&, const TextRun&, const AtomicString& mark, const FloatPoint&, int from = 0, int to = -1);
     void drawBidiText(const FontCascade&, const TextRun&, const FloatPoint&, FontCascade::CustomFontNotReadyAction = FontCascade::DoNotPaintIfFontNotReady);
 
     void applyState(const GraphicsContextState&);
@@ -436,10 +430,11 @@ public:
     bool mustUseShadowBlur() const;
 #endif
 
-    void drawFocusRing(const Vector<IntRect>&, float width, float offset, const Color&);
+    void drawFocusRing(const Vector<FloatRect>&, float width, float offset, const Color&);
     void drawFocusRing(const Path&, float width, float offset, const Color&);
 #if PLATFORM(MAC)
-    void drawFocusRing(const Vector<IntRect>&, float width, float offset, double timeOffset, bool& needsRedraw);
+    void drawFocusRing(const Path&, double timeOffset, bool& needsRedraw);
+    void drawFocusRing(const Vector<FloatRect>&, double timeOffset, bool& needsRedraw);
 #endif
 
     void setLineCap(LineCap);

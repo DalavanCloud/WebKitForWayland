@@ -63,15 +63,21 @@ class F extends A {
         let arrow = () => () => super.getValue();
         return arrow()();
     }
+    *genGetParentValue() {
+        let arr = () => super.getValue();
+        yield arr();
+    }
+    *genGetParentValueDeepArrow() {
+        let arr = () => () => () => super.getValue();
+        yield arr()()();
+    }
  };
 
 shouldBe('(new B()).getValueParentFunction()', 'expectedValue');
 
 shouldBe('(new C(false)).value', 'expectedValue');
 
-// FIXME: Problem with access to the super before super() in constructor
-// https://bugs.webkit.org/show_bug.cgi?id=152108
-//shouldThrow('(new C(true))', 'ReferenceError');
+shouldThrow('(new C(true))', '"ReferenceError: Cannot access uninitialized variable."');
 
 shouldBe('E.getParentStaticValue()', 'expectedValue');
 
@@ -83,5 +89,8 @@ f.prop = 'new-value';
 shouldBe('f.prop', 'expectedValue + "-" + "new-value"');
 
 shouldBe('(new F()).getParentValue()', 'expectedValue');
+
+shouldBe('(new F()).genGetParentValue().next().value', 'expectedValue');
+shouldBe('(new F()).genGetParentValueDeepArrow().next().value', 'expectedValue');
 
 var successfullyParsed = true;

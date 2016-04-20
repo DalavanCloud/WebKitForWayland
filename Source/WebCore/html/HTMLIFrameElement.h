@@ -28,7 +28,7 @@
 
 namespace WebCore {
 
-class AttributeDOMTokenList;
+class DOMTokenList;
 
 class HTMLIFrameElement final : public HTMLFrameElementBase {
 public:
@@ -40,17 +40,17 @@ private:
     HTMLIFrameElement(const QualifiedName&, Document&);
 
 #if PLATFORM(IOS)
-    virtual bool isKeyboardFocusable(KeyboardEvent*) const override { return false; }
+    bool isKeyboardFocusable(KeyboardEvent*) const override { return false; }
 #endif
 
-    virtual void parseAttribute(const QualifiedName&, const AtomicString&) override;
-    virtual bool isPresentationAttribute(const QualifiedName&) const override;
-    virtual void collectStyleForPresentationAttribute(const QualifiedName&, const AtomicString&, MutableStyleProperties&) override;
+    void parseAttribute(const QualifiedName&, const AtomicString&) override;
+    bool isPresentationAttribute(const QualifiedName&) const override;
+    void collectStyleForPresentationAttribute(const QualifiedName&, const AtomicString&, MutableStyleProperties&) override;
 
-    virtual bool rendererIsNeeded(const RenderStyle&) override;
-    virtual RenderPtr<RenderElement> createElementRenderer(Ref<RenderStyle>&&, const RenderTreePosition&) override;
+    bool rendererIsNeeded(const RenderStyle&) override;
+    RenderPtr<RenderElement> createElementRenderer(Ref<RenderStyle>&&, const RenderTreePosition&) override;
 
-    std::unique_ptr<AttributeDOMTokenList> m_sandbox;
+    std::unique_ptr<DOMTokenList> m_sandbox;
 };
 
 } // namespace WebCore

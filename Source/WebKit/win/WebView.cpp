@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006-2015 Apple, Inc.  All rights reserved.
+ * Copyright (C) 2006-2016 Apple, Inc.  All rights reserved.
  * Copyright (C) 2009, 2010, 2011 Appcelerator, Inc. All rights reserved.
  * Copyright (C) 2011 Brent Fulgham. All rights reserved.
  *
@@ -2939,7 +2939,7 @@ HRESULT WebView::initWithFrame(RECT frame, _In_ BSTR frameName, _In_ BSTR groupN
     configuration.databaseProvider = &WebDatabaseProvider::singleton();
     configuration.storageNamespaceProvider = &m_webViewGroup->storageNamespaceProvider();
     configuration.progressTrackerClient = static_cast<WebFrameLoaderClient*>(configuration.loaderClientForMainFrame);
-    configuration.userContentController = &m_webViewGroup->userContentController();
+    configuration.userContentProvider = &m_webViewGroup->userContentController();
     configuration.visitedLinkStore = &m_webViewGroup->visitedLinkStore();
 
     m_page = new Page(configuration);
@@ -3859,7 +3859,7 @@ HRESULT WebView::setGroupName(_In_ BSTR groupName)
     if (!m_page)
         return S_OK;
 
-    m_page->setUserContentController(&m_webViewGroup->userContentController());
+    m_page->setUserContentProvider(m_webViewGroup->userContentController());
     m_page->setVisitedLinkStore(m_webViewGroup->visitedLinkStore());
     m_page->setGroupName(toString(groupName));
     return S_OK;
@@ -5305,7 +5305,8 @@ HRESULT WebView::notifyPreferencesChanged(IWebNotification* notification)
     hr = prefsPrivate->mediaPlaybackRequiresUserGesture(&enabled);
     if (FAILED(hr))
         return hr;
-    settings.setRequiresUserGestureForMediaPlayback(enabled);
+    settings.setVideoPlaybackRequiresUserGesture(enabled);
+    settings.setAudioPlaybackRequiresUserGesture(enabled);
 
     hr = prefsPrivate->mediaPlaybackAllowsInline(&enabled);
     if (FAILED(hr))
@@ -7220,7 +7221,7 @@ HRESULT WebView::defaultMinimumTimerInterval(_Out_ double* interval)
 {
     if (!interval)
         return E_POINTER;
-    *interval = DOMTimer::defaultMinimumInterval();
+    *interval = DOMTimer::defaultMinimumInterval().count() / 1000.;
     return S_OK;
 }
 
@@ -7229,7 +7230,8 @@ HRESULT WebView::setMinimumTimerInterval(double interval)
     if (!m_page)
         return E_FAIL;
 
-    page()->settings().setMinimumDOMTimerInterval(interval);
+    auto intervalMS = std::chrono::milliseconds((std::chrono::milliseconds::rep)(interval * 1000));
+    page()->settings().setMinimumDOMTimerInterval(intervalMS);
     return S_OK;
 }
 
@@ -7562,3 +7564,13 @@ HRESULT WebView::layerTreeAsString(_Deref_opt_out_ BSTR* treeBstr)
 
     return S_OK;
 }
+
+HRESULT WebView::findString(_In_ BSTR string, WebFindOptions options, _Deref_opt_out_ BOOL* found)
+{
+    if (!found)
+        return E_POINTER;
+
+    *found = m_page->findString(toString(string), options);
+    return S_OK;
+}
+

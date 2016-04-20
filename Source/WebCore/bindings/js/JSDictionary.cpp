@@ -27,6 +27,7 @@
 #include "JSDictionary.h"
 
 #include "ArrayValue.h"
+#include "DOMWindow.h"
 #include "Dictionary.h"
 #include "JSCSSFontFaceRule.h"
 #include "JSDOMError.h"
@@ -54,6 +55,9 @@
 #if ENABLE(MEDIA_STREAM)
 #include "JSMediaStream.h"
 #include "JSMediaStreamTrack.h"
+#endif
+
+#if ENABLE(WEB_RTC)
 #include "JSRTCRtpReceiver.h"
 #endif
 
@@ -69,7 +73,7 @@ JSDictionary::GetPropertyResult JSDictionary::tryGetProperty(const char* propert
 {
     ASSERT(isValid());
     Identifier identifier = Identifier::fromString(m_exec, propertyName);
-    PropertySlot slot(m_initializerObject.get());
+    PropertySlot slot(m_initializerObject.get(), PropertySlot::InternalMethodType::Get);
 
     if (!m_initializerObject.get()->getPropertySlot(m_exec, identifier, slot))
         return NoPropertyFound;
@@ -248,7 +252,9 @@ void JSDictionary::convertValue(JSC::ExecState*, JSC::JSValue value, RefPtr<Medi
 {
     result = JSMediaStreamTrack::toWrapped(value);
 }
+#endif
 
+#if ENABLE(WEB_RTC)
 void JSDictionary::convertValue(JSC::ExecState*, JSC::JSValue value, RefPtr<RTCRtpReceiver>& result)
 {
     result = JSRTCRtpReceiver::toWrapped(value);

@@ -44,6 +44,7 @@ public:
     void reject(const RejectResultType&);
 
     JSDOMGlobalObject& globalObject() const;
+    JSC::JSPromiseDeferred& deferred() const;
 
 private:
     void callFunction(JSC::ExecState&, JSC::JSValue function, JSC::JSValue resolution);
@@ -54,6 +55,9 @@ private:
     JSC::Strong<JSC::JSPromiseDeferred> m_deferred;
 };
 
+void fulfillPromiseWithJSON(DeferredWrapper&, const String&);
+void fulfillPromiseWithArrayBuffer(DeferredWrapper&, ArrayBuffer*);
+void fulfillPromiseWithArrayBuffer(DeferredWrapper&, const void*, size_t);
 void rejectPromiseWithExceptionIfAny(JSC::ExecState&, JSDOMGlobalObject&, JSC::JSPromiseDeferred&);
 
 inline JSC::JSValue callPromiseFunction(JSC::ExecState& state, JSC::EncodedJSValue promiseFunction(JSC::ExecState*, JSC::JSPromiseDeferred*))
@@ -73,11 +77,13 @@ public:
     DOMPromise(DeferredWrapper&& wrapper) : m_wrapper(WTFMove(wrapper)) { }
     DOMPromise(DOMPromise&& promise) : m_wrapper(WTFMove(promise.m_wrapper)) { }
 
-    DOMPromise(const DOMPromise&)= delete;
-    DOMPromise& operator=(DOMPromise const&) = delete;
+    DOMPromise(const DOMPromise&) = default;
+    DOMPromise& operator=(DOMPromise const&) = default;
 
     void resolve(const Value& value) { m_wrapper.resolve<Value>(value); }
     void reject(const Error& error) { m_wrapper.reject<Error>(error); }
+
+    JSC::JSPromiseDeferred& deferred() const { return m_wrapper.deferred(); }
 
 private:
     DeferredWrapper m_wrapper;
@@ -161,16 +167,6 @@ inline void DeferredWrapper::resolve<JSC::JSValue>(const JSC::JSValue& value)
     JSC::ExecState* exec = m_globalObject->globalExec();
     JSC::JSLockHolder locker(exec);
     resolve(*exec, value);
-}
-template<>
-inline void DeferredWrapper::resolve<Vector<unsigned char>>(const Vector<unsigned char>& result)
-{
-    ASSERT(m_deferred);
-    ASSERT(m_globalObject);
-    JSC::ExecState* exec = m_globalObject->globalExec();
-    JSC::JSLockHolder locker(exec);
-    RefPtr<ArrayBuffer> buffer = ArrayBuffer::create(result.data(), result.size());
-    resolve(*exec, toJS(exec, m_globalObject.get(), buffer.get()));
 }
 
 template<>

@@ -89,6 +89,7 @@ public:
 
     String address(Node*);
     bool nodeNeedsStyleRecalc(Node*, ExceptionCode&);
+    String styleChangeType(Node*, ExceptionCode&);
     String description(Deprecated::ScriptValue);
 
     bool isPreloaded(const String& url);
@@ -97,6 +98,7 @@ public:
     bool isSharingStyleSheetContents(Element* linkA, Element* linkB);
     bool isStyleSheetLoadingSubresources(Element* link);
     void setOverrideCachePolicy(const String&);
+    void setCanShowModalDialogOverride(bool allow, ExceptionCode&);
     void setOverrideResourceLoadPriority(const String&);
     void setStrictRawResourceValidationPolicyDisabled(bool);
 
@@ -180,6 +182,8 @@ public:
     void setAutofilled(Element*, bool enabled, ExceptionCode&);
     void setShowAutoFillButton(Element*, const String& autoFillButtonType, ExceptionCode&);
     void scrollElementToRect(Element*, long x, long y, long w, long h, ExceptionCode&);
+
+    String autofillFieldName(Element*, ExceptionCode&);
 
     void paintControlTints(ExceptionCode&);
 
@@ -299,6 +303,7 @@ public:
 
     void setUseFixedLayout(bool useFixedLayout, ExceptionCode&);
     void setFixedLayoutSize(int width, int height, ExceptionCode&);
+    void setViewExposedRect(float left, float top, float width, float height, ExceptionCode&);
 
     void setHeaderHeight(float);
     void setFooterHeight(float);
@@ -344,7 +349,8 @@ public:
 
     bool isFromCurrentWorld(Deprecated::ScriptValue) const;
 
-    void setUsesOverlayScrollbars(bool enabled);
+    void setUsesOverlayScrollbars(bool);
+    void setUsesMockScrollAnimator(bool);
 
     String getCurrentCursorInfo(ExceptionCode&);
 
@@ -365,8 +371,12 @@ public:
 #endif
 
 #if ENABLE(MEDIA_STREAM)
-    void enableMockRTCPeerConnectionHandler();
     void setMockMediaCaptureDevicesEnabled(bool);
+#endif
+
+#if ENABLE(WEB_RTC)
+    void enableMockMediaEndpoint();
+    void enableMockRTCPeerConnectionHandler();
 #endif
 
     String getImageSourceURL(Element*, ExceptionCode&);
@@ -461,9 +471,16 @@ public:
     String userVisibleString(const DOMURL*);
     void setShowAllPlugins(bool);
 
+    String resourceLoadStatisticsForOrigin(String origin);
+    void setResourceLoadStatisticsEnabled(bool);
+
 #if ENABLE(STREAMS_API)
     bool isReadableStreamDisturbed(ScriptState&, JSC::JSValue);
 #endif
+
+    String composedTreeAsText(Node*);
+    
+    void setViewportForceAlwaysUserScalable(bool);
 
 private:
     explicit Internals(Document*);

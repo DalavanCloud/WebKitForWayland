@@ -45,16 +45,20 @@ struct InteractionInformationAtPosition {
     bool touchCalloutEnabled { true };
     bool isLink { false };
     bool isImage { false };
+    bool isAttachment { false };
     bool isAnimatedImage { false };
-    bool isClickableElement { false };
+    bool isElement { false };
 #if ENABLE(DATA_DETECTION)
     bool isDataDetectorLink { false };
 #endif
     String url;
     String imageURL;
     String title;
+    String idAttribute;
     WebCore::IntRect bounds;
     RefPtr<ShareableBitmap> image;
+    String textBefore;
+    String textAfter;
 
     WebCore::TextIndicatorData linkIndicator;
 #if ENABLE(DATA_DETECTION)

@@ -210,36 +210,34 @@ OverflowAlignment RenderStyle::resolveJustificationOverflow(const RenderStyle& p
     return resolveJustificationData(parentStyle, childStyle, ItemPositionStretch).overflow();
 }
 
-ContentPosition RenderStyle::resolvedAlignContentPosition() const
+static inline ContentPosition resolvedContentAlignmentPosition(const StyleContentAlignmentData& value, const StyleContentAlignmentData& normalValueBehavior)
 {
-    const StyleContentAlignmentData& align = alignContent();
-    if (align.position() != ContentPositionAuto || align.distribution() != ContentDistributionDefault)
-        return align.position();
-    // 'auto' computes to 'stretch' for flexbox, hence it's managed by distribution().
-    return isDisplayFlexibleBox() ? ContentPositionAuto : ContentPositionStart;
+    return (value.position() == ContentPositionNormal && value.distribution() == ContentDistributionDefault) ? normalValueBehavior.position() : value.position();
 }
 
-ContentDistributionType RenderStyle::resolvedAlignContentDistribution() const
+static inline ContentDistributionType resolvedContentAlignmentDistribution(const StyleContentAlignmentData& value, const StyleContentAlignmentData& normalValueBehavior)
 {
-    const StyleContentAlignmentData& align = alignContent();
-    if (align.position() != ContentPositionAuto || align.distribution() != ContentDistributionDefault)
-        return align.distribution();
-    return isDisplayFlexibleBox() ? ContentDistributionStretch : ContentDistributionDefault;
+    return (value.position() == ContentPositionNormal && value.distribution() == ContentDistributionDefault) ? normalValueBehavior.distribution() : value.distribution();
 }
 
-ContentPosition RenderStyle::resolvedJustifyContentPosition() const
+ContentPosition RenderStyle::resolvedJustifyContentPosition(const StyleContentAlignmentData& normalValueBehavior) const
 {
-    const StyleContentAlignmentData& justify = justifyContent();
-    if (justify.position() != ContentPositionAuto || justify.distribution() != ContentDistributionDefault)
-        return justify.position();
-    // 'auto' computes to 'stretch' for flexbox, but since flexing in the main axis is controlled by flex, it behaves as flex-start.
-    return isDisplayFlexibleBox() ? ContentPositionFlexStart : ContentPositionStart;
+    return resolvedContentAlignmentPosition(justifyContent(), normalValueBehavior);
 }
 
-ContentDistributionType RenderStyle::resolvedJustifyContentDistribution() const
+ContentDistributionType RenderStyle::resolvedJustifyContentDistribution(const StyleContentAlignmentData& normalValueBehavior) const
 {
-    // even that 'auto' computes to 'stretch' for flexbox it behaves as flex-start, hence it's managed by position().
-    return justifyContentDistribution();
+    return resolvedContentAlignmentDistribution(justifyContent(), normalValueBehavior);
+}
+
+ContentPosition RenderStyle::resolvedAlignContentPosition(const StyleContentAlignmentData& normalValueBehavior) const
+{
+    return resolvedContentAlignmentPosition(alignContent(), normalValueBehavior);
+}
+
+ContentDistributionType RenderStyle::resolvedAlignContentDistribution(const StyleContentAlignmentData& normalValueBehavior) const
+{
+    return resolvedContentAlignmentDistribution(alignContent(), normalValueBehavior);
 }
 
 void RenderStyle::inheritFrom(const RenderStyle* inheritParent, IsAtShadowBoundary isAtShadowBoundary)
@@ -385,8 +383,8 @@ unsigned RenderStyle::hashForTextAutosizing() const
     hash ^= rareInheritedData->lineBreak;
     hash ^= WTF::FloatHash<float>::hash(inherited->specifiedLineHeight.value());
     hash ^= computeFontHash(inherited->fontCascade);
-    hash ^= inherited->horizontal_border_spacing;
-    hash ^= inherited->vertical_border_spacing;
+    hash ^= WTF::FloatHash<float>::hash(inherited->horizontal_border_spacing);
+    hash ^= WTF::FloatHash<float>::hash(inherited->vertical_border_spacing);
     hash ^= inherited_flags._box_direction;
     hash ^= inherited_flags.m_rtlOrdering;
     hash ^= noninherited_flags.position();
@@ -791,6 +789,13 @@ bool RenderStyle::changeRequiresLayerRepaint(const RenderStyle& other, unsigned&
         // Don't return; keep looking for another change.
     }
 
+#if ENABLE(FILTERS_LEVEL_2)
+    if (rareNonInheritedData->m_backdropFilter != other.rareNonInheritedData->m_backdropFilter) {
+        changedContextSensitiveProperties |= ContextSensitivePropertyFilter;
+        // Don't return; keep looking for another change.
+    }
+#endif
+
     if (rareNonInheritedData->m_mask != other.rareNonInheritedData->m_mask
         || rareNonInheritedData->m_maskBoxImage != other.rareNonInheritedData->m_maskBoxImage)
         return true;
@@ -811,6 +816,7 @@ bool RenderStyle::changeRequiresRepaint(const RenderStyle& other, unsigned& chan
         || rareNonInheritedData->userDrag != other.rareNonInheritedData->userDrag
         || rareNonInheritedData->m_borderFit != other.rareNonInheritedData->m_borderFit
         || rareNonInheritedData->m_objectFit != other.rareNonInheritedData->m_objectFit
+        || rareNonInheritedData->m_objectPosition != other.rareNonInheritedData->m_objectPosition
         || rareInheritedData->m_imageRendering != other.rareInheritedData->m_imageRendering)
         return true;
 
@@ -1164,10 +1170,10 @@ Color RenderStyle::visitedLinkColor() const { return inherited->visitedLinkColor
 void RenderStyle::setColor(const Color& v) { SET_VAR(inherited, color, v); }
 void RenderStyle::setVisitedLinkColor(const Color& v) { SET_VAR(inherited, visitedLinkColor, v); }
 
-short RenderStyle::horizontalBorderSpacing() const { return inherited->horizontal_border_spacing; }
-short RenderStyle::verticalBorderSpacing() const { return inherited->vertical_border_spacing; }
-void RenderStyle::setHorizontalBorderSpacing(short v) { SET_VAR(inherited, horizontal_border_spacing, v); }
-void RenderStyle::setVerticalBorderSpacing(short v) { SET_VAR(inherited, vertical_border_spacing, v); }
+float RenderStyle::horizontalBorderSpacing() const { return inherited->horizontal_border_spacing; }
+float RenderStyle::verticalBorderSpacing() const { return inherited->vertical_border_spacing; }
+void RenderStyle::setHorizontalBorderSpacing(float v) { SET_VAR(inherited, horizontal_border_spacing, v); }
+void RenderStyle::setVerticalBorderSpacing(float v) { SET_VAR(inherited, vertical_border_spacing, v); }
 
 RoundedRect RenderStyle::getRoundedBorderFor(const LayoutRect& borderRect, bool includeLogicalLeftEdge, bool includeLogicalRightEdge) const
 {
@@ -1975,6 +1981,22 @@ void RenderStyle::setScrollSnapCoordinates(Vector<LengthSize> coordinates)
 
 #endif
 
+bool RenderStyle::hasReferenceFilterOnly() const
+{
+    if (!hasFilter())
+        return false;
+
+    const FilterOperations& filterOperations = rareNonInheritedData->m_filter->m_operations;
+    if (filterOperations.size() != 1)
+        return false;
+
+    const FilterOperation& filterOperation = *filterOperations.at(0);
+    if (filterOperation.type() != FilterOperation::REFERENCE)
+        return false;
+
+    return true;
+}
+
 void RenderStyle::checkVariablesInCustomProperties()
 {
     if (!rareInheritedData->m_customProperties->containsVariables())
@@ -2041,6 +2063,17 @@ float RenderStyle::outlineOffset() const
     if (outlineStyleIsAuto())
         return (m_background->outline().offset() + RenderTheme::platformFocusRingOffset(outlineWidth()));
     return m_background->outline().offset();
+}
+
+bool RenderStyle::shouldPlaceBlockDirectionScrollbarOnLeft() const
+{
+#if PLATFORM(MAC)
+    return ScrollableArea::systemLanguageIsRTL();
+#elif USE(RTL_SCROLLBAR)
+    return !isLeftToRightDirection() && isHorizontalWritingMode();
+#else
+    return false;
+#endif
 }
 
 } // namespace WebCore

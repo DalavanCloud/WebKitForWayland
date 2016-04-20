@@ -36,12 +36,10 @@ enum EndOfStreamError {
 [
     Conditional=MEDIA_SOURCE,
     ActiveDOMObject,
-    EventTarget,
     EnabledBySetting=MediaSource,
-    JSGenerateToJSObject,
-    JSGenerateToNativeObject,
     Constructor,
     ConstructorCallWith=ScriptExecutionContext,
+    UsePointersEvenForNonNullableObjectArguments,
 ] interface MediaSource : EventTarget {
     // All the source buffers created by this object.
     readonly attribute SourceBufferList sourceBuffers;

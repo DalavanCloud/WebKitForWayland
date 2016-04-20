@@ -91,6 +91,8 @@ enum {
     PROP_STRING_ATTR,
     PROP_TEST_OBJ_ATTR,
     PROP_LENIENT_TEST_OBJ_ATTR,
+    PROP_UNFORGEABLE_ATTR,
+    PROP_STRING_ATTR_TREATING_NULL_AS_EMPTY_STRING,
     PROP_XML_OBJ_ATTR,
     PROP_CREATE,
     PROP_REFLECTED_STRING_ATTR,
@@ -102,6 +104,7 @@ enum {
     PROP_REFLECTED_CUSTOM_INTEGRAL_ATTR,
     PROP_REFLECTED_CUSTOM_BOOLEAN_ATTR,
     PROP_REFLECTED_CUSTOM_URL_ATTR,
+    PROP_ENABLED_AT_RUNTIME_ATTRIBUTE,
     PROP_ATTR_WITH_GETTER_EXCEPTION,
     PROP_ATTR_WITH_GETTER_EXCEPTION_WITH_MESSAGE,
     PROP_ATTR_WITH_SETTER_EXCEPTION,
@@ -136,6 +139,7 @@ enum {
     PROP_NULLABLE_BOOLEAN_ATTRIBUTE,
     PROP_NULLABLE_STRING_ATTRIBUTE,
     PROP_NULLABLE_LONG_SETTABLE_ATTRIBUTE,
+    PROP_NULLABLE_STRING_SETTABLE_ATTRIBUTE,
     PROP_NULLABLE_STRING_VALUE,
     PROP_ATTRIBUTE,
     PROP_PUT_FORWARDS_ATTRIBUTE,
@@ -181,6 +185,9 @@ static void webkit_dom_test_obj_set_property(GObject* object, guint propertyId, 
     case PROP_STRING_ATTR:
         webkit_dom_test_obj_set_string_attr(self, g_value_get_string(value));
         break;
+    case PROP_STRING_ATTR_TREATING_NULL_AS_EMPTY_STRING:
+        webkit_dom_test_obj_set_string_attr_treating_null_as_empty_string(self, g_value_get_string(value));
+        break;
     case PROP_CREATE:
         webkit_dom_test_obj_set_create(self, g_value_get_boolean(value));
         break;
@@ -210,6 +217,9 @@ static void webkit_dom_test_obj_set_property(GObject* object, guint propertyId, 
         break;
     case PROP_REFLECTED_CUSTOM_URL_ATTR:
         webkit_dom_test_obj_set_reflected_custom_url_attr(self, g_value_get_string(value));
+        break;
+    case PROP_ENABLED_AT_RUNTIME_ATTRIBUTE:
+        webkit_dom_test_obj_set_enabled_at_runtime_attribute(self, g_value_get_string(value));
         break;
     case PROP_ATTR_WITH_GETTER_EXCEPTION:
         webkit_dom_test_obj_set_attr_with_getter_exception(self, g_value_get_long(value));
@@ -249,6 +259,9 @@ static void webkit_dom_test_obj_set_property(GObject* object, guint propertyId, 
         break;
     case PROP_NULLABLE_LONG_SETTABLE_ATTRIBUTE:
         webkit_dom_test_obj_set_nullable_long_settable_attribute(self, g_value_get_long(value));
+        break;
+    case PROP_NULLABLE_STRING_SETTABLE_ATTRIBUTE:
+        webkit_dom_test_obj_set_nullable_string_settable_attribute(self, g_value_get_string(value));
         break;
     case PROP_NULLABLE_STRING_VALUE:
         webkit_dom_test_obj_set_nullable_string_value(self, g_value_get_long(value));
@@ -303,6 +316,12 @@ static void webkit_dom_test_obj_get_property(GObject* object, guint propertyId, 
     case PROP_LENIENT_TEST_OBJ_ATTR:
         g_value_set_object(value, webkit_dom_test_obj_get_lenient_test_obj_attr(self));
         break;
+    case PROP_UNFORGEABLE_ATTR:
+        g_value_take_string(value, webkit_dom_test_obj_get_unforgeable_attr(self));
+        break;
+    case PROP_STRING_ATTR_TREATING_NULL_AS_EMPTY_STRING:
+        g_value_take_string(value, webkit_dom_test_obj_get_string_attr_treating_null_as_empty_string(self));
+        break;
     case PROP_XML_OBJ_ATTR:
         g_value_set_object(value, webkit_dom_test_obj_get_xml_obj_attr(self));
         break;
@@ -335,6 +354,9 @@ static void webkit_dom_test_obj_get_property(GObject* object, guint propertyId, 
         break;
     case PROP_REFLECTED_CUSTOM_URL_ATTR:
         g_value_take_string(value, webkit_dom_test_obj_get_reflected_custom_url_attr(self));
+        break;
+    case PROP_ENABLED_AT_RUNTIME_ATTRIBUTE:
+        g_value_take_string(value, webkit_dom_test_obj_get_enabled_at_runtime_attribute(self));
         break;
     case PROP_ATTR_WITH_GETTER_EXCEPTION:
         g_value_set_long(value, webkit_dom_test_obj_get_attr_with_getter_exception(self, nullptr));
@@ -437,6 +459,9 @@ static void webkit_dom_test_obj_get_property(GObject* object, guint propertyId, 
         break;
     case PROP_NULLABLE_LONG_SETTABLE_ATTRIBUTE:
         g_value_set_long(value, webkit_dom_test_obj_get_nullable_long_settable_attribute(self));
+        break;
+    case PROP_NULLABLE_STRING_SETTABLE_ATTRIBUTE:
+        g_value_take_string(value, webkit_dom_test_obj_get_nullable_string_settable_attribute(self));
         break;
     case PROP_NULLABLE_STRING_VALUE:
         g_value_set_long(value, webkit_dom_test_obj_get_nullable_string_value(self, nullptr));
@@ -608,6 +633,26 @@ static void webkit_dom_test_obj_class_init(WebKitDOMTestObjClass* requestClass)
 
     g_object_class_install_property(
         gobjectClass,
+        PROP_UNFORGEABLE_ATTR,
+        g_param_spec_string(
+            "unforgeable-attr",
+            "TestObj:unforgeable-attr",
+            "read-only gchar* TestObj:unforgeable-attr",
+            "",
+            WEBKIT_PARAM_READABLE));
+
+    g_object_class_install_property(
+        gobjectClass,
+        PROP_STRING_ATTR_TREATING_NULL_AS_EMPTY_STRING,
+        g_param_spec_string(
+            "string-attr-treating-null-as-empty-string",
+            "TestObj:string-attr-treating-null-as-empty-string",
+            "read-write gchar* TestObj:string-attr-treating-null-as-empty-string",
+            "",
+            WEBKIT_PARAM_READWRITE));
+
+    g_object_class_install_property(
+        gobjectClass,
         PROP_XML_OBJ_ATTR,
         g_param_spec_object(
             "xml-obj-attr",
@@ -713,6 +758,16 @@ static void webkit_dom_test_obj_class_init(WebKitDOMTestObjClass* requestClass)
             "reflected-custom-url-attr",
             "TestObj:reflected-custom-url-attr",
             "read-write gchar* TestObj:reflected-custom-url-attr",
+            "",
+            WEBKIT_PARAM_READWRITE));
+
+    g_object_class_install_property(
+        gobjectClass,
+        PROP_ENABLED_AT_RUNTIME_ATTRIBUTE,
+        g_param_spec_string(
+            "enabled-at-runtime-attribute",
+            "TestObj:enabled-at-runtime-attribute",
+            "read-write gchar* TestObj:enabled-at-runtime-attribute",
             "",
             WEBKIT_PARAM_READWRITE));
 
@@ -1058,6 +1113,16 @@ static void webkit_dom_test_obj_class_init(WebKitDOMTestObjClass* requestClass)
 
     g_object_class_install_property(
         gobjectClass,
+        PROP_NULLABLE_STRING_SETTABLE_ATTRIBUTE,
+        g_param_spec_string(
+            "nullable-string-settable-attribute",
+            "TestObj:nullable-string-settable-attribute",
+            "read-write gchar* TestObj:nullable-string-settable-attribute",
+            "",
+            WEBKIT_PARAM_READWRITE));
+
+    g_object_class_install_property(
+        gobjectClass,
         PROP_NULLABLE_STRING_VALUE,
         g_param_spec_long(
             "nullable-string-value",
@@ -1104,6 +1169,36 @@ static void webkit_dom_test_obj_init(WebKitDOMTestObj* request)
     new (priv) WebKitDOMTestObjPrivate();
 }
 
+void webkit_dom_test_obj_enabled_at_runtime_operation(WebKitDOMTestObj* self, const gchar* testParam)
+{
+#if ENABLE(TEST_FEATURE)
+    WebCore::JSMainThreadNullState state;
+    g_return_if_fail(WEBKIT_DOM_IS_TEST_OBJ(self));
+    g_return_if_fail(testParam);
+    WebCore::TestObj* item = WebKit::core(self);
+    WTF::String convertedTestParam = WTF::String::fromUTF8(testParam);
+    item->enabledAtRuntimeOperation(convertedTestParam);
+#else
+    UNUSED_PARAM(self);
+    UNUSED_PARAM(testParam);
+    WEBKIT_WARN_FEATURE_NOT_PRESENT("Test Feature")
+#endif /* ENABLE(TEST_FEATURE) */
+}
+
+void webkit_dom_test_obj_enabled_at_runtime_operation(WebKitDOMTestObj* self, glong testParam)
+{
+#if ENABLE(TEST_FEATURE)
+    WebCore::JSMainThreadNullState state;
+    g_return_if_fail(WEBKIT_DOM_IS_TEST_OBJ(self));
+    WebCore::TestObj* item = WebKit::core(self);
+    item->enabledAtRuntimeOperation(testParam);
+#else
+    UNUSED_PARAM(self);
+    UNUSED_PARAM(testParam);
+    WEBKIT_WARN_FEATURE_NOT_PRESENT("Test Feature")
+#endif /* ENABLE(TEST_FEATURE) */
+}
+
 void webkit_dom_test_obj_void_method(WebKitDOMTestObj* self)
 {
     WebCore::JSMainThreadNullState state;
@@ -1121,7 +1216,7 @@ void webkit_dom_test_obj_void_method_with_args(WebKitDOMTestObj* self, glong lon
     WebCore::TestObj* item = WebKit::core(self);
     WTF::String convertedStrArg = WTF::String::fromUTF8(strArg);
     WebCore::TestObj* convertedObjArg = WebKit::core(objArg);
-    item->voidMethodWithArgs(longArg, convertedStrArg, convertedObjArg);
+    item->voidMethodWithArgs(longArg, convertedStrArg, *convertedObjArg);
 }
 
 gint8 webkit_dom_test_obj_byte_method(WebKitDOMTestObj* self)
@@ -1142,7 +1237,7 @@ gint8 webkit_dom_test_obj_byte_method_with_args(WebKitDOMTestObj* self, gint8 by
     WebCore::TestObj* item = WebKit::core(self);
     WTF::String convertedStrArg = WTF::String::fromUTF8(strArg);
     WebCore::TestObj* convertedObjArg = WebKit::core(objArg);
-    gint8 result = item->byteMethodWithArgs(byteArg, convertedStrArg, convertedObjArg);
+    gint8 result = item->byteMethodWithArgs(byteArg, convertedStrArg, *convertedObjArg);
     return result;
 }
 
@@ -1164,7 +1259,7 @@ guint8 webkit_dom_test_obj_octet_method_with_args(WebKitDOMTestObj* self, guint8
     WebCore::TestObj* item = WebKit::core(self);
     WTF::String convertedStrArg = WTF::String::fromUTF8(strArg);
     WebCore::TestObj* convertedObjArg = WebKit::core(objArg);
-    guint8 result = item->octetMethodWithArgs(octetArg, convertedStrArg, convertedObjArg);
+    guint8 result = item->octetMethodWithArgs(octetArg, convertedStrArg, *convertedObjArg);
     return result;
 }
 
@@ -1186,7 +1281,7 @@ glong webkit_dom_test_obj_long_method_with_args(WebKitDOMTestObj* self, glong lo
     WebCore::TestObj* item = WebKit::core(self);
     WTF::String convertedStrArg = WTF::String::fromUTF8(strArg);
     WebCore::TestObj* convertedObjArg = WebKit::core(objArg);
-    glong result = item->longMethodWithArgs(longArg, convertedStrArg, convertedObjArg);
+    glong result = item->longMethodWithArgs(longArg, convertedStrArg, *convertedObjArg);
     return result;
 }
 
@@ -1208,8 +1303,45 @@ WebKitDOMTestObj* webkit_dom_test_obj_obj_method_with_args(WebKitDOMTestObj* sel
     WebCore::TestObj* item = WebKit::core(self);
     WTF::String convertedStrArg = WTF::String::fromUTF8(strArg);
     WebCore::TestObj* convertedObjArg = WebKit::core(objArg);
-    RefPtr<WebCore::TestObj> gobjectResult = WTF::getPtr(item->objMethodWithArgs(longArg, convertedStrArg, convertedObjArg));
+    RefPtr<WebCore::TestObj> gobjectResult = WTF::getPtr(item->objMethodWithArgs(longArg, convertedStrArg, *convertedObjArg));
     return WebKit::kit(gobjectResult.get());
+}
+
+glong webkit_dom_test_obj_unforgeable_method(WebKitDOMTestObj* self)
+{
+    WebCore::JSMainThreadNullState state;
+    g_return_val_if_fail(WEBKIT_DOM_IS_TEST_OBJ(self), 0);
+    WebCore::TestObj* item = WebKit::core(self);
+    glong result = item->unforgeableMethod();
+    return result;
+}
+
+void webkit_dom_test_obj_method_with_arg_treating_null_as_empty_string(WebKitDOMTestObj* self, const gchar* arg)
+{
+    WebCore::JSMainThreadNullState state;
+    g_return_if_fail(WEBKIT_DOM_IS_TEST_OBJ(self));
+    g_return_if_fail(arg);
+    WebCore::TestObj* item = WebKit::core(self);
+    WTF::String convertedArg = WTF::String::fromUTF8(arg);
+    item->methodWithArgTreatingNullAsEmptyString(convertedArg);
+}
+
+gchar* webkit_dom_test_obj_nullable_string_method(WebKitDOMTestObj* self)
+{
+    WebCore::JSMainThreadNullState state;
+    g_return_val_if_fail(WEBKIT_DOM_IS_TEST_OBJ(self), 0);
+    WebCore::TestObj* item = WebKit::core(self);
+    gchar* result = convertToUTF8String(item->nullableStringMethod());
+    return result;
+}
+
+gchar* webkit_dom_test_obj_nullable_string_special_method(WebKitDOMTestObj* self, gulong index)
+{
+    WebCore::JSMainThreadNullState state;
+    g_return_val_if_fail(WEBKIT_DOM_IS_TEST_OBJ(self), 0);
+    WebCore::TestObj* item = WebKit::core(self);
+    gchar* result = convertToUTF8String(item->nullableStringSpecialMethod(index));
+    return result;
 }
 
 void webkit_dom_test_obj_method_with_enum_arg(WebKitDOMTestObj* self, WebKitDOMTestEnumType* enumArg)
@@ -1243,7 +1375,7 @@ WebKitDOMTestObj* webkit_dom_test_obj_method_that_requires_all_args_and_throws(W
     WTF::String convertedStrArg = WTF::String::fromUTF8(strArg);
     WebCore::TestObj* convertedObjArg = WebKit::core(objArg);
     WebCore::ExceptionCode ec = 0;
-    RefPtr<WebCore::TestObj> gobjectResult = WTF::getPtr(item->methodThatRequiresAllArgsAndThrows(convertedStrArg, convertedObjArg, ec));
+    RefPtr<WebCore::TestObj> gobjectResult = WTF::getPtr(item->methodThatRequiresAllArgsAndThrows(convertedStrArg, *convertedObjArg, ec));
     if (ec) {
         WebCore::ExceptionCodeDescription ecdesc(ec);
         g_set_error_literal(error, g_quark_from_string("WEBKIT_DOM"), ecdesc.code, ecdesc.name);
@@ -1380,6 +1512,14 @@ WebKitDOMTestObj* webkit_dom_test_obj_with_script_execution_context_and_script_s
     return WebKit::kit(gobjectResult.get());
 }
 
+void webkit_dom_test_obj_with_document_argument(WebKitDOMTestObj* self)
+{
+    WebCore::JSMainThreadNullState state;
+    g_return_if_fail(WEBKIT_DOM_IS_TEST_OBJ(self));
+    WebCore::TestObj* item = WebKit::core(self);
+    item->withDocumentArgument();
+}
+
 void webkit_dom_test_obj_method_with_optional_arg(WebKitDOMTestObj* self, glong opt)
 {
     WebCore::JSMainThreadNullState state;
@@ -1506,7 +1646,7 @@ void webkit_dom_test_obj_convert1(WebKitDOMTestObj* self, WebKitDOMTestNode* val
     g_return_if_fail(WEBKIT_DOM_IS_TEST_NODE(value));
     WebCore::TestObj* item = WebKit::core(self);
     WebCore::TestNode* convertedValue = WebKit::core(value);
-    item->convert1(convertedValue);
+    item->convert1(*convertedValue);
 }
 
 void webkit_dom_test_obj_convert2(WebKitDOMTestObj* self, WebKitDOMTestNode* value)
@@ -1519,24 +1659,24 @@ void webkit_dom_test_obj_convert2(WebKitDOMTestObj* self, WebKitDOMTestNode* val
     item->convert2(convertedValue);
 }
 
-void webkit_dom_test_obj_convert4(WebKitDOMTestObj* self, WebKitDOMTestNode* value)
+void webkit_dom_test_obj_convert3(WebKitDOMTestObj* self, const gchar* value)
 {
     WebCore::JSMainThreadNullState state;
     g_return_if_fail(WEBKIT_DOM_IS_TEST_OBJ(self));
-    g_return_if_fail(WEBKIT_DOM_IS_TEST_NODE(value));
+    g_return_if_fail(value);
     WebCore::TestObj* item = WebKit::core(self);
-    WebCore::TestNode* convertedValue = WebKit::core(value);
-    item->convert4(convertedValue);
+    WTF::String convertedValue = WTF::String::fromUTF8(value);
+    item->convert3(convertedValue);
 }
 
-void webkit_dom_test_obj_convert5(WebKitDOMTestObj* self, WebKitDOMTestNode* value)
+void webkit_dom_test_obj_convert4(WebKitDOMTestObj* self, const gchar* value)
 {
     WebCore::JSMainThreadNullState state;
     g_return_if_fail(WEBKIT_DOM_IS_TEST_OBJ(self));
-    g_return_if_fail(WEBKIT_DOM_IS_TEST_NODE(value));
+    g_return_if_fail(value);
     WebCore::TestObj* item = WebKit::core(self);
-    WebCore::TestNode* convertedValue = WebKit::core(value);
-    item->convert5(convertedValue);
+    WTF::String convertedValue = WTF::String::fromUTF8(value);
+    item->convert4(convertedValue);
 }
 
 WebKitDOMSVGPoint* webkit_dom_test_obj_mutable_point_function(WebKitDOMTestObj* self)
@@ -1593,7 +1733,7 @@ WebKitDOMbool* webkit_dom_test_obj_strict_function_with_array(WebKitDOMTestObj* 
     WebCore::TestObj* convertedObjArg = WebKit::core(objArg);
     WebCore::long[]* convertedArray = WebKit::core(array);
     WebCore::ExceptionCode ec = 0;
-    RefPtr<WebCore::bool> gobjectResult = WTF::getPtr(item->strictFunctionWithArray(convertedObjArg, array, ec));
+    RefPtr<WebCore::bool> gobjectResult = WTF::getPtr(item->strictFunctionWithArray(*convertedObjArg, array, ec));
     if (ec) {
         WebCore::ExceptionCodeDescription ecdesc(ec);
         g_set_error_literal(error, g_quark_from_string("WEBKIT_DOM"), ecdesc.code, ecdesc.name);
@@ -1630,7 +1770,7 @@ void webkit_dom_test_obj_variadic_node_method(WebKitDOMTestObj* self, WebKitDOMN
     WebCore::TestObj* item = WebKit::core(self);
     WebCore::Node* convertedHead = WebKit::core(head);
     WebCore::Node* convertedTail = WebKit::core(tail);
-    item->variadicNodeMethod(convertedHead, convertedTail);
+    item->variadicNodeMethod(*convertedHead, convertedTail);
 }
 
 void webkit_dom_test_obj_any(WebKitDOMTestObj* self, gfloat a, glong b)
@@ -1844,6 +1984,34 @@ void webkit_dom_test_obj_set_lenient_test_obj_attr(WebKitDOMTestObj* self, WebKi
     item->setLenientTestObjAttr(convertedValue);
 }
 
+gchar* webkit_dom_test_obj_get_unforgeable_attr(WebKitDOMTestObj* self)
+{
+    WebCore::JSMainThreadNullState state;
+    g_return_val_if_fail(WEBKIT_DOM_IS_TEST_OBJ(self), 0);
+    WebCore::TestObj* item = WebKit::core(self);
+    gchar* result = convertToUTF8String(item->unforgeableAttr());
+    return result;
+}
+
+gchar* webkit_dom_test_obj_get_string_attr_treating_null_as_empty_string(WebKitDOMTestObj* self)
+{
+    WebCore::JSMainThreadNullState state;
+    g_return_val_if_fail(WEBKIT_DOM_IS_TEST_OBJ(self), 0);
+    WebCore::TestObj* item = WebKit::core(self);
+    gchar* result = convertToUTF8String(item->stringAttrTreatingNullAsEmptyString());
+    return result;
+}
+
+void webkit_dom_test_obj_set_string_attr_treating_null_as_empty_string(WebKitDOMTestObj* self, const gchar* value)
+{
+    WebCore::JSMainThreadNullState state;
+    g_return_if_fail(WEBKIT_DOM_IS_TEST_OBJ(self));
+    g_return_if_fail(value);
+    WebCore::TestObj* item = WebKit::core(self);
+    WTF::String convertedValue = WTF::String::fromUTF8(value);
+    item->setStringAttrTreatingNullAsEmptyString(convertedValue);
+}
+
 WebKitDOMTestObj* webkit_dom_test_obj_get_xml_obj_attr(WebKitDOMTestObj* self)
 {
     WebCore::JSMainThreadNullState state;
@@ -2039,6 +2207,37 @@ void webkit_dom_test_obj_set_reflected_custom_url_attr(WebKitDOMTestObj* self, c
     WebCore::TestObj* item = WebKit::core(self);
     WTF::String convertedValue = WTF::String::fromUTF8(value);
     item->setAttributeWithoutSynchronization(WebCore::HTMLNames::customContentURLAttrAttr, convertedValue);
+}
+
+gchar* webkit_dom_test_obj_get_enabled_at_runtime_attribute(WebKitDOMTestObj* self)
+{
+#if ENABLE(TEST_FEATURE)
+    WebCore::JSMainThreadNullState state;
+    g_return_val_if_fail(WEBKIT_DOM_IS_TEST_OBJ(self), 0);
+    WebCore::TestObj* item = WebKit::core(self);
+    gchar* result = convertToUTF8String(item->enabledAtRuntimeAttribute());
+    return result;
+#else
+    UNUSED_PARAM(self);
+    WEBKIT_WARN_FEATURE_NOT_PRESENT("Test Feature")
+    return 0;
+#endif /* ENABLE(TEST_FEATURE) */
+}
+
+void webkit_dom_test_obj_set_enabled_at_runtime_attribute(WebKitDOMTestObj* self, const gchar* value)
+{
+#if ENABLE(TEST_FEATURE)
+    WebCore::JSMainThreadNullState state;
+    g_return_if_fail(WEBKIT_DOM_IS_TEST_OBJ(self));
+    g_return_if_fail(value);
+    WebCore::TestObj* item = WebKit::core(self);
+    WTF::String convertedValue = WTF::String::fromUTF8(value);
+    item->setEnabledAtRuntimeAttribute(convertedValue);
+#else
+    UNUSED_PARAM(self);
+    UNUSED_PARAM(value);
+    WEBKIT_WARN_FEATURE_NOT_PRESENT("Test Feature")
+#endif /* ENABLE(TEST_FEATURE) */
 }
 
 glong webkit_dom_test_obj_get_attr_with_getter_exception(WebKitDOMTestObj* self, GError** error)
@@ -2570,6 +2769,25 @@ void webkit_dom_test_obj_set_nullable_long_settable_attribute(WebKitDOMTestObj* 
     g_return_if_fail(WEBKIT_DOM_IS_TEST_OBJ(self));
     WebCore::TestObj* item = WebKit::core(self);
     item->setNullableLongSettableAttribute(value);
+}
+
+gchar* webkit_dom_test_obj_get_nullable_string_settable_attribute(WebKitDOMTestObj* self)
+{
+    WebCore::JSMainThreadNullState state;
+    g_return_val_if_fail(WEBKIT_DOM_IS_TEST_OBJ(self), 0);
+    WebCore::TestObj* item = WebKit::core(self);
+    gchar* result = convertToUTF8String(item->nullableStringSettableAttribute());
+    return result;
+}
+
+void webkit_dom_test_obj_set_nullable_string_settable_attribute(WebKitDOMTestObj* self, const gchar* value)
+{
+    WebCore::JSMainThreadNullState state;
+    g_return_if_fail(WEBKIT_DOM_IS_TEST_OBJ(self));
+    g_return_if_fail(value);
+    WebCore::TestObj* item = WebKit::core(self);
+    WTF::String convertedValue = WTF::String::fromUTF8(value);
+    item->setNullableStringSettableAttribute(convertedValue);
 }
 
 glong webkit_dom_test_obj_get_nullable_string_value(WebKitDOMTestObj* self, GError** error)

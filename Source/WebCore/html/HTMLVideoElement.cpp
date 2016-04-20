@@ -146,6 +146,10 @@ void HTMLVideoElement::parseAttribute(const QualifiedName& name, const AtomicStr
 
 bool HTMLVideoElement::supportsFullscreen(HTMLMediaElementEnums::VideoFullscreenMode videoFullscreenMode) const
 {
+#if USE(APPLE_INTERNAL_SDK)
+#include <WebKitAdditions/HTMLVideoElementSupportsFullscreenAdditions.cpp>
+#endif
+
     Page* page = document().page();
     if (!page) 
         return false;
@@ -279,7 +283,7 @@ bool HTMLVideoElement::hasAvailableVideoFrame() const
     return player()->hasVideo() && player()->hasAvailableVideoFrame();
 }
 
-PassNativeImagePtr HTMLVideoElement::nativeImageForCurrentTime()
+NativeImagePtr HTMLVideoElement::nativeImageForCurrentTime()
 {
     if (!player())
         return nullptr;
@@ -316,6 +320,18 @@ bool HTMLVideoElement::webkitSupportsFullscreen()
 bool HTMLVideoElement::webkitDisplayingFullscreen()
 {
     return isFullscreen();
+}
+
+void HTMLVideoElement::ancestorWillEnterFullscreen()
+{
+#if PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE)
+    if (fullscreenMode() == VideoFullscreenModeNone)
+        return;
+
+    // If this video element's presentation mode is not inline, but its ancestor
+    // is entering fullscreen, exit its current fullscreen mode.
+    exitToFullscreenModeWithoutAnimationIfPossible(fullscreenMode(), VideoFullscreenModeNone);
+#endif
 }
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
@@ -475,6 +491,14 @@ void HTMLVideoElement::fullscreenModeChanged(VideoFullscreenMode mode)
     HTMLMediaElement::fullscreenModeChanged(mode);
 }
 
+#endif
+
+#if PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE)
+void HTMLVideoElement::exitToFullscreenModeWithoutAnimationIfPossible(HTMLMediaElementEnums::VideoFullscreenMode fromMode, HTMLMediaElementEnums::VideoFullscreenMode toMode)
+{
+    if (document().page()->chrome().client().supportsVideoFullscreen(fromMode))
+        document().page()->chrome().client().exitVideoFullscreenToModeWithoutAnimation(*this, toMode);
+}
 #endif
 
 }

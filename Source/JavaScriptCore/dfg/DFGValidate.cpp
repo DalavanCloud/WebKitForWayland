@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2012-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,6 +29,7 @@
 #if ENABLE(DFG_JIT)
 
 #include "CodeBlockWithJITType.h"
+#include "DFGClobberize.h"
 #include "DFGClobbersExitState.h"
 #include "DFGMayExit.h"
 #include "JSCInlines.h"
@@ -36,6 +37,8 @@
 #include <wtf/BitVector.h>
 
 namespace JSC { namespace DFG {
+
+namespace {
 
 class Validate {
 public:
@@ -278,6 +281,18 @@ public:
                         VALIDATE((node), !variant.oldStructureForTransition()->dfgShouldWatch());
                     }
                     break;
+                case MaterializeNewObject:
+                    for (Structure* structure : node->structureSet()) {
+                        // This only supports structures that are JSFinalObject or JSArray.
+                        VALIDATE(
+                            (node),
+                            structure->classInfo() == JSFinalObject::info()
+                            || structure->classInfo() == JSArray::info());
+
+                        // We only support certain indexing shapes.
+                        VALIDATE((node), !hasAnyArrayStorage(structure->indexingType()));
+                    }
+                    break;
                 case DoubleConstant:
                 case Int52Constant:
                     VALIDATE((node), node->isNumberConstant());
@@ -297,6 +312,47 @@ public:
         case SSA:
             validateSSA();
             break;
+        }
+
+        // Validate clobbered states.
+        struct DefLambdaAdaptor {
+            std::function<void(PureValue)> pureValue;
+            std::function<void(HeapLocation, LazyNode)> locationAndNode;
+
+            void operator()(PureValue value) const
+            {
+                pureValue(value);
+            }
+
+            void operator()(HeapLocation location, LazyNode node) const
+            {
+                locationAndNode(location, node);
+            }
+        };
+        for (BasicBlock* block : m_graph.blocksInNaturalOrder()) {
+            for (Node* node : *block) {
+                clobberize(m_graph, node,
+                    [&] (AbstractHeap) { },
+                    [&] (AbstractHeap heap)
+                    {
+                        // CSE assumes that HEAP TOP is never written.
+                        // If this assumption is weakened, you need to update clobbering
+                        // in CSE accordingly.
+                        if (heap.kind() == Stack)
+                            VALIDATE((node), !heap.payload().isTop());
+                    },
+                    DefLambdaAdaptor {
+                        [&] (PureValue) { },
+                        [&] (HeapLocation location, LazyNode)
+                        {
+                            VALIDATE((node), location.heap().kind() != SideState);
+
+                            // More specific kinds should be used instead.
+                            VALIDATE((node), location.heap().kind() != World);
+                            VALIDATE((node), location.heap().kind() != Heap);
+                        }
+                });
+            }
         }
     }
     
@@ -461,13 +517,42 @@ private:
                 case GetMyArgumentByVal:
                 case PutHint:
                 case CheckStructureImmediate:
-                case MaterializeNewObject:
                 case MaterializeCreateActivation:
                 case PutStack:
                 case KillStack:
                 case GetStack:
                     VALIDATE((node), !"unexpected node type in CPS");
                     break;
+                case MaterializeNewObject: {
+                    // CPS only allows array lengths to be constant. This constraint only exists
+                    // because we don't have DFG support for anything more and we don't need any
+                    // other kind of support for now.
+                    ObjectMaterializationData& data = node->objectMaterializationData();
+                    for (unsigned i = data.m_properties.size(); i--;) {
+                        PromotedLocationDescriptor descriptor = data.m_properties[i];
+                        Edge edge = m_graph.varArgChild(node, 1 + i);
+                        switch (descriptor.kind()) {
+                        case PublicLengthPLoc:
+                        case VectorLengthPLoc:
+                            VALIDATE((node, edge), edge->isInt32Constant());
+                            break;
+                        default:
+                            break;
+                        }
+                    }
+
+                    // CPS only allows one structure.
+                    VALIDATE((node), node->structureSet().size() == 1);
+
+                    // CPS disallows int32 and double arrays. Those require weird type checks and
+                    // conversions. They are not needed in the DFG right now. We should add support
+                    // for these if the DFG ever needs it.
+                    for (Structure* structure : node->structureSet()) {
+                        VALIDATE((node), !hasInt32(structure->indexingType()));
+                        VALIDATE((node), !hasDouble(structure->indexingType()));
+                    }
+                    break;
+                }
                 case Phantom:
                     VALIDATE((node), m_graph.m_fixpointState != FixpointNotConverged);
                     break;
@@ -692,6 +777,8 @@ private:
         m_graph.dump();
     }
 };
+
+} // End anonymous namespace.
 
 void validate(Graph& graph, GraphDumpMode graphDumpMode, CString graphDumpBeforePhase)
 {

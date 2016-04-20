@@ -136,12 +136,13 @@ public:
                 case CreateScopedArguments:
                     registerStructure(m_graph.globalObjectFor(node->origin.semantic)->scopedArgumentsStructure());
                     break;
-                    
+
+                case CreateClonedArguments:
+                    registerStructure(m_graph.globalObjectFor(node->origin.semantic)->clonedArgumentsStructure());
+                    break;
+
                 case NewRegexp:
                     registerStructure(m_graph.globalObjectFor(node->origin.semantic)->regExpStructure());
-                    break;
-                case NewArrowFunction:
-                    registerStructure(m_graph.globalObjectFor(node->origin.semantic)->functionStructure());
                     break;
                 case NewFunction:
                     registerStructure(m_graph.globalObjectFor(node->origin.semantic)->functionStructure());
@@ -149,7 +150,7 @@ public:
                 case NewGeneratorFunction:
                     registerStructure(m_graph.globalObjectFor(node->origin.semantic)->generatorFunctionStructure());
                     break;
-                    
+
                 default:
                     break;
                 }
@@ -187,7 +188,6 @@ private:
 
 bool performStructureRegistration(Graph& graph)
 {
-    SamplingRegion samplingRegion("DFG Structure Registration Phase");
     return runPhase<StructureRegistrationPhase>(graph);
 }
 

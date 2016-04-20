@@ -30,7 +30,7 @@
 
 #include "IDBConnectionToClient.h"
 #include "IDBConnectionToServer.h"
-#include "IDBRequestImpl.h"
+#include "IDBRequest.h"
 #include <wtf/MainThread.h>
 
 namespace WebCore {
@@ -49,6 +49,10 @@ static uint64_t nextServerResourceNumber()
     return currentNumber += 2;
 }
 
+IDBResourceIdentifier::IDBResourceIdentifier()
+{
+}
+
 IDBResourceIdentifier::IDBResourceIdentifier(uint64_t connectionIdentifier, uint64_t resourceIdentifier)
     : m_idbConnectionIdentifier(connectionIdentifier)
     , m_resourceNumber(resourceIdentifier)
@@ -61,7 +65,7 @@ IDBResourceIdentifier::IDBResourceIdentifier(const IDBClient::IDBConnectionToSer
 {
 }
 
-IDBResourceIdentifier::IDBResourceIdentifier(const IDBClient::IDBConnectionToServer& connection, const IDBClient::IDBRequest& request)
+IDBResourceIdentifier::IDBResourceIdentifier(const IDBClient::IDBConnectionToServer& connection, const IDBRequest& request)
     : m_idbConnectionIdentifier(connection.identifier())
     , m_resourceNumber(request.resourceIdentifier().m_resourceNumber)
 {

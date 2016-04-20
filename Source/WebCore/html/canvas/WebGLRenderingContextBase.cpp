@@ -326,7 +326,7 @@ class WebGLRenderingContextLostCallback : public GraphicsContext3D::ContextLostC
     WTF_MAKE_FAST_ALLOCATED;
 public:
     explicit WebGLRenderingContextLostCallback(WebGLRenderingContextBase* cb) : m_context(cb) { }
-    virtual void onContextLost() override { m_context->forceLostContext(WebGLRenderingContext::RealLostContext); }
+    void onContextLost() override { m_context->forceLostContext(WebGLRenderingContext::RealLostContext); }
     virtual ~WebGLRenderingContextLostCallback() {}
 private:
     WebGLRenderingContextBase* m_context;
@@ -336,7 +336,7 @@ class WebGLRenderingContextErrorMessageCallback : public GraphicsContext3D::Erro
     WTF_MAKE_FAST_ALLOCATED;
 public:
     explicit WebGLRenderingContextErrorMessageCallback(WebGLRenderingContextBase* cb) : m_context(cb) { }
-    virtual void onErrorMessage(const String& message, GC3Dint) override
+    void onErrorMessage(const String& message, GC3Dint) override
     {
         if (m_context->m_synthesizedErrorsToConsole)
             m_context->printGLErrorToConsole(message);
@@ -400,11 +400,16 @@ std::unique_ptr<WebGLRenderingContextBase> WebGLRenderingContextBase::create(HTM
     if (page)
         attributes.devicePixelRatio = page->deviceScaleFactor();
 
+#if ENABLE(WEBGL2)
+    if (type == "webgl2")
+        attributes.useGLES3 = true;
+#endif
+
     if (isPendingPolicyResolution) {
         LOG(WebGL, "Create a WebGL context that looks real, but will require a policy resolution if used.");
         std::unique_ptr<WebGLRenderingContextBase> renderingContext = nullptr;
 #if ENABLE(WEBGL2)
-        if (type == "experimental-webgl2")
+        if (type == "webgl2")
             renderingContext = std::unique_ptr<WebGL2RenderingContext>(new WebGL2RenderingContext(canvas, attributes));
         else
 #endif
@@ -427,7 +432,7 @@ std::unique_ptr<WebGLRenderingContextBase> WebGLRenderingContextBase::create(HTM
 
     std::unique_ptr<WebGLRenderingContextBase> renderingContext = nullptr;
 #if ENABLE(WEBGL2)
-    if (type == "experimental-webgl2")
+    if (type == "webgl2")
         renderingContext = std::unique_ptr<WebGL2RenderingContext>(new WebGL2RenderingContext(canvas, context, attributes));
     else
 #endif
@@ -520,6 +525,8 @@ void WebGLRenderingContextBase::initializeNewContext()
     m_context->getIntegerv(GraphicsContext3D::MAX_COMBINED_TEXTURE_IMAGE_UNITS, &numCombinedTextureImageUnits);
     m_textureUnits.clear();
     m_textureUnits.resize(numCombinedTextureImageUnits);
+    for (GC3Dint i = 0; i < numCombinedTextureImageUnits; ++i)
+        m_unrenderableTextureUnits.add(i);
 
     GC3Dint numVertexAttribs = 0;
     m_context->getIntegerv(GraphicsContext3D::MAX_VERTEX_ATTRIBS, &numVertexAttribs);
@@ -633,7 +640,7 @@ void WebGLRenderingContextBase::markContextChanged()
     if (isAccelerated() && renderBox && renderBox->hasAcceleratedCompositing()) {
         m_markedCanvasDirty = true;
         canvas()->clearCopiedImage();
-        renderBox->contentChanged(CanvasChanged);
+        renderBox->contentChanged(CanvasPixelsChanged);
     } else {
         if (!m_markedCanvasDirty) {
             m_markedCanvasDirty = true;
@@ -749,6 +756,11 @@ PassRefPtr<ImageData> WebGLRenderingContextBase::paintRenderingResultsToImageDat
     return m_context->paintRenderingResultsToImageData();
 }
 
+WebGLTexture::TextureExtensionFlag WebGLRenderingContextBase::textureExtensionFlags() const
+{
+    return static_cast<WebGLTexture::TextureExtensionFlag>((m_oesTextureFloatLinear ? WebGLTexture::TextureExtensionFloatLinearEnabled : 0) | (m_oesTextureHalfFloatLinear ? WebGLTexture::TextureExtensionHalfFloatLinearEnabled : 0));
+}
+
 void WebGLRenderingContextBase::reshape(int width, int height)
 {
     if (isContextLostOrPending())
@@ -776,7 +788,10 @@ void WebGLRenderingContextBase::reshape(int width, int height)
     // clear (and this matches what reshape will do).
     m_context->reshape(width, height);
 
-    m_context->bindTexture(GraphicsContext3D::TEXTURE_2D, objectOrZero(m_textureUnits[m_activeTextureUnit].texture2DBinding.get()));
+    auto& textureUnit = m_textureUnits[m_activeTextureUnit];
+    m_context->bindTexture(GraphicsContext3D::TEXTURE_2D, objectOrZero(textureUnit.texture2DBinding.get()));
+    if (textureUnit.texture2DBinding && textureUnit.texture2DBinding->needToUseBlackTexture(textureExtensionFlags()))
+        m_unrenderableTextureUnits.add(m_activeTextureUnit);
     m_context->bindRenderbuffer(GraphicsContext3D::RENDERBUFFER, objectOrZero(m_renderbufferBinding.get()));
     if (m_framebufferBinding)
       m_context->bindFramebuffer(GraphicsContext3D::FRAMEBUFFER, objectOrZero(m_framebufferBinding.get()));
@@ -944,18 +959,27 @@ void WebGLRenderingContextBase::bindTexture(GC3Denum target, WebGLTexture* textu
     if (!checkObjectToBeBound("bindTexture", texture, deleted))
         return;
     if (deleted)
-        texture = 0;
+        texture = nullptr;
     if (texture && texture->getTarget() && texture->getTarget() != target) {
         synthesizeGLError(GraphicsContext3D::INVALID_OPERATION, "bindTexture", "textures can not be used with multiple targets");
         return;
     }
     GC3Dint maxLevel = 0;
+    auto& textureUnit = m_textureUnits[m_activeTextureUnit];
     if (target == GraphicsContext3D::TEXTURE_2D) {
-        m_textureUnits[m_activeTextureUnit].texture2DBinding = texture;
+        textureUnit.texture2DBinding = texture;
         maxLevel = m_maxTextureLevel;
+        if (texture && texture->needToUseBlackTexture(textureExtensionFlags()))
+            m_unrenderableTextureUnits.add(m_activeTextureUnit);
+        else
+            m_unrenderableTextureUnits.remove(m_activeTextureUnit);
     } else if (target == GraphicsContext3D::TEXTURE_CUBE_MAP) {
-        m_textureUnits[m_activeTextureUnit].textureCubeMapBinding = texture;
+        textureUnit.textureCubeMapBinding = texture;
         maxLevel = m_maxCubeMapTextureLevel;
+        if (texture && texture->needToUseBlackTexture(textureExtensionFlags()))
+            m_unrenderableTextureUnits.add(m_activeTextureUnit);
+        else
+            m_unrenderableTextureUnits.remove(m_activeTextureUnit);
     } else {
         synthesizeGLError(GraphicsContext3D::INVALID_ENUM, "bindTexture", "invalid target");
         return;
@@ -1249,12 +1273,8 @@ void WebGLRenderingContextBase::compressedTexImage2D(GC3Denum target, GC3Dint le
     WebGLTexture* tex = validateTextureBinding("compressedTexImage2D", target, true);
     if (!tex)
         return;
-    if (!isGLES2NPOTStrict()) {
-        if (level && WebGLTexture::isNPOT(width, height)) {
-            synthesizeGLError(GraphicsContext3D::INVALID_VALUE, "compressedTexImage2D", "level > 0 not power of 2");
-            return;
-        }
-    }
+    if (!validateNPOTTextureLevel(width, height, level, "compressedTexImage2D"))
+        return;
     m_context->moveErrorsToSyntheticErrorList();
     m_context->compressedTexImage2D(target, level, internalformat, width, height,
         border, data->byteLength(), data->baseAddress());
@@ -1500,11 +1520,18 @@ void WebGLRenderingContextBase::deleteTexture(WebGLTexture* texture)
 {
     if (!deleteObject(texture))
         return;
+
+    unsigned current = 0;
     for (auto& textureUnit : m_textureUnits) {
-        if (texture == textureUnit.texture2DBinding)
+        if (texture == textureUnit.texture2DBinding) {
             textureUnit.texture2DBinding = nullptr;
-        if (texture == textureUnit.textureCubeMapBinding)
+            m_unrenderableTextureUnits.remove(current);
+        }
+        if (texture == textureUnit.textureCubeMapBinding) {
             textureUnit.textureCubeMapBinding = nullptr;
+            m_unrenderableTextureUnits.remove(current);
+        }
+        ++current;
     }
     if (m_framebufferBinding)
         m_framebufferBinding->removeAttachmentFromBoundFramebuffer(texture);
@@ -1576,6 +1603,16 @@ void WebGLRenderingContextBase::disableVertexAttribArray(GC3Duint index, Excepti
 
     if (index > 0 || isGLES2Compliant())
         m_context->disableVertexAttribArray(index);
+}
+
+bool WebGLRenderingContextBase::validateNPOTTextureLevel(GC3Dsizei width, GC3Dsizei height, GC3Dint level, const char* functionName)
+{
+    if (!isGLES2NPOTStrict() && level && WebGLTexture::isNPOT(width, height)) {
+        synthesizeGLError(GraphicsContext3D::INVALID_VALUE, functionName, "level > 0 not power of 2");
+        return false;
+    }
+
+    return true;
 }
 
 bool WebGLRenderingContextBase::validateElementArraySize(GC3Dsizei count, GC3Denum type, GC3Dintptr offset)
@@ -1889,14 +1926,15 @@ void WebGLRenderingContextBase::drawArrays(GC3Denum mode, GC3Dint first, GC3Dsiz
     bool vertexAttrib0Simulated = false;
     if (!isGLES2Compliant())
         vertexAttrib0Simulated = simulateVertexAttrib0(first + count - 1);
+    bool usesFallbackTexture = false;
     if (!isGLES2NPOTStrict())
-        checkTextureCompleteness("drawArrays", true);
+        usesFallbackTexture = checkTextureCompleteness("drawArrays", true);
 
     m_context->drawArrays(mode, first, count);
 
     if (!isGLES2Compliant() && vertexAttrib0Simulated)
         restoreStatesAfterVertexAttrib0Simulation();
-    if (!isGLES2NPOTStrict())
+    if (usesFallbackTexture)
         checkTextureCompleteness("drawArrays", false);
     markContextChanged();
 }
@@ -1915,14 +1953,16 @@ void WebGLRenderingContextBase::drawElements(GC3Denum mode, GC3Dsizei count, GC3
             validateIndexArrayPrecise(count, type, static_cast<GC3Dintptr>(offset), numElements);
         vertexAttrib0Simulated = simulateVertexAttrib0(numElements);
     }
+
+    bool usesFallbackTexture = false;
     if (!isGLES2NPOTStrict())
-        checkTextureCompleteness("drawElements", true);
+        usesFallbackTexture = checkTextureCompleteness("drawElements", true);
 
     m_context->drawElements(mode, count, type, static_cast<GC3Dintptr>(offset));
 
     if (!isGLES2Compliant() && vertexAttrib0Simulated)
         restoreStatesAfterVertexAttrib0Simulation();
-    if (!isGLES2NPOTStrict())
+    if (usesFallbackTexture)
         checkTextureCompleteness("drawElements", false);
     markContextChanged();
 }
@@ -2973,7 +3013,7 @@ void WebGLRenderingContextBase::texImage2DBase(GC3Denum target, GC3Dint level, G
     WebGLTexture* tex = validateTextureBinding("texImage2D", target, true);
     ASSERT(validateTexFuncParameters("texImage2D", TexImage, target, level, internalformat, width, height, border, format, type));
     ASSERT(tex);
-    ASSERT(!level || !WebGLTexture::isNPOT(width, height));
+    ASSERT(validateNPOTTextureLevel(width, height, level, "texImage2D"));
     if (!pixels) {
         // Note: Chromium's OpenGL implementation clears textures and isResourceSafe() is therefore true.
         // For other implementations, if they are using ANGLE_depth_texture, ANGLE depth textures
@@ -3041,10 +3081,8 @@ bool WebGLRenderingContextBase::validateTexFunc(const char* functionName, TexFun
         return false;
 
     if (functionType != TexSubImage) {
-        if (level && WebGLTexture::isNPOT(width, height)) {
-            synthesizeGLError(GraphicsContext3D::INVALID_VALUE, functionName, "level > 0 not power of 2");
+        if (!validateNPOTTextureLevel(width, height, level, functionName))
             return false;
-        }
         // For SourceArrayBufferView, function validateTexFuncData() would handle whether to validate the SettableTexFormat
         // by checking if the ArrayBufferView is null or not.
         if (sourceType != SourceArrayBufferView) {
@@ -3952,42 +3990,58 @@ WebGLGetInfo WebGLRenderingContextBase::getWebGLIntArrayParameter(GC3Denum pname
     return WebGLGetInfo(Int32Array::create(value, length).release());
 }
 
-void WebGLRenderingContextBase::checkTextureCompleteness(const char* functionName, bool prepareToDraw)
+bool WebGLRenderingContextBase::checkTextureCompleteness(const char* functionName, bool prepareToDraw)
 {
     bool resetActiveUnit = false;
-    WebGLTexture::TextureExtensionFlag extensions = static_cast<WebGLTexture::TextureExtensionFlag>((m_oesTextureFloatLinear ? WebGLTexture::TextureExtensionFloatLinearEnabled : 0) | (m_oesTextureHalfFloatLinear ? WebGLTexture::TextureExtensionHalfFloatLinearEnabled : 0));
+    bool usesAtLeastOneBlackTexture = false;
+    WebGLTexture::TextureExtensionFlag extensions = textureExtensionFlags();
 
-    for (unsigned ii = 0; ii < m_textureUnits.size(); ++ii) {
-        if ((m_textureUnits[ii].texture2DBinding && m_textureUnits[ii].texture2DBinding->needToUseBlackTexture(extensions))
-            || (m_textureUnits[ii].textureCubeMapBinding && m_textureUnits[ii].textureCubeMapBinding->needToUseBlackTexture(extensions))) {
-            if (ii != m_activeTextureUnit) {
-                m_context->activeTexture(ii + GraphicsContext3D::TEXTURE0);
-                resetActiveUnit = true;
-            } else if (resetActiveUnit) {
-                m_context->activeTexture(ii + GraphicsContext3D::TEXTURE0);
-                resetActiveUnit = false;
-            }
-            WebGLTexture* tex2D;
-            WebGLTexture* texCubeMap;
-            if (prepareToDraw) {
-                String msg(String("texture bound to texture unit ") + String::number(ii)
-                    + " is not renderable. It maybe non-power-of-2 and have incompatible texture filtering or is not 'texture complete',"
-                    + " or it is a float/half-float type with linear filtering and without the relevant float/half-float linear extension enabled.");
-                printGLWarningToConsole(functionName, msg.utf8().data());
-                tex2D = m_blackTexture2D.get();
-                texCubeMap = m_blackTextureCubeMap.get();
-            } else {
-                tex2D = m_textureUnits[ii].texture2DBinding.get();
-                texCubeMap = m_textureUnits[ii].textureCubeMapBinding.get();
-            }
-            if (m_textureUnits[ii].texture2DBinding && m_textureUnits[ii].texture2DBinding->needToUseBlackTexture(extensions))
-                m_context->bindTexture(GraphicsContext3D::TEXTURE_2D, objectOrZero(tex2D));
-            if (m_textureUnits[ii].textureCubeMapBinding && m_textureUnits[ii].textureCubeMapBinding->needToUseBlackTexture(extensions))
-                m_context->bindTexture(GraphicsContext3D::TEXTURE_CUBE_MAP, objectOrZero(texCubeMap));
+    Vector<unsigned> noLongerUnrenderable;
+    for (unsigned badTexture : m_unrenderableTextureUnits) {
+        ASSERT(badTexture < m_textureUnits.size());
+        auto& textureUnit = m_textureUnits[badTexture];
+        bool needsToUseBlack2DTexture = textureUnit.texture2DBinding && textureUnit.texture2DBinding->needToUseBlackTexture(extensions);
+        bool needsToUseBlack3DTexture = textureUnit.textureCubeMapBinding && textureUnit.textureCubeMapBinding->needToUseBlackTexture(extensions);
+
+        if (!needsToUseBlack2DTexture && !needsToUseBlack3DTexture) {
+            noLongerUnrenderable.append(badTexture);
+            continue;
         }
+
+        usesAtLeastOneBlackTexture = true;
+
+        if (badTexture != m_activeTextureUnit) {
+            m_context->activeTexture(badTexture + GraphicsContext3D::TEXTURE0);
+            resetActiveUnit = true;
+        } else if (resetActiveUnit) {
+            m_context->activeTexture(badTexture + GraphicsContext3D::TEXTURE0);
+            resetActiveUnit = false;
+        }
+        WebGLTexture* tex2D;
+        WebGLTexture* texCubeMap;
+        if (prepareToDraw) {
+            String msg(String("texture bound to texture unit ") + String::number(badTexture)
+                + " is not renderable. It maybe non-power-of-2 and have incompatible texture filtering or is not 'texture complete',"
+                + " or it is a float/half-float type with linear filtering and without the relevant float/half-float linear extension enabled.");
+            printGLWarningToConsole(functionName, msg.utf8().data());
+            tex2D = m_blackTexture2D.get();
+            texCubeMap = m_blackTextureCubeMap.get();
+        } else {
+            tex2D = textureUnit.texture2DBinding.get();
+            texCubeMap = textureUnit.textureCubeMapBinding.get();
+        }
+        if (needsToUseBlack2DTexture)
+            m_context->bindTexture(GraphicsContext3D::TEXTURE_2D, objectOrZero(tex2D));
+        if (needsToUseBlack3DTexture)
+            m_context->bindTexture(GraphicsContext3D::TEXTURE_CUBE_MAP, objectOrZero(texCubeMap));
     }
     if (resetActiveUnit)
         m_context->activeTexture(m_activeTextureUnit + GraphicsContext3D::TEXTURE0);
+
+    for (unsigned renderable : noLongerUnrenderable)
+        m_unrenderableTextureUnits.remove(renderable);
+
+    return usesAtLeastOneBlackTexture;
 }
 
 void WebGLRenderingContextBase::createFallbackBlackTextures1x1()
@@ -4076,6 +4130,10 @@ WebGLTexture* WebGLRenderingContextBase::validateTextureBinding(const char* func
         synthesizeGLError(GraphicsContext3D::INVALID_ENUM, functionName, "invalid texture target");
         return nullptr;
     }
+
+    if (texture && texture->needToUseBlackTexture(textureExtensionFlags()))
+        m_unrenderableTextureUnits.add(m_activeTextureUnit);
+
     if (!texture)
         synthesizeGLError(GraphicsContext3D::INVALID_OPERATION, functionName, "no texture");
     return texture;
@@ -4929,7 +4987,10 @@ void WebGLRenderingContextBase::restoreCurrentFramebuffer()
 void WebGLRenderingContextBase::restoreCurrentTexture2D()
 {
     ExceptionCode ec;
-    bindTexture(GraphicsContext3D::TEXTURE_2D, m_textureUnits[m_activeTextureUnit].texture2DBinding.get(), ec);
+    auto texture = m_textureUnits[m_activeTextureUnit].texture2DBinding.get();
+    bindTexture(GraphicsContext3D::TEXTURE_2D, texture, ec);
+    if (texture && texture->needToUseBlackTexture(textureExtensionFlags()))
+        m_unrenderableTextureUnits.add(m_activeTextureUnit);
 }
 
 bool WebGLRenderingContextBase::supportsDrawBuffers()

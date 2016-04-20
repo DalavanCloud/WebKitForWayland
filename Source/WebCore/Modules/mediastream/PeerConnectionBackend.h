@@ -31,7 +31,7 @@
 #ifndef PeerConnectionBackend_h
 #define PeerConnectionBackend_h
 
-#if ENABLE(MEDIA_STREAM)
+#if ENABLE(WEB_RTC)
 
 #include "JSDOMPromise.h"
 #include "PeerConnectionStates.h"
@@ -46,6 +46,7 @@ class RTCAnswerOptions;
 class RTCConfiguration;
 class RTCIceCandidate;
 class RTCOfferOptions;
+class RTCRtpReceiver;
 class RTCRtpSender;
 class RTCSessionDescription;
 class RTCStatsResponse;
@@ -62,6 +63,7 @@ public:
     virtual Vector<RefPtr<RTCRtpSender>> getSenders() const = 0;
     virtual void fireEvent(Event&) = 0;
 
+    virtual void addReceiver(RTCRtpReceiver&) = 0;
     virtual void setSignalingState(PeerConnectionStates::SignalingState) = 0;
     virtual void updateIceGatheringState(PeerConnectionStates::IceGatheringState) = 0;
     virtual void updateIceConnectionState(PeerConnectionStates::IceConnectionState) = 0;
@@ -112,6 +114,6 @@ public:
 
 } // namespace WebCore
 
-#endif // ENABLE(MEDIA_STREAM)
+#endif // ENABLE(WEB_RTC)
 
 #endif // PeerConnectionBackend_h

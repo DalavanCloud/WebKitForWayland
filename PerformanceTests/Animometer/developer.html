@@ -2,16 +2,18 @@
 <html>
 <head>
     <title>Animometer - developer</title>
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, user-scalable=no">
     <link rel="stylesheet" href="resources/runner/animometer.css">
     <link rel="stylesheet" href="resources/debug-runner/animometer.css">
     <script src="resources/strings.js"></script>
     <script src="resources/extensions.js"></script>
+    <script src="resources/statistics.js"></script>
 
     <script src="resources/runner/tests.js"></script>
     <script src="resources/debug-runner/tests.js" charset="utf-8"></script>
     <script src="resources/runner/animometer.js"></script>
-    <script src="resources/debug-runner/animometer.js"></script>
+    <script src="resources/debug-runner/animometer.js" charset="utf-8"></script>
 
     <script src="resources/runner/benchmark-runner.js"></script>
     <script src="resources/debug-runner/d3.min.js"></script>
@@ -26,13 +28,14 @@
                 <div id="suites">
                     <h2>Suites:</h2>
                     <ul class="tree"></ul>
+                    <div><span id="drop-target">Drop results here</span></div>
                 </div>
                 <div id="options">
                     <h2>Options:</h2>
                     <form name="benchmark-options">
                     <ul>
                     <li>
-                        <label>Test length: <input type="number" id="test-interval" value="10"> seconds each</label>
+                        <label>Test length: <input type="number" id="test-interval" value="20"> seconds each</label>
                     </li>
                     <li>
                         <h3>Display:</h3>
@@ -44,9 +47,11 @@
                     <li>
                         <h3>Adjusting the test complexity:</h3>
                         <ul>
-                            <li><label><input name="adjustment" type="radio" value="step"> Keep at a fixed complexity, then make a big step</label></li>
-                            <li><label><input name="adjustment" type="radio" value="adaptive" checked> Maintain target FPS</label></li>
-                            <li><label><input name="adjustment" type="radio" value="ramp"> Ramp</label></li>
+                            <li><label><input name="controller" type="radio" value="fixed"> Keep at a fixed complexity</label></li>
+                            <li><label><input name="controller" type="radio" value="step"> Keep at a fixed complexity, then make a big step</label></li>
+                            <li><label><input name="controller" type="radio" value="adaptive"> Maintain target FPS</label></li>
+                            <li><label><input name="controller" type="radio" value="ramp" checked> Ramp</label></li>
+                            <li><label><input name="controller" type="radio" value="ramp30"> Ramp @ 30fps</label></li>
                         </ul>
                     </li>
                     <li>
@@ -70,7 +75,11 @@
                     </form>
                 </div>
             </div>
-            <button onclick="benchmarkController.startBenchmark()">Start Test</button>
+            <p>For accurate results, please take the browser window full screen, or rotate the device to landscape orientation.</p>
+            <div class="orientation-check">
+                <p class="hidden">Please rotate the device to orientation before starting.</p>
+                <button id="run-benchmark" onclick="benchmarkController.startBenchmark()">Run benchmark</button>
+            </div>
         </section>
         <section id="test-container">
             <div id="running-test" class="frame-container"></div>
@@ -80,7 +89,7 @@
         </section>
         <section id="results">
             <h1>Animometer score</h1>
-            <p class="score"></p>
+            <p class="score" onclick="benchmarkController.showDebugInfo()"></p>
             <div id="results-tables">
                 <div>
                     <table id="results-score"></table>
@@ -88,15 +97,11 @@
                 </div>
                 <table id="results-header"></table>
             </div>
-            <div id="results-json">
-                <button class="small-button" onclick="benchmarkController.showJSONResults()">JSON results</button>
-                <div class="hidden">
-                    JSON:
-                    <textarea rows=1 onclick="this.focus();this.select()" readonly></textarea>
-                </div>
-            </div>
-            <button onclick="benchmarkController.startBenchmark()">Test Again</button>
-            <p>'s': Select different data for copy/paste</p>
+            <button onclick="benchmarkController.restartBenchmark()">Test Again</button>
+            <p>
+                'j': Show JSON results<br/>
+                's': Select various results for copy/paste (use repeatedly to cycle)
+            </p>
         </section>
         <section id="test-graph">
             <header>
@@ -106,8 +111,8 @@
             <nav>
                 <form name="graph-type">
                     <ul>
-                        <li><label><input type="radio" name="graph-type" value="time" checked> Time graph</label></li>
-                        <li><label><input type="radio" name="graph-type" value="complexity"> Complexity graph</label></li>
+                        <li><label><input type="radio" name="graph-type" value="time"> Time graph</label></li>
+                        <li><label><input type="radio" name="graph-type" value="complexity" checked> Complexity graph</label></li>
                     </ul>
                 </form>
                 <form name="time-graph-options">
@@ -127,12 +132,13 @@
                 <form name="complexity-graph-options">
                     <ul class="series">
                         <li><label><input type="checkbox" name="series-raw" checked> Series raw</label></li>
-                        <li><label><input type="checkbox" name="series-average" checked> Series average</label></li>
+                        <li><label><input type="checkbox" name="series-average"> Series average</label></li>
                     </ul>
                     <ul>
-                        <li><label><input type="checkbox" name="regression-time-score" checked> Ramp regression score</label>
-                        <li><label><input type="checkbox" name="complexity-regression-aggregate-raw" checked> Regression, series raw</label>
-                        <li><label><input type="checkbox" name="complexity-regression-aggregate-average" checked> Regression, series average</label>
+                        <li><label><input type="checkbox" name="regression-time-score"> Controller score</label></li>
+                        <li><label><input type="checkbox" name="bootstrap-score" checked> Bootstrap score and histogram</label></li>
+                        <li><label><input type="checkbox" name="complexity-regression-aggregate-raw" checked> Regression, series raw</label><span id="complexity-regression-aggregate-raw"></span></li>
+                        <li><label><input type="checkbox" name="complexity-regression-aggregate-average"> Regression, series average</label><span id="complexity-regression-aggregate-average"></span></li>
                     </ul>
                 </form>
             </nav>

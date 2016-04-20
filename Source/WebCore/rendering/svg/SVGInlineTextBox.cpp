@@ -35,7 +35,6 @@
 #include "SVGRenderingContext.h"
 #include "SVGResourcesCache.h"
 #include "SVGRootInlineBox.h"
-#include "SVGTextRunRenderingContext.h"
 #include "TextPainter.h"
 
 namespace WebCore {
@@ -204,8 +203,9 @@ void SVGInlineTextBox::paintSelectionBackground(PaintInfo& paintInfo)
 
     RenderStyle& style = parentRenderer.style();
 
-    int startPosition, endPosition;
-    selectionStartEnd(startPosition, endPosition);
+    int startPosition;
+    int endPosition;
+    std::tie(startPosition, endPosition) = selectionStartEnd();
 
     int fragmentStartPosition = 0;
     int fragmentEndPosition = 0;
@@ -377,33 +377,14 @@ void SVGInlineTextBox::releasePaintingResource(GraphicsContext*& context, const 
     m_paintingResource = nullptr;
 }
 
-bool SVGInlineTextBox::prepareGraphicsContextForTextPainting(GraphicsContext*& context, float scalingFactor, TextRun& textRun, RenderStyle* style)
+bool SVGInlineTextBox::prepareGraphicsContextForTextPainting(GraphicsContext*& context, float scalingFactor, RenderStyle* style)
 {
-    if (!acquirePaintingResource(context, scalingFactor, parent()->renderer(), style))
-        return false;
-
-#if ENABLE(SVG_FONTS)
-    // SVG Fonts need access to the painting resource used to draw the current text chunk.
-    if (auto* renderingContext = textRun.renderingContext())
-        static_cast<SVGTextRunRenderingContext*>(renderingContext)->setActivePaintingResource(m_paintingResource);
-#else
-    UNUSED_PARAM(textRun);
-#endif
-
-    return true;
+    return acquirePaintingResource(context, scalingFactor, parent()->renderer(), style);
 }
 
-void SVGInlineTextBox::restoreGraphicsContextAfterTextPainting(GraphicsContext*& context, TextRun& textRun)
+void SVGInlineTextBox::restoreGraphicsContextAfterTextPainting(GraphicsContext*& context)
 {
     releasePaintingResource(context, /* path */nullptr);
-
-#if ENABLE(SVG_FONTS)
-    TextRun::RenderingContext* renderingContext = textRun.renderingContext();
-    if (renderingContext)
-        static_cast<SVGTextRunRenderingContext*>(renderingContext)->setActivePaintingResource(nullptr);
-#else
-    UNUSED_PARAM(textRun);
-#endif
 }
 
 TextRun SVGInlineTextBox::constructTextRun(RenderStyle* style, const SVGTextFragment& fragment) const
@@ -416,9 +397,6 @@ TextRun SVGInlineTextBox::constructTextRun(RenderStyle* style, const SVGTextFrag
                 , AllowTrailingExpansion
                 , direction()
                 , dirOverride() || style->rtlOrdering() == VisualOrder /* directionalOverride */);
-
-    if (style->fontCascade().primaryFont().isSVGFont())
-        run.setRenderingContext(SVGTextRunRenderingContext::create(renderer()));
 
     // We handle letter & word spacing ourselves.
     run.disableSpacing();
@@ -582,7 +560,7 @@ void SVGInlineTextBox::paintTextWithShadows(GraphicsContext& context, RenderStyl
 
     GraphicsContext* usedContext = &context;
     do {
-        if (!prepareGraphicsContextForTextPainting(usedContext, scalingFactor, textRun, style))
+        if (!prepareGraphicsContextForTextPainting(usedContext, scalingFactor, style))
             break;
 
         {
@@ -598,7 +576,7 @@ void SVGInlineTextBox::paintTextWithShadows(GraphicsContext& context, RenderStyl
                 usedContext->restore();
         }
 
-        restoreGraphicsContextAfterTextPainting(usedContext, textRun);
+        restoreGraphicsContextAfterTextPainting(usedContext);
 
         if (!shadow)
             break;
@@ -615,7 +593,7 @@ void SVGInlineTextBox::paintText(GraphicsContext& context, RenderStyle* style, R
     int startPosition = 0;
     int endPosition = 0;
     if (hasSelection) {
-        selectionStartEnd(startPosition, endPosition);
+        std::tie(startPosition, endPosition) = selectionStartEnd();
         hasSelection = mapStartEndPositionsIntoFragmentCoordinates(fragment, startPosition, endPosition);
     }
 

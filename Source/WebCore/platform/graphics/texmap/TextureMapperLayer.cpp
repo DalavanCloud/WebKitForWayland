@@ -25,8 +25,6 @@
 #include "Region.h"
 #include <wtf/MathExtras.h>
 
-#if USE(TEXTURE_MAPPER)
-
 namespace WebCore {
 
 class TextureMapperPaintOptions {
@@ -57,19 +55,8 @@ void TextureMapperLayer::computeTransformsRecursive()
 
     m_state.visible = m_state.backfaceVisibility || !m_currentTransform.combined().isBackFaceVisible();
 
-    if (m_parent && m_parent->m_state.preserves3D) {
-        auto& transform = m_currentTransform.combined();
-        if (!m_state.size.isEmpty()) {
-            float centerZ = std::numeric_limits<float>::max();
-            FloatQuad rectQuad(FloatRect(m_state.pos, m_state.size));
-
-            centerZ = std::min(centerZ, transform.mapPoint(FloatPoint3D(rectQuad.p1())).z());
-            centerZ = std::min(centerZ, transform.mapPoint(FloatPoint3D(rectQuad.p2())).z());
-            centerZ = std::min(centerZ, transform.mapPoint(FloatPoint3D(rectQuad.p3())).z());
-            m_centerZ = std::min(centerZ, transform.mapPoint(FloatPoint3D(rectQuad.p4())).z());
-        } else
-            m_centerZ = transform.mapPoint(FloatPoint3D()).z();
-    }
+    if (m_parent && m_parent->m_state.preserves3D)
+        m_centerZ = m_currentTransform.combined().mapPoint(FloatPoint3D(m_state.size.width() / 2, m_state.size.height() / 2, 0)).z();
 
     if (m_state.maskLayer)
         m_state.maskLayer->computeTransformsRecursive();
@@ -380,7 +367,7 @@ void TextureMapperLayer::applyMask(const TextureMapperPaintOptions& options)
 
 PassRefPtr<BitmapTexture> TextureMapperLayer::paintIntoSurface(const TextureMapperPaintOptions& options, const IntSize& size)
 {
-    RefPtr<BitmapTexture> surface = options.textureMapper.acquireTextureFromPool(size);
+    RefPtr<BitmapTexture> surface = options.textureMapper.acquireTextureFromPool(size, BitmapTexture::SupportsAlpha | BitmapTexture::FBOAttachment);
     TextureMapperPaintOptions paintOptions(options);
     paintOptions.surface = surface;
     options.textureMapper.bindSurface(surface.get());
@@ -454,6 +441,13 @@ TextureMapperLayer::~TextureMapperLayer()
         child->m_parent = nullptr;
 
     removeFromParent();
+
+    if (m_effectTarget) {
+        if (m_effectTarget->m_state.maskLayer == this)
+            m_effectTarget->m_state.maskLayer = nullptr;
+        if (m_effectTarget->m_state.replicaLayer == this)
+            m_effectTarget->m_state.replicaLayer = nullptr;
+    }
 }
 
 #if !USE(COORDINATED_GRAPHICS)
@@ -775,4 +769,3 @@ void TextureMapperLayer::didCommitScrollOffset(const IntSize& offset)
 }
 
 }
-#endif

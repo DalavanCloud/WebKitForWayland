@@ -66,17 +66,17 @@ void DocumentThreadableLoader::loadResourceSynchronously(Document& document, con
     loadResourceSynchronously(document, request, client, options, nullptr);
 }
 
-PassRefPtr<DocumentThreadableLoader> DocumentThreadableLoader::create(Document& document, ThreadableLoaderClient& client, const ResourceRequest& request, const ThreadableLoaderOptions& options, std::unique_ptr<ContentSecurityPolicy>&& contentSecurityPolicy)
+RefPtr<DocumentThreadableLoader> DocumentThreadableLoader::create(Document& document, ThreadableLoaderClient& client, const ResourceRequest& request, const ThreadableLoaderOptions& options, std::unique_ptr<ContentSecurityPolicy>&& contentSecurityPolicy)
 {
     RefPtr<DocumentThreadableLoader> loader = adoptRef(new DocumentThreadableLoader(document, client, LoadAsynchronously, request, options, WTFMove(contentSecurityPolicy)));
     if (!loader->m_resource)
         loader = nullptr;
-    return loader.release();
+    return loader;
 }
 
-PassRefPtr<DocumentThreadableLoader> DocumentThreadableLoader::create(Document& document, ThreadableLoaderClient& client, const ResourceRequest& request, const ThreadableLoaderOptions& options)
+RefPtr<DocumentThreadableLoader> DocumentThreadableLoader::create(Document& document, ThreadableLoaderClient& client, const ResourceRequest& request, const ThreadableLoaderOptions& options)
 {
-    return DocumentThreadableLoader::create(document, client, request, options, nullptr);
+    return create(document, client, request, options, nullptr);
 }
 
 DocumentThreadableLoader::DocumentThreadableLoader(Document& document, ThreadableLoaderClient& client, BlockingBehavior blockingBehavior, const ResourceRequest& request, const ThreadableLoaderOptions& options, std::unique_ptr<ContentSecurityPolicy>&& contentSecurityPolicy)
@@ -208,9 +208,7 @@ void DocumentThreadableLoader::redirectReceived(CachedResource* resource, Resour
         bool allowRedirect = false;
         if (m_simpleRequest) {
             String accessControlErrorDescription;
-            allowRedirect = SchemeRegistry::shouldTreatURLSchemeAsCORSEnabled(request.url().protocol())
-                            && request.url().user().isEmpty()
-                            && request.url().pass().isEmpty()
+            allowRedirect = isValidCrossOriginRedirectionURL(request.url())
                             && (m_sameOriginRequest || passesAccessControlCheck(redirectResponse, m_options.allowCredentials(), securityOrigin(), accessControlErrorDescription));
         }
 
@@ -233,13 +231,8 @@ void DocumentThreadableLoader::redirectReceived(CachedResource* resource, Resour
             if (m_options.credentialRequest() == ClientDidNotRequestCredentials)
                 m_options.setAllowCredentials(DoNotAllowStoredCredentials);
 
-            // Remove any headers that may have been added by the network layer that cause access control to fail.
-            request.clearHTTPContentType();
-            request.clearHTTPReferrer();
-            request.clearHTTPOrigin();
-            request.clearHTTPUserAgent();
-            request.clearHTTPAccept();
-            request.clearHTTPAcceptEncoding();
+            cleanRedirectedRequestForAccessControl(request);
+
             makeCrossOriginAccessRequest(request);
             return;
         }
@@ -443,6 +436,8 @@ bool DocumentThreadableLoader::isAllowedByContentSecurityPolicy(const URL& url)
     switch (m_options.contentSecurityPolicyEnforcement) {
     case ContentSecurityPolicyEnforcement::DoNotEnforce:
         return true;
+    case ContentSecurityPolicyEnforcement::EnforceChildSrcDirective:
+        return contentSecurityPolicy().allowChildContextFromSource(url, false); // Do not override policy
     case ContentSecurityPolicyEnforcement::EnforceConnectSrcDirective:
         return contentSecurityPolicy().allowConnectToSource(url, false); // Do not override policy
     case ContentSecurityPolicyEnforcement::EnforceScriptSrcDirective:

@@ -59,7 +59,7 @@ class MediaControls : public HTMLDivElement {
 
     // This function is to be implemented in your port-specific media
     // controls implementation since it will return a child instance.
-    static PassRefPtr<MediaControls> create(Document&);
+    static RefPtr<MediaControls> tryCreate(Document&);
 
     virtual void setMediaController(MediaControllerInterface*);
 
@@ -94,7 +94,7 @@ class MediaControls : public HTMLDivElement {
     virtual void exitedFullscreen();
 
 #if !PLATFORM(IOS)
-    virtual bool willRespondToMouseMoveEvents() override { return true; }
+    bool willRespondToMouseMoveEvents() override { return true; }
 #endif
 
     virtual void hideFullscreenControlsTimerFired();
@@ -112,7 +112,7 @@ class MediaControls : public HTMLDivElement {
 protected:
     explicit MediaControls(Document&);
 
-    virtual void defaultEventHandler(Event*) override;
+    void defaultEventHandler(Event*) override;
 
     virtual bool containsRelatedTarget(Event*);
 
@@ -142,7 +142,7 @@ protected:
     bool m_isMouseOverControls;
 
 private:
-    virtual bool isMediaControls() const override final { return true; }
+    bool isMediaControls() const final { return true; }
 };
 
 inline MediaControls* toMediaControls(Node* node)

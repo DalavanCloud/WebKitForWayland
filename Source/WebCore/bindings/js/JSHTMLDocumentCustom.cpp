@@ -71,12 +71,7 @@ bool JSHTMLDocument::getOwnPropertySlot(JSObject* object, ExecState* exec, Prope
         return true;
     }
 
-    if (auto* table = JSHTMLDocument::info()->staticPropHashTable) {
-        if (const HashTableValue* entry = table->entry(propertyName)) {
-            slot.setCacheableCustom(thisObject, entry->attributes(), entry->propertyGetter());
-            return true;
-        }
-    }
+    static_assert(!hasStaticPropertyTable, "This method does not handle static instance properties");
 
     return Base::getOwnPropertySlot(thisObject, exec, propertyName, slot);
 }
@@ -149,7 +144,7 @@ JSValue JSHTMLDocument::open(ExecState& state)
                 JSValue function = wrapper->get(&state, Identifier::fromString(&state, "open"));
                 CallData callData;
                 CallType callType = ::getCallData(function, callData);
-                if (callType == CallTypeNone)
+                if (callType == CallType::None)
                     return throwTypeError(&state);
                 return JSC::call(&state, function, callType, callData, wrapper, ArgList(&state));
             }

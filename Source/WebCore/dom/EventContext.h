@@ -43,10 +43,11 @@ class EventContext {
     WTF_MAKE_FAST_ALLOCATED;
 public:
     // FIXME: Use ContainerNode instead of Node.
-    EventContext(PassRefPtr<Node>, PassRefPtr<EventTarget> currentTarget, PassRefPtr<EventTarget> target);
+    EventContext(Node*, EventTarget* currentTarget, EventTarget*);
     virtual ~EventContext();
 
     Node* node() const { return m_node.get(); }
+    EventTarget* currentTarget() const { return m_currentTarget.get(); }
     EventTarget* target() const { return m_target.get(); }
     bool currentTargetSameAsTarget() const { return m_currentTarget.get() == m_target.get(); }
     virtual void handleLocalEvents(Event&) const;
@@ -65,12 +66,12 @@ protected:
 
 class MouseOrFocusEventContext final : public EventContext {
 public:
-    MouseOrFocusEventContext(PassRefPtr<Node>, PassRefPtr<EventTarget> currentTarget, PassRefPtr<EventTarget> target);
+    MouseOrFocusEventContext(Node*, EventTarget* currentTarget, EventTarget*);
     virtual ~MouseOrFocusEventContext();
     EventTarget* relatedTarget() const { return m_relatedTarget.get(); }
     void setRelatedTarget(PassRefPtr<EventTarget>);
-    virtual void handleLocalEvents(Event&) const override;
-    virtual bool isMouseOrFocusEventContext() const override;
+    void handleLocalEvents(Event&) const override;
+    bool isMouseOrFocusEventContext() const override;
 
 private:
     RefPtr<EventTarget> m_relatedTarget;
@@ -80,11 +81,11 @@ private:
 #if ENABLE(TOUCH_EVENTS)
 class TouchEventContext final : public EventContext {
 public:
-    TouchEventContext(PassRefPtr<Node>, PassRefPtr<EventTarget> currentTarget, PassRefPtr<EventTarget> target);
+    TouchEventContext(Node*, EventTarget* currentTarget, EventTarget*);
     virtual ~TouchEventContext();
 
-    virtual void handleLocalEvents(Event&) const override;
-    virtual bool isTouchEventContext() const override;
+    void handleLocalEvents(Event&) const override;
+    bool isTouchEventContext() const override;
 
     enum TouchListType { Touches, TargetTouches, ChangedTouches, NotTouchList };
     TouchList* touchList(TouchListType type)

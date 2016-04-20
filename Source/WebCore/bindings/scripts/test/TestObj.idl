@@ -58,6 +58,8 @@ enum _optional { "", "OptionalValue1", "OptionalValue2", "OptionalValue3" };
     attribute DOMString                stringAttr;
     attribute TestObj                  testObjAttr;
     [LenientThis] attribute TestObj    lenientTestObjAttr;
+    [Unforgeable] readonly attribute DOMString unforgeableAttr;
+    [TreatNullAs=EmptyString] attribute DOMString stringAttrTreatingNullAsEmptyString;
 
     // WK_ucfirst, WK_lcfirst exceptional cases.
     attribute TestObj                  XMLObjAttr;
@@ -78,8 +80,15 @@ enum _optional { "", "OptionalValue1", "OptionalValue2", "OptionalValue3" };
     [Reflect=customContentBooleanAttr] attribute boolean reflectedCustomBooleanAttr;
     [Reflect=customContentURLAttr, URL] attribute DOMString reflectedCustomURLAttr;
 
+    // [EnabledAtRuntime] attributes and operations.
+    [Conditional=TEST_FEATURE, EnabledAtRuntime=TestFeature] attribute DOMString enabledAtRuntimeAttribute;
+    [Conditional=TEST_FEATURE, EnabledAtRuntime=TestFeature] void enabledAtRuntimeOperation(DOMString testParam);
+    [Conditional=TEST_FEATURE, EnabledAtRuntime=TestFeature] void enabledAtRuntimeOperation(long testParam);
+
     // TypedArray attribute
     attribute Float32Array typedArrayAttr;
+
+    iterable<DOMString, TestObj>;
 
     // Methods
     void    voidMethod();
@@ -92,6 +101,13 @@ enum _optional { "", "OptionalValue1", "OptionalValue2", "OptionalValue3" };
     long    longMethodWithArgs(long longArg, DOMString strArg, TestObj objArg);
     TestObj objMethod();
     TestObj objMethodWithArgs(long longArg, DOMString strArg, TestObj objArg);
+    [Unforgeable] long unforgeableMethod();
+    void methodWithArgTreatingNullAsEmptyString([TreatNullAs=EmptyString] DOMString arg);
+
+    // Nullable String return values.
+    DOMString? nullableStringMethod();
+    static DOMString? nullableStringStaticMethod();
+    getter DOMString? nullableStringSpecialMethod(unsigned long index);
 
     void methodWithSequenceArg(sequence<ScriptProfile> sequenceArg);
     sequence<ScriptProfile> methodReturningSequence(long longArg);
@@ -121,10 +137,6 @@ enum _optional { "", "OptionalValue1", "OptionalValue2", "OptionalValue3" };
     [Custom] void customMethod();
     [Custom] void customMethodWithArgs(long longArg, DOMString strArg, TestObj objArg);
 
-    // 'CustomBinding' extended attribute
-    [CustomBinding] void customBindingMethod();
-    [CustomBinding] void customBindingMethodWithArgs(long longArg, DOMString strArg, TestObj objArg);
-
     // 'JSBuiltin' extended attribute
     [Conditional=Condition3, JSBuiltin] void jsBuiltinMethod();
     [Conditional=Condition3, JSBuiltin] void jsBuiltinMethodWithArgs(long longArg, DOMString strArg, TestObj objArg);
@@ -137,6 +149,7 @@ enum _optional { "", "OptionalValue1", "OptionalValue2", "OptionalValue3" };
     void addEventListener(DOMString type, EventListener listener, optional boolean useCapture);
     void removeEventListener(DOMString type, EventListener listener, optional boolean useCapture);
     attribute EventHandler onfoo;
+    [ImplementedAs=onfoo] attribute EventHandler onwebkitfoo;
 
     // 'CallWith' extended attribute
     [CallWith=ScriptState] void withScriptStateVoid();
@@ -148,6 +161,7 @@ enum _optional { "", "OptionalValue1", "OptionalValue2", "OptionalValue3" };
     [CallWith=ScriptExecutionContext&ScriptState, RaisesException] TestObj withScriptExecutionContextAndScriptStateObjException();
     [CallWith=  ScriptExecutionContext  &  ScriptState  ] TestObj withScriptExecutionContextAndScriptStateWithSpaces();
     [CallWith=ScriptArguments&CallStack] void withScriptArgumentsAndCallStack();
+    [CallWith=Document] void withDocumentArgument();
 
     [CallWith=ScriptState] attribute long withScriptStateAttribute;
     [CallWith=ScriptState, SetterCallWith=ActiveWindow&FirstWindow] attribute long withCallWithAndSetterCallWithAttribute;
@@ -252,10 +266,10 @@ enum _optional { "", "OptionalValue1", "OptionalValue2", "OptionalValue3" };
     [CheckSecurityForNode] readonly attribute Document contentDocument;
     [CheckSecurityForNode, RaisesException] SVGDocument getSVGDocument();
 
-    void convert1([TreatReturnedNullStringAs=Null] TestNode value);
-    void convert2([TreatReturnedNullStringAs=Undefined] TestNode value);
-    void convert4([TreatNullAs=NullString] TestNode value);
-    void convert5([TreatNullAs=NullString, TreatUndefinedAs=NullString] TestNode value);
+    void convert1(TestNode value);
+    void convert2(TestNode? value);
+    void convert3(DOMString value);
+    void convert4(DOMString? value);
 
     attribute SVGPoint mutablePoint;
     [Immutable] attribute SVGPoint immutablePoint;
@@ -302,6 +316,7 @@ enum _optional { "", "OptionalValue1", "OptionalValue2", "OptionalValue3" };
     readonly attribute DOMString? nullableStringAttribute;
 
     attribute long? nullableLongSettableAttribute;
+    attribute DOMString? nullableStringSettableAttribute;
 
     [GetterRaisesException] attribute long? nullableStringValue;
 
@@ -316,10 +331,18 @@ enum _optional { "", "OptionalValue1", "OptionalValue2", "OptionalValue3" };
     Promise testPromiseFunctionWithFloatArgument(float a);
     [RaisesException] Promise testPromiseFunctionWithException();
     Promise testPromiseFunctionWithOptionalIntArgument(optional long a);
+    Promise testPromiseOverloadedFunction(float a);
+    Promise testPromiseOverloadedFunction(FetchRequest request);
+    static Promise testStaticPromiseFunction();
+    [RaisesException] static Promise testStaticPromiseFunctionWithException();
 
     // PutForwards
     [PutForwards=name] readonly attribute TestNode putForwardsAttribute;
     [PutForwards=name] readonly attribute TestNode? putForwardsNullableAttribute;
+
+#if defined(TESTING_JS)
+    [InvokesCustomElementLifecycleCallbacks] void methodWithNeedsLifecycleProcessingStack();
+#endif
 };
 
 // The following comment should not generate any code.

@@ -597,6 +597,7 @@ _llint_op_create_this:
     traceExecution()
     loadisFromInstruction(2, t0)
     loadp [cfr, t0, 8], t0
+    bbneq JSCell::m_type[t0], JSFunctionType, .opCreateThisSlow
     loadp JSFunction::m_rareData[t0], t3
     btpz t3, .opCreateThisSlow
     loadp FunctionRareData::m_objectAllocationProfile + ObjectAllocationProfile::m_allocator[t3], t1
@@ -1092,34 +1093,6 @@ _llint_op_overrides_has_instance:
     dispatch(4)
 
 
-_llint_op_instanceof:
-    traceExecution()
-    # Actually do the work.
-    loadisFromInstruction(3, t0)
-    loadConstantOrVariableCell(t0, t1, .opInstanceofSlow)
-    bbb JSCell::m_type[t1], ObjectType, .opInstanceofSlow
-    loadisFromInstruction(2, t0)
-    loadConstantOrVariableCell(t0, t2, .opInstanceofSlow)
-    
-    # Register state: t1 = prototype, t2 = value
-    move 1, t0
-.opInstanceofLoop:
-    loadStructureAndClobberFirstArg(t2, t3)
-    loadq Structure::m_prototype[t3], t2
-    bqeq t2, t1, .opInstanceofDone
-    btqz t2, tagMask, .opInstanceofLoop
-
-    move 0, t0
-.opInstanceofDone:
-    orq ValueFalse, t0
-    loadisFromInstruction(1, t3)
-    storeq t0, [cfr, t3, 8]
-    dispatch(4)
-
-.opInstanceofSlow:
-    callSlowPath(_llint_slow_path_instanceof)
-    dispatch(4)
-
 _llint_op_instanceof_custom:
     traceExecution()
     callSlowPath(_llint_slow_path_instanceof_custom)
@@ -1203,10 +1176,9 @@ _llint_op_is_object:
     dispatch(3)
 
 
-macro loadPropertyAtVariableOffset(propertyOffsetAsInt, objectAndStorage, value, slow)
+macro loadPropertyAtVariableOffset(propertyOffsetAsInt, objectAndStorage, value)
     bilt propertyOffsetAsInt, firstOutOfLineOffset, .isInline
     loadp JSObject::m_butterfly[objectAndStorage], objectAndStorage
-    copyBarrier(objectAndStorage, slow)
     negi propertyOffsetAsInt
     sxi2q propertyOffsetAsInt, propertyOffsetAsInt
     jmp .ready
@@ -1217,10 +1189,9 @@ macro loadPropertyAtVariableOffset(propertyOffsetAsInt, objectAndStorage, value,
 end
 
 
-macro storePropertyAtVariableOffset(propertyOffsetAsInt, objectAndStorage, value, slow)
+macro storePropertyAtVariableOffset(propertyOffsetAsInt, objectAndStorage, value)
     bilt propertyOffsetAsInt, firstOutOfLineOffset, .isInline
     loadp JSObject::m_butterfly[objectAndStorage], objectAndStorage
-    copyBarrier(objectAndStorage, slow)
     negi propertyOffsetAsInt
     sxi2q propertyOffsetAsInt, propertyOffsetAsInt
     jmp .ready
@@ -1239,7 +1210,7 @@ _llint_op_get_by_id:
     bineq t2, t1, .opGetByIdSlow
     loadisFromInstruction(5, t1)
     loadisFromInstruction(1, t2)
-    loadPropertyAtVariableOffset(t1, t3, t0, .opGetByIdSlow)
+    loadPropertyAtVariableOffset(t1, t3, t0)
     storeq t0, [cfr, t2, 8]
     valueProfile(t0, 8, t1)
     dispatch(9)
@@ -1260,7 +1231,6 @@ _llint_op_get_array_length:
     btiz t2, IndexingShapeMask, .opGetArrayLengthSlow
     loadisFromInstruction(1, t1)
     loadp JSObject::m_butterfly[t3], t0
-    copyBarrier(t0, .opGetArrayLengthSlow)
     loadi -sizeof IndexingHeader + IndexingHeader::u.lengths.publicLength[t0], t0
     bilt t0, 0, .opGetArrayLengthSlow
     orq tagTypeNumber, t0
@@ -1404,7 +1374,7 @@ _llint_op_put_by_id:
     loadisFromInstruction(3, t1)
     loadConstantOrVariable(t1, t2)
     loadisFromInstruction(5, t1)
-    storePropertyAtVariableOffset(t1, t0, t2, .opPutByIdSlow)
+    storePropertyAtVariableOffset(t1, t0, t2)
     dispatch(9)
 
 .opPutByIdSlow:
@@ -1423,7 +1393,6 @@ _llint_op_get_by_val:
     loadConstantOrVariableInt32(t3, t1, .opGetByValSlow)
     sxi2q t1, t1
     loadp JSObject::m_butterfly[t0], t3
-    copyBarrier(t3, .opGetByValSlow)
     andi IndexingShapeMask, t2
     bieq t2, Int32Shape, .opGetByValIsContiguous
     bineq t2, ContiguousShape, .opGetByValNotContiguous
@@ -1494,7 +1463,6 @@ macro putByVal(slowPath)
     loadConstantOrVariableInt32(t0, t3, .opPutByValSlow)
     sxi2q t3, t3
     loadp JSObject::m_butterfly[t1], t0
-    copyBarrier(t0, .opPutByValSlow)
     andi IndexingShapeMask, t2
     bineq t2, Int32Shape, .opPutByValNotInt32
     contiguousPutByVal(
@@ -2015,9 +1983,9 @@ macro loadWithStructureCheck(operand, slowPath)
     bpneq t2, t1, slowPath
 end
 
-macro getProperty(slow)
+macro getProperty()
     loadisFromInstruction(6, t1)
-    loadPropertyAtVariableOffset(t1, t0, t2, slow)
+    loadPropertyAtVariableOffset(t1, t0, t2)
     valueProfile(t2, 7, t0)
     loadisFromInstruction(1, t0)
     storeq t2, [cfr, t0, 8]
@@ -2048,7 +2016,7 @@ _llint_op_get_from_scope:
 #gGlobalProperty:
     bineq t0, GlobalProperty, .gGlobalVar
     loadWithStructureCheck(2, .gDynamic)
-    getProperty(.gDynamic)
+    getProperty()
     dispatch(8)
 
 .gGlobalVar:
@@ -2073,7 +2041,7 @@ _llint_op_get_from_scope:
 .gGlobalPropertyWithVarInjectionChecks:
     bineq t0, GlobalPropertyWithVarInjectionChecks, .gGlobalVarWithVarInjectionChecks
     loadWithStructureCheck(2, .gDynamic)
-    getProperty(.gDynamic)
+    getProperty()
     dispatch(8)
 
 .gGlobalVarWithVarInjectionChecks:
@@ -2103,11 +2071,11 @@ _llint_op_get_from_scope:
     dispatch(8)
 
 
-macro putProperty(slow)
+macro putProperty()
     loadisFromInstruction(3, t1)
     loadConstantOrVariable(t1, t2)
     loadisFromInstruction(6, t1)
-    storePropertyAtVariableOffset(t1, t0, t2, slow)
+    storePropertyAtVariableOffset(t1, t0, t2)
 end
 
 macro putGlobalVariable()
@@ -2165,7 +2133,7 @@ _llint_op_put_to_scope:
     bineq t0, GlobalProperty, .pGlobalVar
     writeBarrierOnOperands(1, 3)
     loadWithStructureCheck(1, .pDynamic)
-    putProperty(.pDynamic)
+    putProperty()
     dispatch(7)
 
 .pGlobalVar:
@@ -2192,7 +2160,7 @@ _llint_op_put_to_scope:
     bineq t0, GlobalPropertyWithVarInjectionChecks, .pGlobalVarWithVarInjectionChecks
     writeBarrierOnOperands(1, 3)
     loadWithStructureCheck(1, .pDynamic)
-    putProperty(.pDynamic)
+    putProperty()
     dispatch(7)
 
 .pGlobalVarWithVarInjectionChecks:

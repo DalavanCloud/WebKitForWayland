@@ -24,12 +24,12 @@
  */
 
 #include "BAssert.h"
-#include "LargeChunk.h"
+#include "Chunk.h"
 #include "Deallocator.h"
 #include "Heap.h"
 #include "Inline.h"
+#include "Object.h"
 #include "PerProcess.h"
-#include "SmallChunk.h"
 #include <algorithm>
 #include <cstdlib>
 #include <sys/mman.h>
@@ -59,35 +59,26 @@ void Deallocator::scavenge()
         processObjectLog();
 }
 
-void Deallocator::deallocateLarge(void* object)
-{
-    std::lock_guard<StaticMutex> lock(PerProcess<Heap>::mutex());
-    PerProcess<Heap>::getFastCase()->deallocateLarge(lock, object);
-}
-
 void Deallocator::deallocateXLarge(void* object)
 {
     std::unique_lock<StaticMutex> lock(PerProcess<Heap>::mutex());
     PerProcess<Heap>::getFastCase()->deallocateXLarge(lock, object);
 }
 
+void Deallocator::processObjectLog(std::lock_guard<StaticMutex>& lock)
+{
+    Heap* heap = PerProcess<Heap>::getFastCase();
+    
+    for (Object object : m_objectLog)
+        heap->derefSmallLine(lock, object);
+
+    m_objectLog.clear();
+}
+
 void Deallocator::processObjectLog()
 {
     std::lock_guard<StaticMutex> lock(PerProcess<Heap>::mutex());
-    Heap* heap = PerProcess<Heap>::getFastCase();
-    
-    for (auto* object : m_objectLog) {
-        if (isSmall(object)) {
-            SmallLine* line = SmallLine::get(object);
-            heap->derefSmallLine(lock, line);
-        } else {
-            BASSERT(isMedium(object));
-            MediumLine* line = MediumLine::get(object);
-            heap->derefMediumLine(lock, line);
-        }
-    }
-    
-    m_objectLog.clear();
+    processObjectLog(lock);
 }
 
 void Deallocator::deallocateSlowCase(void* object)
@@ -99,20 +90,15 @@ void Deallocator::deallocateSlowCase(void* object)
         return;
     }
 
-    BASSERT(objectType(nullptr) == XLarge);
     if (!object)
         return;
 
-    if (isSmallOrMedium(object)) {
-        processObjectLog();
-        m_objectLog.push(object);
-        return;
-    }
+    if (isXLarge(object))
+        return deallocateXLarge(object);
 
-    if (!isXLarge(object))
-        return deallocateLarge(object);
-    
-    return deallocateXLarge(object);
+    BASSERT(m_objectLog.size() == m_objectLog.capacity());
+    processObjectLog();
+    m_objectLog.push(object);
 }
 
 } // namespace bmalloc
