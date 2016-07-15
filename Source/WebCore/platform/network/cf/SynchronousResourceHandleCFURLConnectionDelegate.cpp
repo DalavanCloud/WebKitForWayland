@@ -180,7 +180,7 @@ void SynchronousResourceHandleCFURLConnectionDelegate::didReceiveResponse(CFURLC
     UNUSED_PARAM(connection);
 #endif
     
-    m_handle->client()->didReceiveResponse(m_handle, WTFMove(resourceResponse));
+    m_handle->client()->didReceiveResponse(m_handle, resourceResponse);
 }
 
 void SynchronousResourceHandleCFURLConnectionDelegate::didReceiveData(CFDataRef data, CFIndex originalLength)

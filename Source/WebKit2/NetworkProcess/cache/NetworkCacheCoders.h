@@ -23,7 +23,8 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
+#ifndef NetworkCacheCoders_h
+#define NetworkCacheCoders_h
 
 #if ENABLE(NETWORK_CACHE)
 
@@ -76,38 +77,6 @@ template<typename Rep, typename Period> struct Coder<std::chrono::duration<Rep, 
         if (!decoder.decode(count))
             return false;
         result = std::chrono::duration<Rep, Period>(static_cast<Rep>(count));
-        return true;
-    }
-};
-
-template<typename T> struct Coder<Optional<T>> {
-    static void encode(Encoder& encoder, const Optional<T>& optional)
-    {
-        if (!optional) {
-            encoder << false;
-            return;
-        }
-        
-        encoder << true;
-        encoder << optional.value();
-    }
-    
-    static bool decode(Decoder& decoder, Optional<T>& optional)
-    {
-        bool isEngaged;
-        if (!decoder.decode(isEngaged))
-            return false;
-        
-        if (!isEngaged) {
-            optional = Nullopt;
-            return true;
-        }
-        
-        T value;
-        if (!decoder.decode(value))
-            return false;
-        
-        optional = WTFMove(value);
         return true;
     }
 };
@@ -297,4 +266,5 @@ template<> struct Coder<WebCore::HTTPHeaderMap> {
 
 }
 }
+#endif
 #endif

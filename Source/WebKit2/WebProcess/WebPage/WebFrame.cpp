@@ -397,16 +397,16 @@ String WebFrame::url() const
     return documentLoader->url().string();
 }
 
-CertificateInfo WebFrame::certificateInfo() const
+WebCore::CertificateInfo WebFrame::certificateInfo() const
 {
     if (!m_coreFrame)
-        return { };
+        return CertificateInfo();
 
     DocumentLoader* documentLoader = m_coreFrame->loader().documentLoader();
     if (!documentLoader)
-        return { };
+        return CertificateInfo();
 
-    return documentLoader->response().certificateInfo().valueOrCompute([] { return CertificateInfo(); });
+    return documentLoader->response().certificateInfo();
 }
 
 String WebFrame::innerText() const

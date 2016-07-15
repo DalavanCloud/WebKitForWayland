@@ -62,9 +62,9 @@ bool SynchronousLoaderClient::canAuthenticateAgainstProtectionSpace(ResourceHand
 }
 #endif
 
-void SynchronousLoaderClient::didReceiveResponse(ResourceHandle*, ResourceResponse&& response)
+void SynchronousLoaderClient::didReceiveResponse(ResourceHandle*, const ResourceResponse& response)
 {
-    m_response = WTFMove(response);
+    m_response = response;
 }
 
 void SynchronousLoaderClient::didReceiveData(ResourceHandle*, const char* data, unsigned length, int /*encodedDataLength*/)

@@ -23,7 +23,8 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
+#ifndef NetworkLoadClient_h
+#define NetworkLoadClient_h
 
 #include <WebCore/ResourceError.h>
 #include <WebCore/ResourceRequest.h>
@@ -51,7 +52,7 @@ public:
     virtual void canAuthenticateAgainstProtectionSpaceAsync(const WebCore::ProtectionSpace&) = 0;
     virtual void willSendRedirectedRequest(WebCore::ResourceRequest&&, WebCore::ResourceRequest&& redirectRequest, WebCore::ResourceResponse&& redirectResponse) = 0;
     enum class ShouldContinueDidReceiveResponse { No, Yes };
-    virtual ShouldContinueDidReceiveResponse didReceiveResponse(WebCore::ResourceResponse&&) = 0;
+    virtual ShouldContinueDidReceiveResponse didReceiveResponse(const WebCore::ResourceResponse&) = 0;
     virtual void didReceiveBuffer(Ref<WebCore::SharedBuffer>&&, int reportedEncodedDataLength) = 0;
     virtual void didFinishLoading(double finishTime) = 0;
     virtual void didFailLoading(const WebCore::ResourceError&) = 0;
@@ -61,3 +62,6 @@ public:
 };
 
 } // namespace WebKit
+
+#endif // NetworkLoadClient_h
+

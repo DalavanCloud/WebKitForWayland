@@ -47,6 +47,7 @@ inline const ResourceResponse& ResourceResponseBase::asResourceResponse() const
 ResourceResponseBase::ResourceResponseBase()
     : m_isNull(true)
     , m_expectedContentLength(0)
+    , m_includesCertificateInfo(false)
     , m_httpStatusCode(0)
 {
 }
@@ -57,7 +58,7 @@ ResourceResponseBase::ResourceResponseBase(const URL& url, const String& mimeTyp
     , m_mimeType(mimeType)
     , m_expectedContentLength(expectedLength)
     , m_textEncodingName(textEncodingName)
-    , m_certificateInfo(CertificateInfo()) // Empty but valid for synthetic responses.
+    , m_includesCertificateInfo(true) // Empty but valid for synthetic responses.
     , m_httpStatusCode(0)
 {
 }
@@ -183,9 +184,15 @@ void ResourceResponseBase::setTextEncodingName(const String& encodingName)
 
 void ResourceResponseBase::includeCertificateInfo() const
 {
-    if (m_certificateInfo)
+    if (m_includesCertificateInfo)
         return;
     m_certificateInfo = static_cast<const ResourceResponse*>(this)->platformCertificateInfo();
+    m_includesCertificateInfo = true;
+}
+
+CertificateInfo ResourceResponseBase::certificateInfo() const
+{
+    return m_certificateInfo;
 }
 
 String ResourceResponseBase::suggestedFilename() const

@@ -165,10 +165,10 @@ void NetworkDataTask::didCompleteWithError(const WebCore::ResourceError& error)
         m_client->didCompleteWithError(error);
 }
 
-void NetworkDataTask::didReceiveResponse(WebCore::ResourceResponse&& response, ResponseCompletionHandler completionHandler)
+void NetworkDataTask::didReceiveResponse(const WebCore::ResourceResponse& response, ResponseCompletionHandler completionHandler)
 {
     if (m_client)
-        m_client->didReceiveResponseNetworkSession(WTFMove(response), completionHandler);
+        m_client->didReceiveResponseNetworkSession(response, completionHandler);
     else {
         ASSERT_NOT_REACHED();
         completionHandler(WebCore::PolicyAction::PolicyIgnore);
