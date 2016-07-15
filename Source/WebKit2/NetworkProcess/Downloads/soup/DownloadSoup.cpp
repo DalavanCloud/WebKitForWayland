@@ -45,10 +45,10 @@ using namespace WebCore;
 
 namespace WebKit {
 
-class DownloadClient final : public ResourceHandleClient {
+class DownloadClient : public ResourceHandleClient {
     WTF_MAKE_NONCOPYABLE(DownloadClient);
 public:
-    DownloadClient(Download& download)
+    DownloadClient(Download* download)
         : m_download(download)
         , m_handleResponseLater(RunLoop::main(), this, &DownloadClient::handleResponse)
         , m_allowOverwrite(false)
@@ -73,28 +73,28 @@ public:
     void downloadFailed(const ResourceError& error)
     {
         deleteFilesIfNeeded();
-        m_download.didFail(error, IPC::DataReference());
+        m_download->didFail(error, IPC::DataReference());
     }
 
-    void didReceiveResponse(ResourceHandle*, ResourceResponse&& response) override
+    void didReceiveResponse(ResourceHandle*, const ResourceResponse& response)
     {
-        m_response = WTFMove(response);
-        m_download.didReceiveResponse(m_response);
+        m_response = response;
+        m_download->didReceiveResponse(response);
 
-        if (m_response.httpStatusCode() >= 400) {
-            downloadFailed(platformDownloadNetworkError(m_response.httpStatusCode(), m_response.url(), m_response.httpStatusText()));
+        if (response.httpStatusCode() >= 400) {
+            downloadFailed(platformDownloadNetworkError(response.httpStatusCode(), response.url(), response.httpStatusText()));
             return;
         }
 
-        String suggestedFilename = m_response.suggestedFilename();
+        String suggestedFilename = response.suggestedFilename();
         if (suggestedFilename.isEmpty()) {
-            URL url = m_response.url();
+            URL url = response.url();
             url.setQuery(String());
             url.removeFragmentIdentifier();
             suggestedFilename = decodeURLEscapeSequences(url.lastPathComponent());
         }
 
-        String destinationURI = m_download.decideDestinationWithSuggestedFilename(suggestedFilename, m_allowOverwrite);
+        String destinationURI = m_download->decideDestinationWithSuggestedFilename(suggestedFilename, m_allowOverwrite);
         if (destinationURI.isEmpty()) {
 #if PLATFORM(GTK)
             GUniquePtr<char> buffer(g_strdup_printf(_("Cannot determine destination URI for download with suggested filename %s"), suggestedFilename.utf8().data()));
@@ -102,7 +102,7 @@ public:
 #else
             String errorMessage = makeString("Cannot determine destination URI for download with suggested filename ", suggestedFilename);
 #endif
-            downloadFailed(platformDownloadDestinationError(m_response, errorMessage));
+            downloadFailed(platformDownloadDestinationError(response, errorMessage));
             return;
         }
 
@@ -115,7 +115,7 @@ public:
             outputStream = adoptGRef(g_file_create(m_destinationFile.get(), G_FILE_CREATE_NONE, nullptr, &error.outPtr()));
         if (!outputStream) {
             m_destinationFile.clear();
-            downloadFailed(platformDownloadDestinationError(m_response, error->message));
+            downloadFailed(platformDownloadDestinationError(response, error->message));
             return;
         }
 
@@ -123,14 +123,14 @@ public:
         m_intermediateFile = adoptGRef(g_file_new_for_uri(intermediateURI.utf8().data()));
         m_outputStream = adoptGRef(g_file_replace(m_intermediateFile.get(), 0, TRUE, G_FILE_CREATE_NONE, 0, &error.outPtr()));
         if (!m_outputStream) {
-            downloadFailed(platformDownloadDestinationError(m_response, error->message));
+            downloadFailed(platformDownloadDestinationError(response, error->message));
             return;
         }
 
-        m_download.didCreateDestination(destinationURI);
+        m_download->didCreateDestination(destinationURI);
     }
 
-    void didReceiveData(ResourceHandle*, const char* data, unsigned length, int /*encodedDataLength*/) override
+    void didReceiveData(ResourceHandle*, const char* data, unsigned length, int /*encodedDataLength*/)
     {
         if (m_handleResponseLater.isActive()) {
             m_handleResponseLater.stop();
@@ -144,12 +144,12 @@ public:
             downloadFailed(platformDownloadDestinationError(m_response, error->message));
             return;
         }
-        m_download.didReceiveData(bytesWritten);
+        m_download->didReceiveData(bytesWritten);
     }
 
-    void didFinishLoading(ResourceHandle*, double) override
+    void didFinishLoading(ResourceHandle*, double)
     {
-        m_outputStream = nullptr;
+        m_outputStream = 0;
 
         ASSERT(m_destinationFile);
         ASSERT(m_intermediateFile);
@@ -165,24 +165,34 @@ public:
         g_file_info_set_attribute_string(info.get(), "xattr::xdg.origin.url", uri.data());
         g_file_set_attributes_async(m_destinationFile.get(), info.get(), G_FILE_QUERY_INFO_NONE, G_PRIORITY_DEFAULT, nullptr, nullptr, nullptr);
 
-        m_download.didFinish();
+        m_download->didFinish();
     }
 
-    void didFail(ResourceHandle*, const ResourceError& error) override
+    void didFail(ResourceHandle*, const ResourceError& error)
     {
         downloadFailed(platformDownloadNetworkError(error.errorCode(), error.failingURL(), error.localizedDescription()));
+    }
+
+    void wasBlocked(ResourceHandle*)
+    {
+        notImplemented();
+    }
+
+    void cannotShowURL(ResourceHandle*)
+    {
+        notImplemented();
     }
 
     void cancel(ResourceHandle* handle)
     {
         handle->cancel();
         deleteFilesIfNeeded();
-        m_download.didCancel(IPC::DataReference());
+        m_download->didCancel(IPC::DataReference());
     }
 
     void handleResponse()
     {
-        didReceiveResponse(nullptr, WTFMove(m_delayedResponse));
+        didReceiveResponse(nullptr, m_delayedResponse);
     }
 
     void handleResponseLater(const ResourceResponse& response)
@@ -197,7 +207,7 @@ public:
         m_handleResponseLater.startOneShot(0);
     }
 
-    Download& m_download;
+    Download* m_download;
     GRefPtr<GFileOutputStream> m_outputStream;
     ResourceResponse m_response;
     GRefPtr<GFile> m_destinationFile;
@@ -211,7 +221,7 @@ void Download::start()
 {
     ASSERT(!m_downloadClient);
     ASSERT(!m_resourceHandle);
-    m_downloadClient = std::make_unique<DownloadClient>(*this);
+    m_downloadClient = std::make_unique<DownloadClient>(this);
     m_resourceHandle = ResourceHandle::create(0, m_request, m_downloadClient.get(), false, false);
     didStart();
 }
@@ -220,7 +230,7 @@ void Download::startWithHandle(ResourceHandle* resourceHandle, const ResourceRes
 {
     ASSERT(!m_downloadClient);
     ASSERT(!m_resourceHandle);
-    m_downloadClient = std::make_unique<DownloadClient>(*this);
+    m_downloadClient = std::make_unique<DownloadClient>(this);
     m_resourceHandle = resourceHandle->releaseForDownload(m_downloadClient.get());
     didStart();
     static_cast<DownloadClient*>(m_downloadClient.get())->handleResponseLater(response);
