@@ -22,7 +22,15 @@
 #endif
 
 #define WAV_FILE "/tmp/speechsynth.wav"
-#define AUDIO_DEVICE "plughw:1" 
+#define AUDIO_DEVICE "plughw:1"
+//Volume change
+#define ITRNS 32
+#define NUMBERS 64
+#define LOCATN 40
+#define INX 2
+
+#define A_CHUNK 1024 //Audio chunk size
+#define BUFF_SIZE 4
 
 #ifndef le16toh
 #include <asm/byteorder.h>
@@ -87,84 +95,86 @@ typedef struct {
 
 namespace WebCore {
 
-    class PlatformSpeechSynthesizer;
-    class PlatformSpeechSynthesisUtterance;
-    class PlatformSpeechSynthesisVoice;
-    class AplayWPE{
+class PlatformSpeechSynthesizer;
+class PlatformSpeechSynthesisUtterance;
+class PlatformSpeechSynthesisVoice;
+class AplayWPE{
 
-        public:
-            AplayWPE(PlatformSpeechSynthesisProviderWPE*);
-            ~AplayWPE();
-            void playback(const char *name);
-        private:
-            PlatformSpeechSynthesisProviderWPE* m_speechSynthesisProviderWPE;
-            int m_stopDelay;
-            int m_wavFd;
+    public:
+        AplayWPE(PlatformSpeechSynthesisProviderWPE*);
+        AplayWPE();
+        ~AplayWPE();
+        void playback(const char *name);
+        int setVolumeChange(float volv);
+    private:
+        PlatformSpeechSynthesisProviderWPE* m_speechSynthesisProviderWPE;
+        int m_stopDelay;
+        int m_wavFd;
 
-            unsigned m_periodTime;
-            unsigned m_bufferTime;
-            size_t m_bitsPerSample;
-            size_t m_bitsPerFrame;
-            size_t m_chunkBytes;
+        unsigned m_periodTime;
+        unsigned m_bufferTime;
+        size_t m_bitsPerSample;
+        size_t m_bitsPerFrame;
+        size_t m_chunkBytes;
 
-            snd_pcm_uframes_t m_periodFrames;
-            snd_pcm_uframes_t m_bufferFrames;
+        snd_pcm_uframes_t m_periodFrames;
+        snd_pcm_uframes_t m_bufferFrames;
 
-            off64_t m_pbrecCount;
-            off64_t m_fdcount;
+        off64_t m_pbrecCount;
+        off64_t m_fdcount;
+        int convertInteger(float oldval, int newmax, int newmin);
+        void setHWParams(void);
+        ssize_t pcmWrite(u_char *data, size_t count);
+        ssize_t safeRead(int fd, void *buf, size_t count);
+        ssize_t checkWavefile(int fd, u_char *_buffer, size_t size);
+        void playbackStart(int fd, size_t loaded, off64_t count, const char *name);
+        size_t checkWavefileRead(int fd, u_char *buffer, size_t *size, size_t reqsize);
 
-            void setHWParams(void);
-            ssize_t pcmWrite(u_char *data, size_t count);
-            ssize_t safeRead(int fd, void *buf, size_t count);
-            ssize_t checkWavefile(int fd, u_char *_buffer, size_t size);
-            void playbackStart(int fd, size_t loaded, off64_t count, const char *name);
-            size_t checkWavefileRead(int fd, u_char *buffer, size_t *size, size_t reqsize);
+};
+class PlatformSpeechSynthesisProviderWPE {
 
-    };
-    class PlatformSpeechSynthesisProviderWPE {
+    public:
 
-        public:
+        explicit PlatformSpeechSynthesisProviderWPE(PlatformSpeechSynthesizer*);
+        ~PlatformSpeechSynthesisProviderWPE();
 
-            explicit PlatformSpeechSynthesisProviderWPE(PlatformSpeechSynthesizer*);
-            ~PlatformSpeechSynthesisProviderWPE();
+        void initializeVoiceList(Vector<RefPtr<PlatformSpeechSynthesisVoice>>&);
+        void pause();
+        void resume();
+        void speak(PassRefPtr<PlatformSpeechSynthesisUtterance>);
+        void cancel();
 
-            void initializeVoiceList(Vector<RefPtr<PlatformSpeechSynthesisVoice>>&);
-            void pause();
-            void resume();
-            void speak(PassRefPtr<PlatformSpeechSynthesisUtterance>);
-            void cancel();
+        static void  speakFunctionThread (void*);
 
-            static void  speakFunctionThread (void*);
+        int m_canPause;
+        int m_isPaused;
+        int m_cancelled;
+        snd_pcm_t *m_handle;
+        u_char *m_audioBuf;
+        snd_pcm_uframes_t m_chunkSize;
 
-            int m_canPause;
-            int m_isPaused;
-            int m_cancelled;
-            snd_pcm_t *m_handle;
-            u_char *m_audioBuf;
-            snd_pcm_uframes_t m_chunkSize; 
+    private:
+        PlatformSpeechSynthesizer* m_platformSpeechSynthesizer;
+        RefPtr<PlatformSpeechSynthesisUtterance> m_utterance;
+        ThreadIdentifier m_speakThread;
+        snd_pcm_stream_t m_stream;
+        enum SpeechEvent {
+            SpeechError,
+            SpeechCancel,
+            SpeechPause,
+            SpeechResume,
+            SpeechStart,
+            SpeechEnd
+        };
 
-        private:
-            PlatformSpeechSynthesizer* m_platformSpeechSynthesizer;
-            RefPtr<PlatformSpeechSynthesisUtterance> m_utterance;
-            ThreadIdentifier m_speakThread;
-            snd_pcm_stream_t m_stream;
-            enum SpeechEvent {
-                SpeechError,
-                SpeechCancel,
-                SpeechPause,
-                SpeechResume,
-                SpeechStart,
-                SpeechEnd
-            };
-
-            int speechMain();
-            void fireSpeechEvent(SpeechEvent);
-            void doPause(void);
-            void doResume(void);
+        int speechMain();
+        void fireSpeechEvent(SpeechEvent);
+        void doPause(void);
+        void doResume(void);
 
 
 
-    };
+};
 
 } // namespace WebCore
 
