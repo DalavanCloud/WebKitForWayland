@@ -104,6 +104,7 @@ endif(USE_WPE_BACKEND_WESTEROS)
 
 if (ENABLE_SPEECH_SYNTHESIS)
     find_package(CFLite)
+    find_package(FFmpeg)
 endif (ENABLE_SPEECH_SYNTHESIS)
 
 if (ENABLE_MEDIA_STREAM)
