@@ -159,6 +159,10 @@ if (ENABLE_ENCRYPTED_MEDIA OR ENABLE_ENCRYPTED_MEDIA_V2)
     find_package(LibGcrypt REQUIRED)
 endif ()
 
+if (ENABLE_ENCRYPTED_MEDIA_V2)
+    find_package(OCDM REQUIRED)
+endif()
+
 if (ENABLE_BREAKPAD)
     find_package(Breakpad REQUIRED)
     add_definitions(-DUSE_BREAKPAD=1)
