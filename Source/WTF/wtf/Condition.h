@@ -142,6 +142,12 @@ struct ConditionBase {
         return waitForSecondsImpl(lock, absoluteTimeoutSeconds - monotonicallyIncreasingTime());
     }
     
+    template<typename LockType>
+    bool waitForSeconds(LockType& lock, double relativeTimeoutSeconds)
+    {
+        return waitForSecondsImpl(lock, relativeTimeoutSeconds);
+    }
+
     template<typename LockType, typename Functor>
     bool waitForSeconds(LockType& lock, double relativeTimeoutSeconds, const Functor& predicate)
     {
