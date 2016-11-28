@@ -110,6 +110,15 @@ if (ENABLE_VIDEO)
             platform/graphics/gstreamer/VideoTextureCopierGStreamer.cpp
         )
     endif ()
+
+    if (USE_GSTREAMER_HTTP)
+        list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
+            ${GSTREAMER_HTTP_INCLUDE_DIRS}
+        )
+        list(APPEND WebCore_LIBRARIES
+            ${GSTREAMER_HTTP_LIBRARIES}
+        )
+    endif ()
 endif ()
 
 if (ENABLE_WEB_AUDIO)

@@ -6569,12 +6569,12 @@ String HTMLMediaElement::mediaPlayerNetworkInterfaceName() const
 
     return settings->networkInterfaceName();
 }
+#endif
 
 bool HTMLMediaElement::mediaPlayerGetRawCookies(const URL& url, Vector<Cookie>& cookies) const
 {
     return getRawCookies(document(), url, cookies);
 }
-#endif
 
 bool HTMLMediaElement::mediaPlayerIsInMediaDocument() const
 {

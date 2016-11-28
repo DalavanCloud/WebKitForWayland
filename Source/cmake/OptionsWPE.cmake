@@ -48,6 +48,7 @@ WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_WEB_TIMING PUBLIC ON)
 
 WEBKIT_OPTION_DEFINE(USE_GSTREAMER "Whether to use GStreamer support for Media" PUBLIC ON)
 WEBKIT_OPTION_DEFINE(USE_GSTREAMER_GL "Whether to enable support for GStreamer GL" PRIVATE OFF)
+WEBKIT_OPTION_DEFINE(USE_GSTREAMER_HTTP "Whether to enable support for GStreamer HTTP" PRIVATE OFF)
 WEBKIT_OPTION_DEFINE(USE_GSTREAMER_WEBKIT_HTTP_SRC "Whether to enable support for Media resources loading with WebKit" PRIVATE ON)
 WEBKIT_OPTION_DEFINE(USE_HOLE_PUNCH_EXTERNAL "Transparent hole for the video player, rendering done by external application" PRIVATE OFF)
 WEBKIT_OPTION_DEFINE(USE_HOLE_PUNCH_GSTREAMER "Transparent hole for the video player, rendering done by GStreamer and platform dependant sink" PRIVATE OFF)
@@ -149,6 +150,13 @@ if (ENABLE_VIDEO OR ENABLE_WEB_AUDIO)
                 message(FATAL_ERROR "GStreamerGL is needed for USE_GSTREAMER_GL.")
             endif ()
         endif ()
+
+        if (USE_GSTREAMER_HTTP)
+            if (NOT PC_GSTREAMER_HTTP_FOUND)
+                message(FATAL_ERROR "GStreamerHTTP is needed for USE_GSTREAMER_HTTP.")
+            endif ()
+        endif ()
+
         # FIXME: What about MPEGTS support? USE_GSTREAMER_MPEGTS?
     endif ()
 endif ()

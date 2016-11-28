@@ -236,7 +236,6 @@ private:
     bool m_hasAudio;
     RunLoop::Timer<MediaPlayerPrivateGStreamer> m_readyTimerHandler;
     mutable unsigned long long m_totalBytes;
-    URL m_url;
     bool m_preservesPitch;
     mutable double m_lastQuery;
 #if ENABLE(WEB_AUDIO)

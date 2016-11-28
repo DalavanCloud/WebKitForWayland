@@ -44,6 +44,8 @@ typedef struct _GstStreamVolume GstStreamVolume;
 typedef struct _GstVideoInfo GstVideoInfo;
 typedef struct _GstGLContext GstGLContext;
 typedef struct _GstGLDisplay GstGLDisplay;
+typedef struct _GstHttpCookie GstHttpCookie;
+typedef struct _GstHttpCookieJar GstHttpCookieJar;
 
 namespace WebCore {
 
@@ -167,6 +169,11 @@ public:
 
     virtual bool handleSyncMessage(GstMessage*);
 
+#if USE(GSTREAMER_HTTP)
+    void ensureGstCookieJar();
+    void updateHTTPCookie(GstHttpCookie* oldCookie, GstHttpCookie* newCookie);
+#endif
+
 protected:
     MediaPlayerPrivateGStreamerBase(MediaPlayer*);
 
@@ -237,6 +244,7 @@ protected:
     IntPoint m_position;
     mutable GMutex m_sampleMutex;
     GRefPtr<GstSample> m_sample;
+    mutable URL m_url;
 #if USE(GSTREAMER_GL) || USE(COORDINATED_GRAPHICS_THREADED)
     RunLoop::Timer<MediaPlayerPrivateGStreamerBase> m_drawTimer;
 #endif
@@ -283,6 +291,7 @@ private:
 #if USE(GSTREAMER_GL)
     std::unique_ptr<VideoTextureCopierGStreamer> m_videoTextureCopier;
 #endif
+    GRefPtr<GstHttpCookieJar> m_gstCookieJar;
 };
 
 }
