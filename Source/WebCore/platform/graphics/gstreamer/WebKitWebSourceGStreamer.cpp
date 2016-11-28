@@ -46,9 +46,6 @@
 #include <wtf/glib/GUniquePtr.h>
 #include <wtf/text/CString.h>
 
-#include "CachedResourceLoader.h"
-#include "CookieJar.h"
-
 using namespace WebCore;
 
 class StreamingClient {
@@ -133,7 +130,6 @@ struct _WebKitWebSrcPrivate {
     GUniquePtr<GstStructure> extraHeaders;
     bool compress;
     GUniquePtr<gchar> httpMethod;
-    GUniquePtr<gchar> cookies;
 
     WebCore::MediaPlayer* player;
 
@@ -582,11 +578,6 @@ static void webKitWebSrcStart(WebKitWebSrc* src)
         if (!priv->loader)
             priv->loader = priv->player->createResourceLoader();
 
-        {
-            String cookies = WebCore::cookies(*priv->player->cachedResourceLoader()->document(), request.url());
-            priv->cookies = GUniquePtr<gchar>(g_strdup(cookies.utf8().data()));
-        }
-
         PlatformMediaResourceLoader::LoadOptions loadOptions = 0;
         if (request.url().protocolIsBlob())
             loadOptions |= PlatformMediaResourceLoader::LoadOption::BufferData;
@@ -682,23 +673,6 @@ static gboolean webKitWebSrcQueryWithParent(GstPad* pad, GstObject* parent, GstQ
         gst_query_set_scheduling(query, static_cast<GstSchedulingFlags>(flags | GST_SCHEDULING_FLAG_BANDWIDTH_LIMITED), minSize, maxSize, align);
         result = TRUE;
         break;
-    }
-    case GST_QUERY_CONTEXT: {
-        const gchar* contextType;
-        if (gst_query_parse_context_type(query, &contextType) && !g_strcmp0(contextType, "http-headers")) {
-            WTF::GMutexLocker<GMutex> gstLocker(*GST_OBJECT_GET_LOCK(src));
-
-            GstContext* context = gst_context_new("http-headers", FALSE);
-            gst_context_make_writable(context);
-            GstStructure* contextStructure = gst_context_writable_structure(context);
-
-            const gchar* cookiesArray[] = { src->priv->cookies.get(), nullptr};
-            gst_structure_set(contextStructure, "cookies", G_TYPE_STRV, cookiesArray, nullptr);
-
-            gst_query_set_context(query, context);
-            result = TRUE;
-            break;
-        }
     }
     default: {
         GRefPtr<GstPad> target = adoptGRef(gst_ghost_pad_get_target(GST_GHOST_PAD_CAST(pad)));
