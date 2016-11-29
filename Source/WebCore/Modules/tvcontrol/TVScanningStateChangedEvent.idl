@@ -1,0 +1,15 @@
+[
+    Conditional=TV_CONTROL
+] interface TVScanningStateChangedEvent : Event {
+    readonly        attribute TVScanningState state;
+    readonly        attribute TVChannel?      channel;
+};
+
+[
+    Conditional=TV_CONTROL
+] enum TVScanningState {
+    "cleared",
+    "scanned",
+    "completed",
+    "stopped"
+};

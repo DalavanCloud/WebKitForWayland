@@ -1,0 +1,22 @@
+[
+    Conditional=TV_CONTROL,
+    ConstructorCallWith=ScriptExecutionContext,
+    Constructor(optional DOMString text)
+]
+interface TVChannel : EventTarget {
+    readonly        attribute DOMString     networkId;
+    readonly        attribute DOMString     transportStreamId;
+    readonly        attribute DOMString     serviceId;
+//    readonly        attribute TVSource      source;
+    readonly        attribute TVChannelType type;
+    readonly        attribute DOMString     name;
+    readonly        attribute DOMString     number;
+    readonly        attribute boolean       isEmergency;
+    readonly        attribute boolean       isFree;
+};
+
+[Conditional=TV_CONTROL] enum TVChannelType {
+    "tv",
+    "radio",
+    "data"
+};

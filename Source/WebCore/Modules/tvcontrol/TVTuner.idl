@@ -1,0 +1,15 @@
+[
+    Conditional=TV_CONTROL,
+    ConstructorCallWith=ScriptExecutionContext,
+    Constructor(optional DOMString text)
+] interface TVTuner : EventTarget {
+//    sequence<TVSourceType>      getSupportedSourceTypes ();
+    sequence<TVSource>          getSources ();
+//    void                        setCurrentSource (TVSourceType sourceType);
+    readonly        attribute DOMString      id;
+    readonly        attribute TVSource?      currentSource;
+
+    readonly        attribute TVMediaStream? stream;
+    readonly        attribute double         signalStrength;
+                    attribute EventHandler   oncurrentsourcechanged;
+};

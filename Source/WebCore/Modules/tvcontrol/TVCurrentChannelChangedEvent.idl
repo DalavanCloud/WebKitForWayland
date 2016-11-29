@@ -1,0 +1,5 @@
+[
+    Conditional=TV_CONTROL
+] interface TVCurrentChannelChangedEvent : Event {
+    readonly        attribute TVChannel? channel;
+};

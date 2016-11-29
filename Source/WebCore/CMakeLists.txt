@@ -265,6 +265,11 @@ set(WebCore_NON_SVG_IDL_FILES
     Modules/speech/SpeechSynthesisUtterance.idl
     Modules/speech/SpeechSynthesisVoice.idl
 
+    Modules/tvcontrol/TVChannel.idl
+    Modules/tvcontrol/TVSource.idl
+    Modules/tvcontrol/TVTuner.idl
+    Modules/tvcontrol/TVManager.idl
+
     Modules/streams/ByteLengthQueuingStrategy.idl
     Modules/streams/CountQueuingStrategy.idl
     Modules/streams/ReadableByteStreamController.idl
@@ -949,6 +954,11 @@ set(WebCore_SOURCES
     Modules/speech/SpeechSynthesisEvent.cpp
     Modules/speech/SpeechSynthesisUtterance.cpp
     Modules/speech/SpeechSynthesisVoice.cpp
+
+    Modules/tvcontrol/TVChannel.cpp
+    Modules/tvcontrol/TVSource.cpp
+    Modules/tvcontrol/TVTuner.cpp
+    Modules/tvcontrol/TVManager.cpp
 
     Modules/vibration/NavigatorVibration.cpp
     Modules/vibration/Vibration.cpp
