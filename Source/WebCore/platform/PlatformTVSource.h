@@ -7,10 +7,8 @@
 
 namespace WebCore {
 
-enum TVSourceType : short;
-
 struct PlatformTVTuner;
-    
+
 class PlatformTVSourceClient {
 public:
 protected:
@@ -21,27 +19,29 @@ protected:
 class PlatformTVSource : public RefCounted<PlatformTVSource> {
 public:
     static RefPtr<PlatformTVSource> create();
-    
+
     virtual ~PlatformTVSource();
-    
+
+    enum class Type { DvbT, DvbT2, DvbC, DvbC2, DvbS, DvbS2, DvbH, DvbSh, Atsc, AtscMH, IsdbT, IsdbTb, IsdbS, IsdbC, _1seg, Dtmb, Cmmb, TDmb, SDmb };
+
     const Vector<RefPtr<PlatformTVChannel>>&   getChannels ();
-    PlatformTVChannel*                         setCurrentChannel (String& channelNumber);
+    PlatformTVChannel*                         setCurrentChannel (const String& channelNumber);
     void                                       startScanning ();
     void                                       stopScanning ();
     void                                       setSourceClient (PlatformTVSourceClient* client);
-    
+
     //PlatformTVTuner*                         tuner () const { return m_tuner; } //need to check the tuner part again
-    TVSourceType                               type () const { return m_type; }
+    Type                                       type () const { return m_type; }
     bool                                       isScanning () const { return m_isScanning; }
-   
+
 private:
     PlatformTVSource ();
     PlatformTVTuner*       m_tuner;
-    TVSourceType           m_type;
+    Type                   m_type;
     bool                   m_isScanning;
     PlatformTVChannel*     m_currentChannel;
 
-    PlatformTVSourceClient* m_PlatformTVSourceClient;
+    PlatformTVSourceClient* m_platformTVSourceClient;
 
     Vector<RefPtr<PlatformTVChannel>> m_channelList;
     bool m_channelListIsInitialized;

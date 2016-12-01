@@ -13,8 +13,8 @@ public:
     static Ref<TVScanningStateChangedEvent> create ();
     ~TVScanningStateChangedEvent ();
 
-    enum TVScanningState  { 
-        CLEARED, 
+    enum TVScanningState  {
+        CLEARED,
         SCANNED,
         COMPLETED,
         STOPPED

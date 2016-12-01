@@ -13,8 +13,8 @@ public:
     static Ref<TVTunerChangedEvent> create ();
     ~TVTunerChangedEvent ();
 
-    enum TVTunerChangedEventOperation { 
-        ADDED, 
+    enum TVTunerChangedEventOperation {
+        ADDED,
         REMOVED
     };
 

@@ -15,7 +15,7 @@ protected:
 
 
 class WEBCORE_EXPORT PlatformTVManager {
-   
+
    enum REGION {
      US,
      EU
@@ -24,7 +24,7 @@ class WEBCORE_EXPORT PlatformTVManager {
 public:
     WEBCORE_EXPORT explicit PlatformTVManager(PlatformTVManagerClient*);
     WEBCORE_EXPORT virtual ~PlatformTVManager();
-    
+
     const Vector<RefPtr<PlatformTVTuner>>& getTuners();
 private:
     Vector<RefPtr<PlatformTVTuner>> m_tunerList;

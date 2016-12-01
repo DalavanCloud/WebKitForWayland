@@ -180,10 +180,10 @@ list(APPEND WebCore_SOURCES
     platform/wpe/SoundWPE.cpp
     platform/wpe/ThemeWPE.cpp
     platform/wpe/WidgetWPE.cpp
-    platform/wpe/PlatformTVChannel.cpp
-    platform/wpe/PlatformTVSource.cpp
-    platform/wpe/PlatformTVTuner.cpp
-    platform/wpe/PlatformTVManager.cpp
+    platform/wpe/PlatformTVChannelWPE.cpp
+    platform/wpe/PlatformTVSourceWPE.cpp
+    platform/wpe/PlatformTVTunerWPE.cpp
+    platform/wpe/PlatformTVManagerWPE.cpp
 )
 
 list(APPEND WebCore_USER_AGENT_STYLE_SHEETS

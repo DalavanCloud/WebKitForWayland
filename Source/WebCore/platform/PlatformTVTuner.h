@@ -15,29 +15,28 @@ protected:
 
 class PlatformTVTuner : public RefCounted<PlatformTVTuner> {
 public:
-public:
     static RefPtr<PlatformTVTuner> create(String id);
-    
+
     virtual ~PlatformTVTuner();
-    
-    const Vector<TVSourceType>&              getSupportedSourceTypes();
+
+    const Vector<PlatformTVSource::Type>&    getSupportedSourceTypes();
     const Vector<RefPtr<PlatformTVSource>>&  getSources ();
-    void                                     setCurrentSource (TVSourceType sourceType);
+    void                                     setCurrentSource (PlatformTVSource::Type sourceType);
     void                                     setTunerClient (PlatformTVTunerClient* client);
-        
+
     const String&      id () const { return m_tunerId; }
     PlatformTVSource*  currentSource() const { return m_currentSource; } //TODO check again
     //TVMediaStream*   stream() const { return nullptr; } //TODO enable if it is required for basic functionalities
     double             signalStrength() const { return m_signalStrength; }
 private:
     PlatformTVTuner(String id);
-    String                 m_tuneId;
-    PlatformTVSource*      m_currentSource;
-    double                 m_signalStrength;
-    TVSourceType           m_currentSourceType;
-    PlatformTVTunerClient* m_platformTVTunerClient;
-    
-    Vector<TVSourceType> m_sourceTypeList;
+    String                   m_tunerId;
+    PlatformTVSource*        m_currentSource;
+    double                   m_signalStrength;
+    PlatformTVSource::Type   m_currentSourceType;
+    PlatformTVTunerClient*   m_platformTVTunerClient;
+
+    Vector<PlatformTVSource::Type> m_sourceTypeList;
     bool m_sourceTypeListIsInitialized;
     Vector<RefPtr<PlatformTVSource>> m_sourceList;
     bool m_sourceListIsInitialized;

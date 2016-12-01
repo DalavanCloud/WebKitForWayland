@@ -14,10 +14,12 @@ public:
     static Ref<TVTuner> create (RefPtr<PlatformTVTuner> platformTVTuner);
     virtual ~TVTuner () { }
 
-    const Vector<TVSourceType>&     getSupportedSourceTypes ();
-    const Vector<RefPtr<TVSource>>& getSources ();
-    void                            setCurrentSource (TVSourceType sourceType);
-        
+    enum class SourceType { DvbT, DvbT2, DvbC, DvbC2, DvbS, DvbS2, DvbH, DvbSh, Atsc, AtscMH, IsdbT, IsdbTb, IsdbS, IsdbC, _1seg, Dtmb, Cmmb, TDmb, SDmb };
+
+    const Vector<SourceType>&         getSupportedSourceTypes ();
+    const Vector<RefPtr<TVSource>>&   getSources ();
+    void                              setCurrentSource (SourceType sourceType);
+
     const String&       id () const { return m_platformTVTuner->id(); }
     TVSource*           currentSource() const { return m_currentSource; } //TODO check again
     //TVMediaStream*    stream() const { return nullptr; } //TODO enable if it is required for basic functionalities
@@ -30,12 +32,14 @@ private:
     explicit TVTuner (RefPtr<PlatformTVTuner> platformTVTuner);
     RefPtr<PlatformTVTuner>   m_platformTVTuner;
     Vector<RefPtr<TVSource>>  m_sourceList;
-    Vector<TVSourceType>      m_sourceTypeList;
+    Vector<SourceType>        m_sourceTypeList;
     TVSource*                 m_currentSource;
 
-    EventTargetInterface eventTargetInterface() const override { return TVTunerEventTargetInterfaceType; }
     void refEventTarget() override { ref(); }
     void derefEventTarget() override { deref(); }
+    EventTargetInterface eventTargetInterface() const override { return TVTunerEventTargetInterfaceType; }
+    ScriptExecutionContext* scriptExecutionContext() const override { return nullptr; }
+
 };
 
 } // namespace WebCore

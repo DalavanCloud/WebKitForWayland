@@ -3,17 +3,17 @@
 #include "TVTunerChangedEvent.h"
 
 namespace WebCore {
-    
+
 Ref<TVTunerChangedEvent> TVTunerChangedEvent::create () {
     return adoptRef(*new TVTunerChangedEvent);
 }
 
 TVTunerChangedEvent::TVTunerChangedEvent () {
-  
+
 }
 
 TVTunerChangedEvent::~TVTunerChangedEvent () {
-  
+
 }
 
 } // namespace WebCore

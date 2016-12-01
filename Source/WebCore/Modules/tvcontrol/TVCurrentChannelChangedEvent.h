@@ -12,7 +12,7 @@ public:
 
     static Ref<TVCurrentChannelChangedEvent> create ();
     ~TVCurrentChannelChangedEvent ();
-    
+
     TVChannel*                               channel () const { return nullptr; }
 
 private:

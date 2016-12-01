@@ -10,61 +10,44 @@ namespace WebCore {
 
 class TVTuner;
 
-enum TVSourceType : short {
-    DVB_T,
-    DVB_T2,
-    DVB_C,
-    DVB_C2,
-    DVB_S,
-    DVB_S2,
-    DVB_H,
-    DVB_SH,
-    ATSC,
-    ATSC_M_H,
-    ISDB_T,
-    ISDB_TB,
-    ISDB_S,
-    ISDB_C,
-    ISEG,
-    DTMB,
-    CMMB,
-    T_DMB,
-    S_DMB
-};
 
 class TVSource : public RefCounted<TVSource>, public PlatformTVSourceClient, public EventTargetWithInlineData {
 public:
     static Ref<TVSource> create (RefPtr<PlatformTVSource>);
     virtual ~TVSource () { }
-    
-    struct TVStartScanningOptions {
+
+    enum class Type { DvbT, DvbT2, DvbC, DvbC2, DvbS, DvbS2, DvbH, DvbSh, Atsc, AtscMH, IsdbT, IsdbTb, IsdbS, IsdbC, _1seg, Dtmb, Cmmb, TDmb, SDmb };
+
+    struct Options {
         bool isRescanned;
     };
 
     const Vector<RefPtr<TVChannel>>&   getChannels ();
-    void                            setCurrentChannel (String& channelNumber);
-    void                            startScanning (TVStartScanningOptions options);
+    void                            setCurrentChannel (const String& channelNumber);
+    void                            startScanning (/*const Options&*/);
     void                            stopScanning ();
 
     TVTuner*                        tuner () const { return m_tuner; }
-    TVSourceType                    type () const { return m_platformTVSource->type(); }
+    Type                            type () const { return ((Type)m_platformTVSource->type()); }
     bool                            isScanning () const { return m_platformTVSource->isScanning(); }
     TVChannel*                      currentChannel () const { return m_channel; }
-   
+
     using RefCounted<TVSource>::ref;
     using RefCounted<TVSource>::deref;
 
 private:
     explicit TVSource (RefPtr<PlatformTVSource>);
     RefPtr<PlatformTVSource>   m_platformTVSource;
-    
+
     Vector<RefPtr<TVChannel>>  m_channelList;
     TVTuner*                   m_tuner;
     TVChannel*                 m_channel;
 
-    EventTargetInterface eventTargetInterface() const override { return TVSourceEventTargetInterfaceType; }
     void refEventTarget() override { ref(); }
-    void derefEventTarget() override { deref(); } 
+    void derefEventTarget() override { deref(); }
+
+    EventTargetInterface eventTargetInterface() const override { return TVSourceEventTargetInterfaceType; }
+    ScriptExecutionContext* scriptExecutionContext() const override { return nullptr; }
 };
 
 } // namespace WebCore

@@ -11,7 +11,7 @@ Ref<TVScanningStateChangedEvent> TVScanningStateChangedEvent::create () {
 TVScanningStateChangedEvent::TVScanningStateChangedEvent () {
 
 }
- 
+
 TVScanningStateChangedEvent::~TVScanningStateChangedEvent () {
 
 }

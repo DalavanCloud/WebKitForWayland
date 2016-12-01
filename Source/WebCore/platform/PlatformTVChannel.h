@@ -10,7 +10,6 @@
 
 namespace WebCore {
 
-enum TVChannelType : short;
 struct TVSource;
 
 class PlatformTVChannelClient {
@@ -21,31 +20,32 @@ protected:
 
 class PlatformTVChannel : public RefCounted<PlatformTVChannel> {
 public:
-public:
     static RefPtr<PlatformTVChannel> create ();
-    
-    virtual ~PlatformTVChannel ();
-    
-    const String                   networkId () const { return m_networkId; }
+
+    /*virtual*/ ~PlatformTVChannel ();
+
+    enum class Type { Tv, Radio, Data };
+
+    const String&                   networkId () const { return m_networkId; }
     const String                   transportStreamId () const { return m_transportStreamId; }
-    const String                   serviceId () const { return m_serviceId; }
-    //TVSource*                       source () const { return m_source; } //Check how to get source details
-    TVChannelType                  type () const { return m_type; }
     const String                   name () const { return m_name; }
     const String                   number () const { return m_number; }
+    const String                   serviceId () const { return m_serviceId; }
+    //TVSource*                       source () const { return m_source; } //Check how to get source details
+    Type                           type () const { return m_type; }
     bool                           isEmergency () const { return m_isEmergency; }
     void                           setChannelClient (PlatformTVChannelClient* client);
-    
+
 private:
     PlatformTVChannel ();
 
-    String            m_networkId; 
-    String            m_transportStreamId;
-    String            m_serviceId;
-    TVSource*         m_source;
-    TVChannelType     m_type;
-    String            m_name;
-    String            m_number;
+    String                   m_networkId;
+    String                   m_transportStreamId;
+    String                   m_serviceId;
+    TVSource*                m_source;
+    Type                     m_type;
+    String                   m_name;
+    String                   m_number;
     bool                     m_isEmergency;
     PlatformTVChannelClient* m_PlatformTVChannelClient;
 };

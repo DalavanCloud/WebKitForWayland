@@ -1,15 +1,15 @@
+enum TVSourceType { "dvb-t", "dvb-t2", "dvb-c", "dvb-c2", "dvb-s", "dvb-s2", "dvb-h", "dvb-sh", "atsc", "atsc-m-h", "isdb-t", "isdb-tb", "isdb-s", "isdb-c", "1seg", "dtmb", "cmmb", "t-dmb", "s-dmb" };
+
 [
     Conditional=TV_CONTROL,
-    ConstructorCallWith=ScriptExecutionContext,
-    Constructor(optional DOMString text)
 ] interface TVTuner : EventTarget {
-//    sequence<TVSourceType>      getSupportedSourceTypes ();
+    sequence<TVSourceType>      getSupportedSourceTypes ();
     sequence<TVSource>          getSources ();
-//    void                        setCurrentSource (TVSourceType sourceType);
+    void                        setCurrentSource (TVSourceType sourceType);
     readonly        attribute DOMString      id;
     readonly        attribute TVSource?      currentSource;
 
-    readonly        attribute TVMediaStream? stream;
+    //readonly        attribute TVMediaStream? stream;
     readonly        attribute double         signalStrength;
-                    attribute EventHandler   oncurrentsourcechanged;
+    //                attribute EventHandler   oncurrentsourcechanged;
 };

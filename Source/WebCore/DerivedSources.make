@@ -46,6 +46,7 @@ VPATH = \
     $(WebCore)/Modules/quota \
     $(WebCore)/Modules/speech \
     $(WebCore)/Modules/streams \
+    $(WebCore)/Modules/tvcontrol \
     $(WebCore)/Modules/webaudio \
     $(WebCore)/Modules/webdatabase \
     $(WebCore)/Modules/websockets \
@@ -74,6 +75,7 @@ VPATH = \
     $(WebCore)/svg \
     $(WebCore)/testing \
     $(WebCore)/websockets \
+
 #
 
 JS_BINDING_IDLS = \
@@ -201,6 +203,10 @@ JS_BINDING_IDLS = \
     $(WebCore)/Modules/streams/ReadableStreamDefaultReader.idl \
     $(WebCore)/Modules/streams/ReadableStreamSource.idl \
     $(WebCore)/Modules/streams/WritableStream.idl \
+    $(WebCore)/Modules/tvcontrol/TVChannel.idl \
+    $(WebCore)/Modules/tvcontrol/TVSource.idl \
+    $(WebCore)/Modules/tvcontrol/TVTuner.idl \
+    $(WebCore)/Modules/tvcontrol/TVManager.idl \
     $(WebCore)/Modules/webaudio/AnalyserNode.idl \
     $(WebCore)/Modules/webaudio/AudioBuffer.idl \
     $(WebCore)/Modules/webaudio/AudioBufferCallback.idl \
