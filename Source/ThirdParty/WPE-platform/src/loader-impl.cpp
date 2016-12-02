@@ -123,6 +123,9 @@ struct wpe_loader_interface _wpe_loader_interface = {
 
         if (!std::strcmp(object_name, "_wpe_view_backend_interface"))
             return &bcm_rpi_view_backend_interface;
+
+        if (!std::strcmp(object_name, "_wpe_tvcontrol_backend_interface"))
+            return &bcm_rpi_tvcontrol_backend_interface;
 #endif
 
 #ifdef BACKEND_INTELCE

@@ -270,6 +270,7 @@ set(WebCore_NON_SVG_IDL_FILES
     Modules/tvcontrol/TVSource.idl
     Modules/tvcontrol/TVTuner.idl
     Modules/tvcontrol/TVManager.idl
+    Modules/tvcontrol/NavigatorTVManager.idl
 
     Modules/streams/ByteLengthQueuingStrategy.idl
     Modules/streams/CountQueuingStrategy.idl
@@ -960,6 +961,7 @@ set(WebCore_SOURCES
     Modules/tvcontrol/TVSource.cpp
     Modules/tvcontrol/TVTuner.cpp
     Modules/tvcontrol/TVManager.cpp
+    Modules/tvcontrol/NavigatorTVManager.cpp
 
     Modules/vibration/NavigatorVibration.cpp
     Modules/vibration/Vibration.cpp

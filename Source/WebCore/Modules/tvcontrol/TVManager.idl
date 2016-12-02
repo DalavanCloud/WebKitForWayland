@@ -1,6 +1,6 @@
 [
     Conditional=TV_CONTROL,
-    ConstructorCallWith=ScriptExecutionContext,
+    ActiveDOMObject,
 ] interface TVManager : EventTarget {
     sequence<TVTuner>            getTuners ();
 //    attribute EventHandler       ontunerchanged;

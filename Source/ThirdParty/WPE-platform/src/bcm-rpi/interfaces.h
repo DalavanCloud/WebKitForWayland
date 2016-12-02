@@ -32,6 +32,7 @@
 
 #include <wpe/renderer-backend-egl.h>
 #include <wpe/view-backend.h>
+#include <wpe/tvcontrol-backend.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,6 +43,8 @@ extern struct wpe_renderer_backend_egl_target_interface bcm_rpi_renderer_backend
 extern struct wpe_renderer_backend_egl_offscreen_target_interface bcm_rpi_renderer_backend_egl_offscreen_target_interface;
 
 extern struct wpe_view_backend_interface bcm_rpi_view_backend_interface;
+
+extern struct wpe_tvcontrol_backend_interface bcm_rpi_tvcontrol_backend_interface;
 
 #ifdef __cplusplus
 }

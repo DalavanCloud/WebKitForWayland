@@ -3,14 +3,18 @@
 
 #if ENABLE(TV_CONTROL)
 
+#include "Document.h"
+#include "Frame.h"
+#include "Navigator.h"
+
 namespace WebCore {
 
-Ref<TVManager> TVManager::create(ScriptExecutionContext& context) {
-    return adoptRef(*new TVManager(context));
+Ref<TVManager> TVManager::create(Navigator* navigator) {
+    return adoptRef(*new TVManager(navigator));
 }
 
-TVManager::TVManager(ScriptExecutionContext& context)
-   : ActiveDOMObject(&context)
+TVManager::TVManager(Navigator* navigator)
+   : ActiveDOMObject(navigator->frame()->document())
    , m_platformTVManager(nullptr) {
 }
 

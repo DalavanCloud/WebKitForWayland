@@ -5,6 +5,8 @@
 
 #include "PlatformTVTuner.h"
 
+struct wpe_tvcontrol_backend;
+
 namespace WebCore {
 
 class PlatformTVManagerClient {
@@ -34,6 +36,7 @@ private:
     void CheckRegion();
 
     REGION m_region;
+    struct wpe_tvcontrol_backend* m_backend;
 };
 
 } // namespace WebCore

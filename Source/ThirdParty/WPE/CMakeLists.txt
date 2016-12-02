@@ -25,6 +25,7 @@ set(WPE_SOURCES
     src/renderer-backend-egl.c
     src/renderer-host.c
     src/view-backend.c
+    src/tvcontrol-backend.c
 )
 
 add_library(WPE SHARED ${WPE_SOURCES})

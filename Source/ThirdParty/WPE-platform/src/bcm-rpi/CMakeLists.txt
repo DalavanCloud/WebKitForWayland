@@ -17,4 +17,5 @@ list(APPEND WPE_PLATFORM_SOURCES
     src/bcm-rpi/cursor-data.cpp
     src/bcm-rpi/renderer-backend.cpp
     src/bcm-rpi/view-backend.cpp
+    src/bcm-rpi/tvcontrol-backend.cpp
 )

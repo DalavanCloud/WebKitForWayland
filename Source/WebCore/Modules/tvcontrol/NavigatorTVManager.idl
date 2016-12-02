@@ -1,0 +1,5 @@
+[
+    Conditional=TV_CONTROL
+] partial interface Navigator {
+    readonly        attribute TVManager tv;
+};
