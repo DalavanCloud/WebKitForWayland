@@ -19,6 +19,7 @@ private:
 };
 
 TvControlBackend::TvControlBackend () {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     // Initialize Tuner list
     // Identify Region
     // Read Tuner Capabilities
@@ -26,11 +27,11 @@ TvControlBackend::TvControlBackend () {
 }
 
 void TvControlBackend::getTunerList(struct wpe_tvcontrol_string_vector* out_tuner_list) {
-   
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 void TvControlBackend::getSupportedSourceTypesList(const char* tuner_id, struct wpe_tvcontrol_src_types_vector* out_source_types_list) {
-
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 } // namespace BCMRPi
@@ -40,23 +41,27 @@ struct wpe_tvcontrol_backend_interface bcm_rpi_tvcontrol_backend_interface = {
     // create
     []() -> void*
     {
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         return new BCMRPi::TvControlBackend();
     },
     // destroy
     [](void* data)
     {
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         auto* backend = static_cast<BCMRPi::TvControlBackend*>(data);
         delete backend;
     },
     // get_tuner_list
     [](void* data, struct wpe_tvcontrol_string_vector* out_tuner_list)
     {
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
         backend.getTunerList(out_tuner_list);
     }, 
     // get_supported_source_types_list
     [](void* data, const char* tuner_id, struct wpe_tvcontrol_src_types_vector* out_source_types_list)
     {
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
         backend.getSupportedSourceTypesList(tuner_id, out_source_types_list);
     },

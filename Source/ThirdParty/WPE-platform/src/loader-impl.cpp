@@ -114,6 +114,7 @@ struct wpe_loader_interface _wpe_loader_interface = {
 #endif
 
 #ifdef BACKEND_BCM_RPI
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         if (!std::strcmp(object_name, "_wpe_renderer_backend_egl_interface"))
             return &bcm_rpi_renderer_backend_egl_interface;
         if (!std::strcmp(object_name, "_wpe_renderer_backend_egl_target_interface"))

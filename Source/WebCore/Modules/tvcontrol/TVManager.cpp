@@ -11,11 +11,13 @@ namespace WebCore {
 
 Ref<TVManager> TVManager::create(ScriptExecutionContext* context) {
     return adoptRef(*new TVManager(context));
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 TVManager::TVManager(ScriptExecutionContext* context)
    : ActiveDOMObject(context)
    , m_platformTVManager(nullptr) {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 TVManager::~TVManager() {
@@ -23,16 +25,22 @@ TVManager::~TVManager() {
 }
 
 const Vector<RefPtr<TVTuner>>&  TVManager::getTuners() {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     if (m_tunerList.size())
         return m_tunerList;
 
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     if (!m_platformTVManager)
         m_platformTVManager = std::make_unique<PlatformTVManager>(this);
 
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     // If the voiceList is empty, that's the cue to get the voices from the platform again.
-    for (auto& tuner : m_platformTVManager->getTuners())
+    for (auto& tuner : m_platformTVManager->getTuners()) {
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         m_tunerList.append(TVTuner::create(tuner));
+    }
 
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     return m_tunerList;
 }
 
