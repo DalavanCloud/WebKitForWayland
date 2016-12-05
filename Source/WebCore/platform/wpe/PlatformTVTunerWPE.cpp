@@ -3,16 +3,20 @@
 
 #if ENABLE(TV_CONTROL)
 
+#include "PlatformTVControl.h"
+#include <wpe/tvcontrol-backend.h>
+
 namespace WebCore {
 
-RefPtr<PlatformTVTuner> PlatformTVTuner::create(String Id)
+RefPtr<PlatformTVTuner> PlatformTVTuner::create(String Id, PlatformTVControlBackend* tvBackend)
 {
-    return adoptRef(new PlatformTVTuner(Id));
+    return adoptRef(new PlatformTVTuner(Id, tvBackend));
 }
 
-PlatformTVTuner::PlatformTVTuner(String Id)
+PlatformTVTuner::PlatformTVTuner(String Id, PlatformTVControlBackend* tvBackend)
     : m_tunerId(Id)
     , m_platformTVTunerClient(nullptr)
+    , m_tvBackend(tvBackend)
     , m_sourceTypeListIsInitialized(false)
     , m_sourceListIsInitialized(false)
 {
@@ -31,8 +35,15 @@ const Vector<PlatformTVSource::Type>& PlatformTVTuner::getSupportedSourceTypes()
 {
     if (!m_sourceTypeListIsInitialized) {
         ASSERT(m_sourceListType.isEmpty());
-        //Do steps to identify tuners;
-        m_sourceTypeListIsInitialized = true;
+        struct wpe_tvcontrol_string_vector sourceTypeList;
+        wpe_tvcontrol_backend_get_supported_source_types_list(m_tvBackend->m_backend, m_tunerId.utf8().data(), &sourceTypeList);
+        if (sourceTypeList.length) {
+            for(uint64_t i = 0; i < sourceTypeList.length; i++) {
+                String tmpType(sourceTypeList.strings[i].data, sourceTypeList.strings[i].length);
+                //m_sourceTypeList.append(tmpType);
+            }
+            m_sourceTypeListIsInitialized = true;
+        }
     }
     return m_sourceTypeList;
 }

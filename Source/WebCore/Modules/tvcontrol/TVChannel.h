@@ -10,10 +10,9 @@ namespace WebCore {
 
 class TVSource;
 
-
 class TVChannel final : public RefCounted<TVChannel>, public PlatformTVChannelClient, public EventTargetWithInlineData {
 public:
-    static Ref<TVChannel> create (RefPtr<PlatformTVChannel>);
+    static Ref<TVChannel> create (RefPtr<PlatformTVChannel>, TVSource*);
     ~TVChannel () { }
 
     enum class Type {
@@ -25,7 +24,7 @@ public:
     const String&                   networkId () const { return m_platformTVChannel->networkId(); }
     const String&                   transportStreamId () const { return m_platformTVChannel->transportStreamId(); }
     const String&                   serviceId () const { return m_platformTVChannel->serviceId(); }
-    //TVSource*                       source () const { return m_source; }
+    TVSource*                       source () const { return m_parentTVSource; }
     Type                            type () const {  return ((Type)m_platformTVChannel->type()); }
     const String&                   name () const { return m_platformTVChannel->name(); }
     const String&                   number () const { return m_platformTVChannel->number(); }
@@ -36,10 +35,10 @@ public:
     using RefCounted<TVChannel>::deref;
 
 private:
-    explicit TVChannel (RefPtr<PlatformTVChannel>);
+    explicit TVChannel (RefPtr<PlatformTVChannel>, TVSource*);
 
     RefPtr<PlatformTVChannel>   m_platformTVChannel;
-    //TVSource*                   m_source;
+    TVSource*                   m_parentTVSource;
 
     void refEventTarget() override { ref(); }
     void derefEventTarget() override { deref(); }

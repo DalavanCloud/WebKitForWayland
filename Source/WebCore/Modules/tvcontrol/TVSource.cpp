@@ -5,11 +5,13 @@
 
 namespace WebCore {
 
-Ref<TVSource> TVSource::create(RefPtr<PlatformTVSource> platformTVSource) {
-    return adoptRef(*new TVSource(platformTVSource));
+Ref<TVSource> TVSource::create(RefPtr<PlatformTVSource> platformTVSource, TVTuner* parentTVTuner) {
+    return adoptRef(*new TVSource(platformTVSource, parentTVTuner));
 }
 
-TVSource::TVSource (RefPtr<PlatformTVSource> platformTVSource) {
+TVSource::TVSource (RefPtr<PlatformTVSource> platformTVSource, TVTuner* parentTVTuner)
+    : m_platformTVSource(platformTVSource)
+    , m_parentTVTuner(parentTVTuner) {
 
 }
 
@@ -20,7 +22,7 @@ const Vector<RefPtr<TVChannel>>& TVSource::getChannels () {
     if (m_platformTVSource) {
         // If the voiceList is empty, that's the cue to get the voices from the platform again.
         for (auto& channel : m_platformTVSource->getChannels())
-            m_channelList.append(TVChannel::create(channel));
+            m_channelList.append(TVChannel::create(channel, this));
     }
 
     return m_channelList;

@@ -10,7 +10,7 @@ Ref<TVTuner> TVTuner::create (RefPtr<PlatformTVTuner> platformTVTuner) {
 }
 
 TVTuner::TVTuner (RefPtr<PlatformTVTuner> platformTVTuner)
-    : m_platformTVTuner(nullptr) {
+    : m_platformTVTuner(platformTVTuner) {
 }
 
 const Vector<TVTuner::SourceType>&  TVTuner::getSupportedSourceTypes () {
@@ -33,8 +33,8 @@ const Vector<RefPtr<TVSource>>&  TVTuner::getSources () {
 
     if (m_platformTVTuner) {
         // If the voiceList is empty, that's the cue to get the voices from the platform again.
-        for (auto& tuner : m_platformTVTuner->getSources())
-            m_sourceList.append(TVSource::create(tuner));
+        for (auto& source : m_platformTVTuner->getSources())
+            m_sourceList.append(TVSource::create(source, this));
     }
     return m_sourceList;
 }

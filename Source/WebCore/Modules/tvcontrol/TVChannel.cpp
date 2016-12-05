@@ -5,12 +5,13 @@
 
 namespace WebCore {
 
-Ref<TVChannel> TVChannel::create (RefPtr<PlatformTVChannel> platformTVChannel) {
-    return adoptRef(*new TVChannel(platformTVChannel));
+Ref<TVChannel> TVChannel::create (RefPtr<PlatformTVChannel> platformTVChannel, TVSource* parentTVSource) {
+    return adoptRef(*new TVChannel(platformTVChannel, parentTVSource));
 }
 
-TVChannel::TVChannel (RefPtr<PlatformTVChannel> platformTVChannel) {
-
+TVChannel::TVChannel (RefPtr<PlatformTVChannel> platformTVChannel, TVSource* parentTVSource)
+    : m_platformTVChannel(platformTVChannel)
+    , m_parentTVSource(parentTVSource) {
 }
 
 } // namespace WebCore

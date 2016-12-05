@@ -8,14 +8,14 @@ struct TvControlBackend {
     TvControlBackend() {}
     virtual ~TvControlBackend() {}
     void getTunerList(struct wpe_tvcontrol_string_vector*);
-    void getSupportedSourceTypesList(char*, struct wpe_tvcontrol_string_vector*);
+    void getSupportedSourceTypesList(const char*, struct wpe_tvcontrol_string_vector*);
 };
 
 void TvControlBackend::getTunerList(struct wpe_tvcontrol_string_vector* out_tuner_list) {
    
 }
 
-void TvControlBackend::getSupportedSourceTypesList(char* tuner_id, struct wpe_tvcontrol_string_vector* out_source_types_list) {
+void TvControlBackend::getSupportedSourceTypesList(const char* tuner_id, struct wpe_tvcontrol_string_vector* out_source_types_list) {
 
 }
 
@@ -41,7 +41,7 @@ struct wpe_tvcontrol_backend_interface bcm_rpi_tvcontrol_backend_interface = {
         backend.getTunerList(out_tuner_list);
     }, 
     // get_supported_source_types_list
-    [](void* data, char* tuner_id, struct wpe_tvcontrol_string_vector *out_source_types_list)
+    [](void* data, const char* tuner_id, struct wpe_tvcontrol_string_vector *out_source_types_list)
     {
         auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
         backend.getSupportedSourceTypesList(tuner_id, out_source_types_list);

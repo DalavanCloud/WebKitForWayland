@@ -8,6 +8,7 @@
 
 namespace WebCore {
 
+
 class TVManager;
 class Navigator;
 

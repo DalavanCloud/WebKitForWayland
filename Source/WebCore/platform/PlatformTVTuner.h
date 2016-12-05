@@ -7,6 +7,8 @@
 
 namespace WebCore {
 
+class PlatformTVControlBackend;
+
 class PlatformTVTunerClient {
 public:
 protected:
@@ -15,7 +17,7 @@ protected:
 
 class PlatformTVTuner : public RefCounted<PlatformTVTuner> {
 public:
-    static RefPtr<PlatformTVTuner> create(String id);
+    static RefPtr<PlatformTVTuner> create(String, PlatformTVControlBackend*);
 
     virtual ~PlatformTVTuner();
 
@@ -29,12 +31,13 @@ public:
     //TVMediaStream*   stream() const { return nullptr; } //TODO enable if it is required for basic functionalities
     double             signalStrength() const { return m_signalStrength; }
 private:
-    PlatformTVTuner(String id);
-    String                   m_tunerId;
-    PlatformTVSource*        m_currentSource;
-    double                   m_signalStrength;
-    PlatformTVSource::Type   m_currentSourceType;
-    PlatformTVTunerClient*   m_platformTVTunerClient;
+    PlatformTVTuner(String, PlatformTVControlBackend*);
+    String                     m_tunerId;
+    PlatformTVSource*          m_currentSource;
+    double                     m_signalStrength;
+    PlatformTVSource::Type     m_currentSourceType;
+    PlatformTVTunerClient*     m_platformTVTunerClient;
+    PlatformTVControlBackend*  m_tvBackend;
 
     Vector<PlatformTVSource::Type> m_sourceTypeList;
     bool m_sourceTypeListIsInitialized;

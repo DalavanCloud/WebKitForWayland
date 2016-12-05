@@ -7,7 +7,7 @@
 
 namespace WebCore {
 
-struct PlatformTVTuner;
+class PlatformTVControlBackend;
 
 class PlatformTVSourceClient {
 public:
@@ -18,7 +18,7 @@ protected:
 
 class PlatformTVSource : public RefCounted<PlatformTVSource> {
 public:
-    static RefPtr<PlatformTVSource> create();
+    static RefPtr<PlatformTVSource> create(PlatformTVControlBackend*, String);
 
     virtual ~PlatformTVSource();
 
@@ -35,13 +35,13 @@ public:
     bool                                       isScanning () const { return m_isScanning; }
 
 private:
-    PlatformTVSource ();
-    PlatformTVTuner*       m_tuner;
-    Type                   m_type;
-    bool                   m_isScanning;
-    PlatformTVChannel*     m_currentChannel;
-
-    PlatformTVSourceClient* m_platformTVSourceClient;
+    PlatformTVSource (PlatformTVControlBackend*, String);
+    String                      m_tunerId;
+    Type                        m_type;
+    bool                        m_isScanning;
+    PlatformTVChannel*          m_currentChannel;
+    PlatformTVSourceClient*     m_platformTVSourceClient;
+    PlatformTVControlBackend*   m_tvBackend;
 
     Vector<RefPtr<PlatformTVChannel>> m_channelList;
     bool m_channelListIsInitialized;

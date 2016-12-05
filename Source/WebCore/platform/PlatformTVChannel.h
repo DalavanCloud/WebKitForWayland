@@ -10,7 +10,7 @@
 
 namespace WebCore {
 
-struct TVSource;
+class PlatformTVControlBackend;
 
 class PlatformTVChannelClient {
 public:
@@ -20,7 +20,7 @@ protected:
 
 class PlatformTVChannel : public RefCounted<PlatformTVChannel> {
 public:
-    static RefPtr<PlatformTVChannel> create ();
+    static RefPtr<PlatformTVChannel> create (PlatformTVControlBackend*, String);
 
     /*virtual*/ ~PlatformTVChannel ();
 
@@ -31,23 +31,24 @@ public:
     const String                   name () const { return m_name; }
     const String                   number () const { return m_number; }
     const String                   serviceId () const { return m_serviceId; }
-    //TVSource*                       source () const { return m_source; } //Check how to get source details
+
     Type                           type () const { return m_type; }
     bool                           isEmergency () const { return m_isEmergency; }
     void                           setChannelClient (PlatformTVChannelClient* client);
 
 private:
-    PlatformTVChannel ();
+    PlatformTVChannel (PlatformTVControlBackend*, String);
 
-    String                   m_networkId;
-    String                   m_transportStreamId;
-    String                   m_serviceId;
-    TVSource*                m_source;
-    Type                     m_type;
-    String                   m_name;
-    String                   m_number;
-    bool                     m_isEmergency;
-    PlatformTVChannelClient* m_PlatformTVChannelClient;
+    String                     m_tunerId;
+    String                     m_networkId;
+    String                     m_transportStreamId;
+    String                     m_serviceId;
+    Type                       m_type;
+    String                     m_name;
+    String                     m_number;
+    bool                       m_isEmergency;
+    PlatformTVChannelClient*   m_PlatformTVChannelClient;
+    PlatformTVControlBackend*  m_tvBackend;
 };
 
 } // namespace WebCore

@@ -5,9 +5,9 @@
 
 #include "PlatformTVTuner.h"
 
-struct wpe_tvcontrol_backend;
-
 namespace WebCore {
+
+class PlatformTVControlBackend;
 
 class PlatformTVManagerClient {
 public:
@@ -17,26 +17,17 @@ protected:
 
 
 class WEBCORE_EXPORT PlatformTVManager {
-
-   enum REGION {
-     US,
-     EU
-   };
-
 public:
     WEBCORE_EXPORT explicit PlatformTVManager(PlatformTVManagerClient*);
     WEBCORE_EXPORT virtual ~PlatformTVManager();
 
     const Vector<RefPtr<PlatformTVTuner>>& getTuners();
+    PlatformTVControlBackend *m_tvBackend;
+
 private:
     Vector<RefPtr<PlatformTVTuner>> m_tunerList;
     bool m_tunerListIsInitialized;
     PlatformTVManagerClient* m_platformTVManagerClient;
-
-    void CheckRegion();
-
-    REGION m_region;
-    struct wpe_tvcontrol_backend* m_backend;
 };
 
 } // namespace WebCore
