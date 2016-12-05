@@ -4,27 +4,19 @@
 #if ENABLE(TV_CONTROL)
 
 #include "TVManager.h"
+#include "Document.h"
+#include "Frame.h"
 #include "Navigator.h"
 
 namespace WebCore {
 
-NavigatorTVManager::NavigatorTVManager()
+NavigatorTVManager::NavigatorTVManager(Frame* frame)
+    : DOMWindowProperty(frame)
 {
 }
 
 NavigatorTVManager::~NavigatorTVManager()
 {
-}
-
-TVManager* NavigatorTVManager::tv(Navigator& navigator)
-{
-    if (!navigator.frame())
-        return nullptr;
-
-    NavigatorTVManager* navigatorTVManager = NavigatorTVManager::from(&navigator);
-    if (!navigatorTVManager->m_tvManager)
-        navigatorTVManager->m_tvManager = TVManager::create(&navigator);
-    return navigatorTVManager->m_tvManager.get();
 }
 
 const char* NavigatorTVManager::supplementName()
@@ -36,12 +28,25 @@ NavigatorTVManager* NavigatorTVManager::from(Navigator* navigator)
 {
     NavigatorTVManager* supplement = static_cast<NavigatorTVManager*>(Supplement<Navigator>::from(navigator, supplementName()));
     if (!supplement) {
-        auto newSupplement = std::make_unique<NavigatorTVManager>();
+        auto newSupplement = std::make_unique<NavigatorTVManager>(navigator->frame());
         supplement = newSupplement.get();
         provideTo(navigator, supplementName(), WTFMove(newSupplement));
     }
     return supplement;
 }
+
+TVManager* NavigatorTVManager::tv(Navigator& navigator)
+{
+    return NavigatorTVManager::from(&navigator)->tv();
+}
+
+TVManager* NavigatorTVManager::tv() const
+{
+    if (!m_tvManager && frame())
+        m_tvManager = TVManager::create(frame()->document());
+    return m_tvManager.get();
+}
+
 
 } // namespace WebCore
 

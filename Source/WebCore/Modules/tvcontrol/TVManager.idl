@@ -1,4 +1,5 @@
 [
+    NoInterfaceObject,
     Conditional=TV_CONTROL,
     ActiveDOMObject,
 ] interface TVManager : EventTarget {

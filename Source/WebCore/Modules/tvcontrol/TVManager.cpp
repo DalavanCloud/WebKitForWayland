@@ -9,12 +9,12 @@
 
 namespace WebCore {
 
-Ref<TVManager> TVManager::create(Navigator* navigator) {
-    return adoptRef(*new TVManager(navigator));
+Ref<TVManager> TVManager::create(ScriptExecutionContext* context) {
+    return adoptRef(*new TVManager(context));
 }
 
-TVManager::TVManager(Navigator* navigator)
-   : ActiveDOMObject(navigator->frame()->document())
+TVManager::TVManager(ScriptExecutionContext* context)
+   : ActiveDOMObject(context)
    , m_platformTVManager(nullptr) {
 }
 

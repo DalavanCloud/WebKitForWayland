@@ -9,20 +9,25 @@
 
 namespace WebCore {
 
-class Navigator;
+class Document;
+class Frame;
 class ScriptExecutionContext;
 
 class TVManager : public RefCounted<TVManager>, public PlatformTVManagerClient, public ActiveDOMObject, public EventTargetWithInlineData {
 public:
-    static Ref<TVManager> create (Navigator*);
-    ~TVManager ();
+    static Ref<TVManager> create (ScriptExecutionContext*);
+    WEBCORE_EXPORT ~TVManager ();
+
+    Document* document() const;
+    WEBCORE_EXPORT Frame* frame() const;
+
     const Vector<RefPtr<TVTuner>>& getTuners();
 
     using RefCounted<TVManager>::ref;
     using RefCounted<TVManager>::deref;
 
 private:
-    TVManager (Navigator*);
+    TVManager (ScriptExecutionContext*);
     std::unique_ptr<PlatformTVManager> m_platformTVManager;
     Vector<RefPtr<TVTuner>> m_tunerList;
 

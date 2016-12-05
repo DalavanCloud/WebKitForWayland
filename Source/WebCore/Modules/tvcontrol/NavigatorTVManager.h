@@ -3,27 +3,29 @@
 
 #if ENABLE(TV_CONTROL)
 
+#include "DOMWindowProperty.h"
 #include "Supplementable.h"
 #include <wtf/Vector.h>
 
 namespace WebCore {
 
-
+class Frame;
 class TVManager;
 class Navigator;
 
-class NavigatorTVManager : public Supplement<Navigator> {
+class NavigatorTVManager : public Supplement<Navigator>, public DOMWindowProperty {
 public:
-    NavigatorTVManager();
+    explicit NavigatorTVManager(Frame*);
     virtual ~NavigatorTVManager();
 
     static NavigatorTVManager* from(Navigator*);
     static TVManager* tv(Navigator&);
+    TVManager* tv() const;
 
 private:
     static const char* supplementName();
 
-    RefPtr<TVManager> m_tvManager;
+    mutable RefPtr<TVManager> m_tvManager;
 };
 
 } // namespace WebCore
