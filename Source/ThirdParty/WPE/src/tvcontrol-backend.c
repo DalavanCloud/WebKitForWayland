@@ -42,7 +42,7 @@ wpe_tvcontrol_backend_get_tuner_list(struct wpe_tvcontrol_backend* backend, stru
 
 __attribute__((visibility("default")))
 void
-wpe_tvcontrol_backend_get_supported_source_types_list(struct wpe_tvcontrol_backend* backend, const char* tuner_id, struct wpe_tvcontrol_string_vector* out_source_types_list)
+wpe_tvcontrol_backend_get_supported_source_types_list(struct wpe_tvcontrol_backend* backend, const char* tuner_id, struct wpe_tvcontrol_src_types_vector* out_source_types_list)
 {
     backend->interface->get_supported_source_types_list(backend->interface_data, tuner_id, out_source_types_list);
     return;

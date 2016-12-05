@@ -22,7 +22,7 @@ public:
 
     virtual ~PlatformTVSource();
 
-    enum class Type { DvbT, DvbT2, DvbC, DvbC2, DvbS, DvbS2, DvbH, DvbSh, Atsc, AtscMH, IsdbT, IsdbTb, IsdbS, IsdbC, _1seg, Dtmb, Cmmb, TDmb, SDmb };
+    enum class Type { DvbT, DvbT2, DvbC, DvbC2, DvbS, DvbS2, DvbH, DvbSh, Atsc, AtscMH, IsdbT, IsdbTb, IsdbS, IsdbC, _1seg, Dtmb, Cmmb, TDmb, SDmb, Undefined };
 
     const Vector<RefPtr<PlatformTVChannel>>&   getChannels ();
     PlatformTVChannel*                         setCurrentChannel (const String& channelNumber);

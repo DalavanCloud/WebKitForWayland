@@ -15,18 +15,22 @@ struct wpe_tvcontrol_string {
     char* data;
     uint64_t length;
 };
-
 struct wpe_tvcontrol_string_vector {
     struct wpe_tvcontrol_string* strings;
     uint64_t length;
 };
-     
+
+typedef enum { DvbT, DvbT2, DvbC, DvbC2, DvbS, DvbS2, DvbH, DvbSh, Atsc, AtscMH, IsdbT, IsdbTb, IsdbS, IsdbC, _1seg, Dtmb, Cmmb, TDmb, SDmb, Undifined } Type;
+struct wpe_tvcontrol_src_types_vector {
+    Type*    types;
+    uint64_t length;
+};
 
 struct wpe_tvcontrol_backend_interface {
     void* (*create)();
     void (*destroy)(void*);
     void (*get_tuner_list)(void*, struct wpe_tvcontrol_string_vector*);
-    void (*get_supported_source_types_list)(void*, const char*, struct wpe_tvcontrol_string_vector*);
+    void (*get_supported_source_types_list)(void*, const char*, struct wpe_tvcontrol_src_types_vector*);
 };
 
 struct wpe_tvcontrol_backend*
@@ -39,10 +43,10 @@ void
 wpe_tvcontrol_backend_get_tuner_list(struct wpe_tvcontrol_backend* backend, struct wpe_tvcontrol_string_vector* out_tuner_list);
 
 void
-wpe_tvcontrol_backend_get_supported_source_types_list(struct wpe_tvcontrol_backend* backend, const char* tuner_id, struct wpe_tvcontrol_string_vector* out_source_types_list);
+wpe_tvcontrol_backend_get_supported_source_types_list(struct wpe_tvcontrol_backend* backend, const char* tuner_id, struct wpe_tvcontrol_src_types_vector* out_source_types_list);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // wpe_renderer_h
+#endif // wpe_tvcontrol_backend_h

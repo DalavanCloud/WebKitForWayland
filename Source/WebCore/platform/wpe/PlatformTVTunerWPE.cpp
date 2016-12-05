@@ -35,12 +35,11 @@ const Vector<PlatformTVSource::Type>& PlatformTVTuner::getSupportedSourceTypes()
 {
     if (!m_sourceTypeListIsInitialized) {
         ASSERT(m_sourceListType.isEmpty());
-        struct wpe_tvcontrol_string_vector sourceTypeList;
+        struct wpe_tvcontrol_src_types_vector sourceTypeList;
         wpe_tvcontrol_backend_get_supported_source_types_list(m_tvBackend->m_backend, m_tunerId.utf8().data(), &sourceTypeList);
         if (sourceTypeList.length) {
             for(uint64_t i = 0; i < sourceTypeList.length; i++) {
-                String tmpType(sourceTypeList.strings[i].data, sourceTypeList.strings[i].length);
-                //m_sourceTypeList.append(tmpType);
+                m_sourceTypeList.append(PlatformTVSource::Type(sourceTypeList.types[i]));
             }
             m_sourceTypeListIsInitialized = true;
         }
