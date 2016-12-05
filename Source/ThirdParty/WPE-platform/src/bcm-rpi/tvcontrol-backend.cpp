@@ -4,12 +4,26 @@
 
 namespace BCMRPi {
 
+struct TvTuner {
+}
+
 struct TvControlBackend {
-    TvControlBackend() {}
+    TvControlBackend();
     virtual ~TvControlBackend() {}
     void getTunerList(struct wpe_tvcontrol_string_vector*);
     void getSupportedSourceTypesList(const char*, struct wpe_tvcontrol_string_vector*);
+private:
+    //void ConfigureTuner();
+    //void GetTunerCapabilites();
+    //void InitializeTuners();
 };
+
+TvControlBackend::TvControlBackend {
+    // Initialize Tuner list
+    // Identify Region
+    // Read Tuner Capabilities
+    // Configure Tuners
+}
 
 void TvControlBackend::getTunerList(struct wpe_tvcontrol_string_vector* out_tuner_list) {
    
