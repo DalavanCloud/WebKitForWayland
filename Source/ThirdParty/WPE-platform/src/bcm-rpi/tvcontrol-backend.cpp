@@ -16,6 +16,10 @@ struct TvControlBackend {
 private:
     struct wpe_tvcontrol_backend* m_backend;
     void handleTunerChangedEvent(struct wpe_tvcontrol_tuner_event);
+    void handleSourceChangedEvent(struct wpe_tvcontrol_source_event);
+    void handleChannelChangedEvent(struct wpe_tvcontrol_channel_event);
+    void handleScanningStateChangedEvent(struct wpe_tvcontrol_channel_event);
+
     //void ConfigureTuner();
     //void GetTunerCapabilites();
     //void InitializeTuners();
@@ -33,6 +37,21 @@ TvControlBackend::TvControlBackend (struct wpe_tvcontrol_backend* backend)
 void TvControlBackend::handleTunerChangedEvent(struct wpe_tvcontrol_tuner_event event)
 {
     wpe_tvcontrol_backend_dispatch_tuner_event(m_backend, event);
+}
+
+void TvControlBackend::handleSourceChangedEvent(struct wpe_tvcontrol_source_event event)
+{
+    wpe_tvcontrol_backend_dispatch_source_event(m_backend, event);
+}
+
+void TvControlBackend::handleChannelChangedEvent(struct wpe_tvcontrol_channel_event event)
+{
+    wpe_tvcontrol_backend_dispatch_channel_event(m_backend, event);
+}
+
+void TvControlBackend::handleScanningStateChangedEvent(struct wpe_tvcontrol_channel_event event)
+{
+    wpe_tvcontrol_backend_dispatch_scanning_state_event(m_backend, event);
 }
 
 void TvControlBackend::getTunerList(struct wpe_tvcontrol_string_vector* out_tuner_list) {

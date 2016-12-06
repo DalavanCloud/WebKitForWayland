@@ -11,5 +11,5 @@ enum TVSourceType { "dvb-t", "dvb-t2", "dvb-c", "dvb-c2", "dvb-s", "dvb-s2", "dv
 
     //readonly        attribute TVMediaStream? stream;
     readonly        attribute double         signalStrength;
-    //                attribute EventHandler   oncurrentsourcechanged;
+                    attribute EventHandler   oncurrentsourcechanged;
 };

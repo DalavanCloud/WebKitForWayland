@@ -23,6 +23,31 @@ PlatformTVManager::PlatformTVManager(PlatformTVManagerClient* client)
             auto& tvManager = *reinterpret_cast<PlatformTVManager*>(data);
             tvManager.m_platformTVManagerClient->didTunerOperationChanged(String(event.tuner_id.data, event.tuner_id.length), (uint16_t)event.operation);
         },
+        // handle current source changed event
+        [](void* data, wpe_tvcontrol_source_event event)
+        {
+            auto& tvManager = *reinterpret_cast<PlatformTVManager*>(data);
+            tvManager.m_platformTVManagerClient->didCurrentSourceChanged(String(event.tuner_id.data, event.tuner_id.length),
+                                                                         String(event.source_id.data, event.source_id.length));
+        },
+        // handle current channel changed event
+        [](void* data, wpe_tvcontrol_channel_event event)
+        {
+            auto& tvManager = *reinterpret_cast<PlatformTVManager*>(data);
+            tvManager.m_platformTVManagerClient->didCurrentChannelChanged(String(event.tuner_id.data, event.tuner_id.length),
+                                                                          String(event.source_id.data, event.source_id.length),
+                                                                          String(event.channel_id.data, event.channel_id.length));
+        },
+        // handle current source changed event
+        [](void* data, wpe_tvcontrol_channel_event event)
+        {
+            auto& tvManager = *reinterpret_cast<PlatformTVManager*>(data);
+            tvManager.m_platformTVManagerClient->didScanningStateChanged(String(event.tuner_id.data, event.tuner_id.length),
+                                                                         String(event.source_id.data, event.source_id.length),
+                                                                         String(event.channel_id.data, event.channel_id.length),
+                                                                         (uint16_t)event.state);
+        },
+
     };
     wpe_tvcontrol_backend_set_manager_event_client(m_tvBackend->m_backend, &s_eventClient, this);
 }

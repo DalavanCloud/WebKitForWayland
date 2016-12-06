@@ -283,6 +283,9 @@ namespace WebCore {
     macro(writestart) \
     macro(zoom) \
     macro(tunerchanged) \
+    macro(currentsourcechanged) \
+    macro(currentchannelchanged) \
+    macro(scanningstatechanged) \
 // end of DOM_EVENT_NAMES_FOR_EACH
 
 struct EventNames {

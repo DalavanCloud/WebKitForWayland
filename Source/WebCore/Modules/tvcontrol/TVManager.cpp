@@ -30,6 +30,21 @@ void TVManager::didTunerOperationChanged (String tunerId, uint16_t event) {
     dispatchEvent(TVTunerChangedEvent::create(eventNames().tunerchangedEvent, tunerId, (TVTunerChangedEvent::Operation)event));
 }
 
+void TVManager::didCurrentSourceChanged(String tunerId, String sourceId) {
+    //Implement logic to identify corresponding tuner instance and source instance
+    //Create event using idenified instance details
+}
+
+void TVManager::didCurrentChannelChanged(String tunerId, String sourceId, String channelId) {
+    //Implement logic to identify corresponding tuner instance, source instance and channel instance
+    //Create event using idenified instance details
+}
+
+void TVManager::didScanningStateChanged(String tunerId, String sourceId, String channelId, uint16_t state) {
+    //Implement logic to identify corresponding tuner instance, source instance and channel instance
+    //Create event using idenified instance details
+}
+
 const Vector<RefPtr<TVTuner>>&  TVManager::getTuners() {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     if (m_tunerList.size())

@@ -1,0 +1,5 @@
+[
+    Conditional=TV_CONTROL
+] interface TVCurrentSourceChangedEvent : Event {
+    readonly        attribute TVSource? source;
+};

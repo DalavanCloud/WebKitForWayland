@@ -4,5 +4,5 @@
     ActiveDOMObject,
 ] interface TVManager : EventTarget {
     sequence<TVTuner>            getTuners ();
-//    attribute EventHandler       ontunerchanged;
+    attribute EventHandler       ontunerchanged;
 };

@@ -27,6 +27,9 @@ public:
     using RefCounted<TVManager>::deref;
 
     void didTunerOperationChanged(String tunerId, uint16_t event) override;
+    void didCurrentSourceChanged(String tunerId, String sourceId) override;
+    void didCurrentChannelChanged(String tunerId, String sourceId, String channelId) override;
+    void didScanningStateChanged(String tunerId, String sourceId, String channelId, uint16_t state) override;
 
 private:
     TVManager (ScriptExecutionContext*);

@@ -1,15 +1,18 @@
-#if ENABLE(TV_CONTROL)
-
+#include "config.h"
 #include "TVScanningStateChangedEvent.h"
+
+#if ENABLE(TV_CONTROL)
 
 namespace WebCore {
 
-Ref<TVScanningStateChangedEvent> TVScanningStateChangedEvent::create () {
-    return adoptRef(*new TVScanningStateChangedEvent);
+Ref<TVScanningStateChangedEvent> TVScanningStateChangedEvent::create (const AtomicString& type, TVScanningStateChangedEvent::State state, TVChannel* channel) {
+    return adoptRef(*new TVScanningStateChangedEvent (type, state, channel));
 }
 
-TVScanningStateChangedEvent::TVScanningStateChangedEvent () {
-
+TVScanningStateChangedEvent::TVScanningStateChangedEvent (const AtomicString& type, TVScanningStateChangedEvent::State state, TVChannel* channel)
+    : Event(type, false, false)
+    , m_state(state)
+    , m_channel(channel) {
 }
 
 TVScanningStateChangedEvent::~TVScanningStateChangedEvent () {

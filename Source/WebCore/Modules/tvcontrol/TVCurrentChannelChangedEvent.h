@@ -7,16 +7,20 @@
 
 namespace WebCore {
 
+class TVChannel;
+
 class TVCurrentChannelChangedEvent : public Event {
 public:
 
-    static Ref<TVCurrentChannelChangedEvent> create ();
+    static Ref<TVCurrentChannelChangedEvent> create (const AtomicString&, TVChannel*);
     ~TVCurrentChannelChangedEvent ();
 
-    TVChannel*                               channel () const { return nullptr; }
+    TVChannel*                               channel () const { return m_channel; }
 
 private:
-    TVCurrentChannelChangedEvent ();
+    TVCurrentChannelChangedEvent (const AtomicString&, TVChannel*);
+
+    TVChannel*   m_channel;
 };
 
 } // namespace WebCore
