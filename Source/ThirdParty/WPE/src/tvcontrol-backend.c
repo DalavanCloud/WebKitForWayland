@@ -18,7 +18,7 @@ wpe_tvcontrol_backend_create()
         return 0;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     backend->interface = wpe_load_object("_wpe_tvcontrol_backend_interface");
-    backend->interface_data = backend->interface->create();
+    backend->interface_data = backend->interface->create(backend);
 
     return backend;
 }
@@ -32,6 +32,21 @@ wpe_tvcontrol_backend_destroy(struct wpe_tvcontrol_backend* backend)
     backend->interface_data = 0;
 
     free(backend);
+}
+
+__attribute__((visibility("default")))
+void
+wpe_tvcontrol_backend_set_manager_event_client(struct wpe_tvcontrol_backend* backend, struct wpe_tvcontrol_backend_manager_event_client* client, void* client_data)
+{
+    backend->event_client = client;
+    backend->event_client_data = client_data;
+}
+
+void
+wpe_tvcontrol_backend_dispatch_tuner_event(struct wpe_tvcontrol_backend* backend, struct wpe_tvcontrol_tuner_event event)
+{
+    if (backend->event_client)
+        backend->event_client->handle_tuner_event(backend->event_client_data, event);
 }
 
 __attribute__((visibility("default")))

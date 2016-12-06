@@ -15,6 +15,16 @@ PlatformTVManager::PlatformTVManager(PlatformTVManagerClient* client)
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     m_tvBackend = new PlatformTVControlBackend();
     m_tvBackend->m_backend = wpe_tvcontrol_backend_create();
+
+    static struct wpe_tvcontrol_backend_manager_event_client s_eventClient = {
+        // handle_tuner_event
+        [](void* data, wpe_tvcontrol_tuner_event event)
+        {
+            auto& tvManager = *reinterpret_cast<PlatformTVManager*>(data);
+            tvManager.m_platformTVManagerClient->didTunerOperationChanged(String(event.tuner_id.data, event.tuner_id.length), (uint16_t)event.operation);
+        },
+    };
+    wpe_tvcontrol_backend_set_manager_event_client(m_tvBackend->m_backend, &s_eventClient, this);
 }
 
 PlatformTVManager::~PlatformTVManager()

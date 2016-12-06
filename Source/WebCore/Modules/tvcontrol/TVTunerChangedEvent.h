@@ -10,19 +10,21 @@ namespace WebCore {
 class TVTunerChangedEvent : public Event {
 public:
 
-    static Ref<TVTunerChangedEvent> create ();
-    ~TVTunerChangedEvent ();
-
-    enum TVTunerChangedEventOperation {
-        ADDED,
-        REMOVED
+    enum class Operation {
+        Added,
+        Removed
     };
 
-    TVTunerChangedEventOperation  operation () const { return REMOVED; }
-    const String&                 id () const { return "emptyStr"; }
+    static Ref<TVTunerChangedEvent> create (const AtomicString&, String, Operation);
+    ~TVTunerChangedEvent ();
+
+    Operation         operation () const { return m_operation; }
+    const String&     id () const { return m_tunerId; }
 
 private:
-    TVTunerChangedEvent ();
+    String     m_tunerId;
+    Operation  m_operation;
+    TVTunerChangedEvent (const AtomicString&, String, Operation);
 };
 
 } // namespace WebCore

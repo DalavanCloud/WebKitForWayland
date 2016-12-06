@@ -3,9 +3,12 @@
 
 #if ENABLE(TV_CONTROL)
 
+#include "TVTunerChangedEvent.h"
+
 #include "Document.h"
 #include "Frame.h"
 #include "Navigator.h"
+#include "EventNames.h"
 
 namespace WebCore {
 
@@ -22,6 +25,9 @@ TVManager::TVManager(ScriptExecutionContext* context)
 
 TVManager::~TVManager() {
 
+}
+void TVManager::didTunerOperationChanged (String tunerId, uint16_t event) {
+    dispatchEvent(TVTunerChangedEvent::create(eventNames().tunerchangedEvent, tunerId, (TVTunerChangedEvent::Operation)event));
 }
 
 const Vector<RefPtr<TVTuner>>&  TVManager::getTuners() {

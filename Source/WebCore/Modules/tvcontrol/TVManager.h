@@ -26,6 +26,8 @@ public:
     using RefCounted<TVManager>::ref;
     using RefCounted<TVManager>::deref;
 
+    void didTunerOperationChanged(String tunerId, uint16_t event) override;
+
 private:
     TVManager (ScriptExecutionContext*);
     std::unique_ptr<PlatformTVManager> m_platformTVManager;

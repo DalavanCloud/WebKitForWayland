@@ -1,13 +1,8 @@
+enum TVTunerChangedEventOperation { "added", "removed" };
+
 [
     Conditional=TV_CONTROL
 ] interface TVTunerChangedEvent : Event {
     readonly        attribute TVTunerChangedEventOperation operation;
     readonly        attribute DOMString                    id;
-};
-
-[
-    Conditional=TV_CONTROL
-] enum TVTunerChangedEventOperation {
-    "added",
-    "removed"
 };

@@ -9,8 +9,10 @@ namespace WebCore {
 
 class PlatformTVControlBackend;
 
+
 class PlatformTVManagerClient {
 public:
+    virtual void didTunerOperationChanged(String tunerId, uint16_t event) = 0;
 protected:
     virtual ~PlatformTVManagerClient() { }
 };
@@ -22,8 +24,8 @@ public:
     WEBCORE_EXPORT virtual ~PlatformTVManager();
 
     const Vector<RefPtr<PlatformTVTuner>>& getTuners();
-    PlatformTVControlBackend *m_tvBackend;
 
+    PlatformTVControlBackend *m_tvBackend;
 private:
     Vector<RefPtr<PlatformTVTuner>> m_tunerList;
     bool m_tunerListIsInitialized;

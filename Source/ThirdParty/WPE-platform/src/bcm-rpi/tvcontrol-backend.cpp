@@ -8,22 +8,31 @@ struct TvTuner {
 };
 
 struct TvControlBackend {
-    TvControlBackend();
+    TvControlBackend(struct wpe_tvcontrol_backend* backend);
     virtual ~TvControlBackend() {}
     void getTunerList(struct wpe_tvcontrol_string_vector*);
     void getSupportedSourceTypesList(const char*, struct wpe_tvcontrol_src_types_vector*);
+
 private:
+    struct wpe_tvcontrol_backend* m_backend;
+    void handleTunerChangedEvent(struct wpe_tvcontrol_tuner_event);
     //void ConfigureTuner();
     //void GetTunerCapabilites();
     //void InitializeTuners();
 };
 
-TvControlBackend::TvControlBackend () {
+TvControlBackend::TvControlBackend (struct wpe_tvcontrol_backend* backend)
+    : m_backend(backend) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     // Initialize Tuner list
     // Identify Region
     // Read Tuner Capabilities
     // Configure Tuners
+}
+
+void TvControlBackend::handleTunerChangedEvent(struct wpe_tvcontrol_tuner_event event)
+{
+    wpe_tvcontrol_backend_dispatch_tuner_event(m_backend, event);
 }
 
 void TvControlBackend::getTunerList(struct wpe_tvcontrol_string_vector* out_tuner_list) {
@@ -39,10 +48,10 @@ extern "C" {
 
 struct wpe_tvcontrol_backend_interface bcm_rpi_tvcontrol_backend_interface = {
     // create
-    []() -> void*
+    [](struct wpe_tvcontrol_backend* backend) -> void*
     {
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-        return new BCMRPi::TvControlBackend();
+        return new BCMRPi::TvControlBackend(backend);
     },
     // destroy
     [](void* data)
