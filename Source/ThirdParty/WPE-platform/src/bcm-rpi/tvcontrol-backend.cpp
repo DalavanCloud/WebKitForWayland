@@ -1,13 +1,22 @@
 #include <wpe/tvcontrol-backend.h>
 
 #include <cstdio>
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
+
+
+#include <fcntl.h>
+#include <stdint.h>
+
+#include "TunerBackend.h"
+using namespace std;
 
 namespace BCMRPi {
 
-struct TvTuner {
-};
-
 struct TvControlBackend {
+public:
     TvControlBackend(struct wpe_tvcontrol_backend* backend);
     virtual ~TvControlBackend() {}
     void getTunerList(struct wpe_tvcontrol_string_vector*);
@@ -20,18 +29,48 @@ private:
     void handleChannelChangedEvent(struct wpe_tvcontrol_channel_event);
     void handleScanningStateChangedEvent(struct wpe_tvcontrol_channel_event);
 
-    //void ConfigureTuner();
+    void checkRegion();
+
+    Country m_country;
+    std::vector<TvTunerBackend*> m_tunerList;
     //void GetTunerCapabilites();
-    //void InitializeTuners();
+    void initializeTuners();
 };
 
 TvControlBackend::TvControlBackend (struct wpe_tvcontrol_backend* backend)
     : m_backend(backend) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     // Initialize Tuner list
+    initializeTuners();
     // Identify Region
+    checkRegion();
     // Read Tuner Capabilities
     // Configure Tuners
+}
+
+void TvControlBackend::initializeTuners () {
+
+}
+
+void TvControlBackend::checkRegion ()
+{
+    string country, data;
+    printf("Country");
+    fstream fObj;
+    fObj.open("TVConfig.txt", ios::in);
+    fObj >> data;
+
+    while (!fObj.eof()) {
+        if (!data.find("REGION")) {
+            fObj.seekp(3, ios::cur);
+               cout << m_country << "\n";
+            }
+            else{
+               cout << "Country Not Found...Setting Default to GB";
+               m_country = US;
+            }
+            break;
+    }
 }
 
 void TvControlBackend::handleTunerChangedEvent(struct wpe_tvcontrol_tuner_event event)
