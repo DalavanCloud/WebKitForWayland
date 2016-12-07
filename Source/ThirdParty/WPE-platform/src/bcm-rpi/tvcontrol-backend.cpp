@@ -6,7 +6,6 @@
 #include <string>
 #include <vector>
 
-
 #include <fcntl.h>
 #include <stdint.h>
 
@@ -29,16 +28,21 @@ private:
     void handleChannelChangedEvent(struct wpe_tvcontrol_channel_event);
     void handleScanningStateChangedEvent(struct wpe_tvcontrol_channel_event);
 
-    void checkRegion();
+    Country                      m_country;
+    uint64_t                     m_tunerCount;
+    std::vector<TvTunerBackend>  m_tunerList;
+    wpe_tvcontrol_string*        m_strPtr;
 
-    Country m_country;
-    std::vector<TvTunerBackend*> m_tunerList;
     //void GetTunerCapabilites();
+    void checkRegion();
     void initializeTuners();
+    void createTunerId(int, int, std::string&);
 };
 
 TvControlBackend::TvControlBackend (struct wpe_tvcontrol_backend* backend)
-    : m_backend(backend) {
+    : m_backend(backend)
+    , m_strPtr(nullptr)
+    , m_tunerCount(0) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     // Initialize Tuner list
     initializeTuners();
@@ -49,7 +53,48 @@ TvControlBackend::TvControlBackend (struct wpe_tvcontrol_backend* backend)
 }
 
 void TvControlBackend::initializeTuners () {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    int i, j;
+    int feOpenMode;
+    std::string tunerIdStr;
 
+    TvTunerBackend tInfo;
+    struct dvbfe_handle* feHandle[DVB_MAX_TUNER];
+    feOpenMode = O_RDWR | O_NONBLOCK;
+
+    m_tunerCount = 0;
+    for (i = 0; i < DVB_ADAPTER_SCAN; i++) {
+        for (j = 0; j < DVB_ADAPTER_SCAN; j++) {
+            feHandle[m_tunerCount] = dvbfe_open(i, j, feOpenMode);
+            if (feHandle[m_tunerCount] == NULL)
+                continue;
+
+            createTunerId(i, j, tunerIdStr);
+#ifdef TV_DEBUG
+            printf("Tuner identified as  %s \n Adapter: %d Frontend: %d \n ",
+                    feHandle[m_tunerCount]->name, i, j);
+            printf("Tuner id %s \n", tunerIdStr.c_str()) ;
+#endif
+            tInfo.m_feHandle.fd = feHandle[m_tunerCount]->fd;
+            tInfo.m_feHandle.type = feHandle[m_tunerCount]->type;
+            tInfo.m_feHandle.name = strdup(feHandle[m_tunerCount]->name);
+            tInfo.m_tunerId.assign(tunerIdStr);
+
+            /*Update the  private tuner list*/
+            m_tunerList.push_back(tInfo);
+            m_tunerCount += 1;
+            printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+        }
+    }
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+}
+
+void TvControlBackend::createTunerId(int i, int j, std::string& tunerId) {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    tunerId.assign(std::to_string(i));
+    tunerId.append(":");           //delimiter
+    tunerId.append(std::to_string(j));
+    printf("Tuner id %s \n", tunerId.c_str()) ;
 }
 
 void TvControlBackend::checkRegion ()
@@ -95,6 +140,31 @@ void TvControlBackend::handleScanningStateChangedEvent(struct wpe_tvcontrol_chan
 
 void TvControlBackend::getTunerList(struct wpe_tvcontrol_string_vector* out_tuner_list) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    int i = 0;
+
+    if (!m_strPtr && m_tunerCount) {
+        /*Create an array of  tuner id struct */
+        m_strPtr = (wpe_tvcontrol_string * )new wpe_tvcontrol_string[m_tunerCount];
+
+        /*Iterate  private tuner list and update the created array  */
+        for (auto& element: m_tunerList){
+            m_strPtr[i].data = strdup(element.m_tunerId.c_str());
+            m_strPtr[i].length = element.m_tunerId.length();
+            i++;
+        }
+    }
+
+    /* update number of tuners and tuner id */
+    out_tuner_list->length = m_tunerCount;
+    out_tuner_list->strings = m_strPtr;
+
+#ifdef TV_DEBUG
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    printf("Number of  tuners = ");
+    printf("%" PRIu64 "\n", out_tuner_list->length);
+    for(i = 0; i < out_tuner_list->length; i++)
+        printf("%ld th tuner id  = %s \n ", (i+1), out_tuner_list->strings[i].data);
+#endif
 }
 
 void TvControlBackend::getSupportedSourceTypesList(const char* tuner_id, struct wpe_tvcontrol_src_types_vector* out_source_types_list) {

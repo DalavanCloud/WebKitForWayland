@@ -6,7 +6,7 @@ void TvTunerBackend::getTunerInfo()
     printf("Info: using DVB adapter auto detection.\n");
 
     /* determine FE type and caps */
-    if (ioctl(m_feHandle->fd, FE_GET_INFO, &m_feInfo) == -1) {
+    if (ioctl(m_feHandle.fd, FE_GET_INFO, &m_feInfo) == -1) {
         printf("   ERROR: unable to determine frontend type\n");
     }
     printf("\n%s - - -> ", m_feInfo.name);
@@ -15,7 +15,7 @@ void TvTunerBackend::getTunerInfo()
 
 void TvTunerBackend::getModulation() {
     int choice = 1;
-    dvbfe_get_info(m_feHandle, dvbfe_info_mask(FE_STATUS_PARAMS), &fe_info, DVBFE_INFO_QUERYTYPE_IMMEDIATE, 0);
+    dvbfe_get_info(&m_feHandle, dvbfe_info_mask(FE_STATUS_PARAMS), &fe_info, DVBFE_INFO_QUERYTYPE_IMMEDIATE, 0);
     // printf("\n %d \n",feHandle->type);
     if (m_feInfo.caps & FE_CAN_INVERSION_AUTO) {
         printf("INVERSION_AUTO\n");
