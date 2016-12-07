@@ -55,7 +55,6 @@ const Vector<RefPtr<TVTuner>>&  TVManager::getTuners() {
         m_platformTVManager = std::make_unique<PlatformTVManager>(this);
 
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    // If the voiceList is empty, that's the cue to get the voices from the platform again.
     for (auto& tuner : m_platformTVManager->getTuners()) {
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         m_tunerList.append(TVTuner::create(tuner));
