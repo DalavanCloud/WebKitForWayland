@@ -2,13 +2,14 @@
 
 namespace BCMRPi {
 
-TvTunerBackend::TvTunerBackend(struct dvbfe_handle* feHandle) {
+TvTunerBackend::TvTunerBackend(struct dvbfe_handle* feHandle, int tunerCnt) {
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     m_feHandle.fd = feHandle->fd;
     m_feHandle.type = feHandle->type;
     m_feHandle.name = strdup(feHandle->name);
 
     getTunerInfo();
+    setModulation(tunerCnt);
 }
 
 TvTunerBackend::~TvTunerBackend() {
@@ -26,11 +27,11 @@ void TvTunerBackend::getTunerInfo()
         printf("   ERROR: unable to determine frontend type\n");
     }
     printf("\n%s - - -> ", m_feInfo.name);
-    getModulation();
+    getCapabilities();
 }
 
-void TvTunerBackend::getModulation() {
-    int choice = 1;
+void TvTunerBackend::getCapabilities() {
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     dvbfe_get_info(&m_feHandle, dvbfe_info_mask(FE_STATUS_PARAMS), &fe_info, DVBFE_INFO_QUERYTYPE_IMMEDIATE, 0);
     // printf("\n %d \n",feHandle->type);
     if (m_feInfo.caps & FE_CAN_INVERSION_AUTO) {
@@ -41,32 +42,47 @@ void TvTunerBackend::getModulation() {
     }
     if (m_feInfo.caps & FE_CAN_8VSB) {
         printf("8VSB\n");
-        m_channel = ATSC_VSB;
     }
     if (m_feInfo.caps & FE_CAN_16VSB) {
         printf("16VSB\n");
-        m_channel = ATSC_VSB;
     }
     if (m_feInfo.caps & FE_CAN_QAM_64) {
         printf("QAM_64\n");
-        m_channel = ATSC_QAM;
     }
     if (m_feInfo.caps & FE_CAN_QAM_256) {
         printf("QAM_256\n");
-        m_channel = ATSC_QAM;
     }
-    cout<<"\nselected modulation\n"<<"1)ATSC_VSB \n2)ATSC_QAM";
-    //TODO: Read value from config file before setting
-    if (choice == 1)
-        m_channel = ATSC_VSB;
-    else
-        m_channel = ATSC_QAM;
-
-    populateFreq(m_channel);
 }
 
-void TvTunerBackend::populateFreq(ChannelList channel)
-{
+void TvTunerBackend::setModulation(int tunerCnt) {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    string modulation, data, tunerStr;
+    char tmpStr[20];
+    printf("Getting Modulation for Tuner:%d", tunerCnt);
+    fstream fObj;
+    fObj.open(TV_CONFIG_FILE, ios::in);
+    snprintf(tmpStr, 20, "TUNER_%d_MODULATION", tunerCnt + 1);
+    tunerStr = string(tmpStr);
+    while (!fObj.eof()) {
+        fObj >> data;
+        if (!data.find(tunerStr)) {
+            fObj.seekp(3, ios::cur);
+            fObj >> modulation;
+            if (!modulation.find("8VSB")) && (m_feHandle.type ==  DVBFE_TYPE_ATSC) && (m_feInfo.caps & FE_CAN_8VSB)) {
+                fe_info.feparams.u.atsc.modulation = DVBFE_ATSC_MOD_VSB_8;
+                 m_channel = ATSC_VSB;
+                cout << "\nModulation set to 8VSB";
+                populateFreq(m_channel);
+            } else {
+                cout << "Modulation set ERROR";
+            }
+            break;
+        }
+    }
+    fObj.close();
+}
+
+void TvTunerBackend::populateFreq(ChannelList channel) {
     long populatedFrequencies[150];
 
     for (int channel = 0; channel < 68 ;channel++)
@@ -76,7 +92,7 @@ void TvTunerBackend::populateFreq(ChannelList channel)
     }
     for (int channel = 0; channel < 68; channel++)
     {
-        cout <<populatedFrequencies[channel] <<"\n";
+        cout <<"\n" <<populatedFrequencies[channel] <<"\n";
     }
 }
 

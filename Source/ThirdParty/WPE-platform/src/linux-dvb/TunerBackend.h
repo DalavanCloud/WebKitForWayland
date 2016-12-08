@@ -36,10 +36,11 @@ namespace BCMRPi {
 
 class TvTunerBackend {
 public:
-   TvTunerBackend(struct dvbfe_handle*);
+   TvTunerBackend(struct dvbfe_handle*, int);
    virtual ~TvTunerBackend();
    void getTunerInfo();
-   void getModulation();
+   void getCapabilities();
+   void setModulation();
    void populateFreq(ChannelList);
    struct dvbfe_handle     m_feHandle;
    std::string              m_tunerId;

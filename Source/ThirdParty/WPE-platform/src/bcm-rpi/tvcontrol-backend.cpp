@@ -8,11 +8,15 @@
 
 #include <fcntl.h>
 #include <stdint.h>
+#include <inttypes.h>
+
+#include "TVConfig.h"
 
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
 #include "TunerBackend.h"
 #endif
 
+#define TV_DEBUG 1
 using namespace std;
 
 namespace BCMRPi {
@@ -32,8 +36,8 @@ private:
     void handleScanningStateChangedEvent(struct wpe_tvcontrol_channel_event);
 
     uint64_t                     m_tunerCount;
-#ifdef TVCONTROL_BACKEND_LINUX_DVB
     Country                      m_country;
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
     std::vector<TvTunerBackend>  m_tunerList;
 #endif
     wpe_tvcontrol_string*        m_strPtr;
@@ -92,12 +96,13 @@ void TvControlBackend::initializeTuners () {
                 continue;
 
             createTunerId(i, j, tunerIdStr);
+
 #ifdef TV_DEBUG
             printf("Tuner identified as  %s \n Adapter: %d Frontend: %d \n ",
                     feHandle[m_tunerCount]->name, i, j);
             printf("Tuner id %s \n", tunerIdStr.c_str()) ;
 #endif
-            TvTunerBackend tInfo(feHandle[m_tunerCount]);
+            TvTunerBackend tInfo(feHandle[m_tunerCount], m_tunerCount);
             tInfo.m_tunerId.assign(tunerIdStr);
 
             /*Update the  private tuner list*/
@@ -118,27 +123,28 @@ void TvControlBackend::createTunerId(int i, int j, std::string& tunerId) {
     printf("Tuner id %s \n", tunerId.c_str()) ;
 }
 
-void TvControlBackend::checkRegion ()
-{
+void TvControlBackend::checkRegion () {
     string country, data;
     printf("Country");
     fstream fObj;
-    fObj.open("TVConfig.txt", ios::in);
-    fObj >> data;
+    fObj.open(TV_CONFIG_FILE, ios::in);
 
-#ifdef TVCONTROL_BACKEND_LINUX_DVB
     while (!fObj.eof()) {
+        fObj >> data;
         if (!data.find("REGION")) {
             fObj.seekp(3, ios::cur);
+            fObj >> country;
+            if (!country.find("US")) {
+               m_country = US;
                cout << m_country << "\n";
             }
             else{
                cout << "Country Not Found...Setting Default to GB";
-               m_country = US;
             }
             break;
+        }
     }
-#endif
+    fObj.close();
 }
 
 void TvControlBackend::handleTunerChangedEvent(struct wpe_tvcontrol_tuner_event event)
