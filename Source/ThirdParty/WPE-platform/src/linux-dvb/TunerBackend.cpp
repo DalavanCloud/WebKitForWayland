@@ -68,7 +68,7 @@ void TvTunerBackend::setModulation(int tunerCnt) {
         if (!data.find(tunerStr)) {
             fObj.seekp(3, ios::cur);
             fObj >> modulation;
-            if (!modulation.find("8VSB")) && (m_feHandle.type ==  DVBFE_TYPE_ATSC) && (m_feInfo.caps & FE_CAN_8VSB)) {
+            if (!modulation.find("8VSB") && (m_feHandle.type ==  DVBFE_TYPE_ATSC) && (m_feInfo.caps & FE_CAN_8VSB)) {
                 fe_info.feparams.u.atsc.modulation = DVBFE_ATSC_MOD_VSB_8;
                  m_channel = ATSC_VSB;
                 cout << "\nModulation set to 8VSB";

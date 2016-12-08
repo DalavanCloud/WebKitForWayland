@@ -40,10 +40,11 @@ public:
    virtual ~TvTunerBackend();
    void getTunerInfo();
    void getCapabilities();
-   void setModulation();
+   void setModulation(int);
    void populateFreq(ChannelList);
+
    struct dvbfe_handle     m_feHandle;
-   std::string              m_tunerId;
+   std::string             m_tunerId;
 
 private:
 
