@@ -3,9 +3,10 @@ enum TVSourceType { "dvb-t", "dvb-t2", "dvb-c", "dvb-c2", "dvb-s", "dvb-s2", "dv
 [
     Conditional=TV_CONTROL,
 ] interface TVTuner : EventTarget {
-    sequence<TVSourceType>      getSupportedSourceTypes ();
-    sequence<TVSource>          getSources ();
-    void                        setCurrentSource (TVSourceType sourceType);
+    sequence<TVSourceType>                   getSupportedSourceTypes ();
+    Promise                                  getSources();
+    Promise                                  setCurrentSource(TVSourceType sourceType);
+
     readonly        attribute DOMString      id;
     readonly        attribute TVSource?      currentSource;
 

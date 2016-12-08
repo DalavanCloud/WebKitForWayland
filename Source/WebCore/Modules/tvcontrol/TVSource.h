@@ -3,8 +3,10 @@
 
 #if ENABLE(TV_CONTROL)
 
-#include "TVChannel.h"
 #include "PlatformTVSource.h"
+#include "JSDOMPromise.h"
+#include "JSTVChannel.h"
+#include "TVChannel.h"
 
 namespace WebCore {
 
@@ -21,10 +23,13 @@ public:
         bool isRescanned;
     };
 
-    const Vector<RefPtr<TVChannel>>&   getChannels ();
-    void                            setCurrentChannel (const String& channelNumber);
-    void                            startScanning (/*const Options&*/);
-    void                            stopScanning ();
+    typedef DOMPromise<TVChannelVector> TVChannelPromise;
+    typedef DOMPromise<std::nullptr_t> TVPromise;
+
+    void getChannels(TVChannelPromise&&);
+    void setCurrentChannel (const String& channelNumber, TVPromise&&);
+    void startScanning (TVPromise&&);
+    void stopScanning(TVPromise&&);
 
     TVTuner*                        tuner () const { return m_parentTVTuner; }
     Type                            type () const { return ((Type)m_platformTVSource->type()); }
@@ -48,7 +53,7 @@ private:
     EventTargetInterface eventTargetInterface() const override { return TVSourceEventTargetInterfaceType; }
     ScriptExecutionContext* scriptExecutionContext() const override { return nullptr; }
 };
-
+typedef Vector<RefPtr<TVSource>> TVSourceVector;
 } // namespace WebCore
 
 #endif // ENABLE(TV_CONTROL)

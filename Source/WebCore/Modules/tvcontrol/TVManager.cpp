@@ -45,12 +45,14 @@ void TVManager::didScanningStateChanged(String tunerId, String sourceId, String 
     //Create event using idenified instance details
 }
 
-const Vector<RefPtr<TVTuner>>&  TVManager::getTuners() {
+void TVManager::getTuners(TVTunerPromise&& promise) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     if (m_tunerList.size())
-        return m_tunerList;
-
-    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    {
+        //return m_tunerList;
+        promise.resolve(m_tunerList);
+        return;
+    }
     if (!m_platformTVManager)
         m_platformTVManager = std::make_unique<PlatformTVManager>(this);
 
@@ -60,8 +62,13 @@ const Vector<RefPtr<TVTuner>>&  TVManager::getTuners() {
         m_tunerList.append(TVTuner::create(tuner));
     }
 
+    if (m_tunerList.size())
+    {
+        promise.resolve(m_tunerList);
+        return;
+    }
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    return m_tunerList;
+    promise.reject(nullptr);
 }
 
 ScriptExecutionContext* TVManager::scriptExecutionContext() const

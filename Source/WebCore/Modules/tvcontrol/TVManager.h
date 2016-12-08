@@ -4,8 +4,10 @@
 #if ENABLE(TV_CONTROL)
 
 #include "ActiveDOMObject.h"
-#include "TVTuner.h"
 #include "PlatformTVManager.h"
+#include "JSDOMPromise.h"
+#include "JSTVTuner.h"
+#include "TVTuner.h"
 
 namespace WebCore {
 
@@ -21,7 +23,8 @@ public:
     Document* document() const;
     WEBCORE_EXPORT Frame* frame() const;
 
-    const Vector<RefPtr<TVTuner>>& getTuners();
+    typedef DOMPromise<TVTunerVector> TVTunerPromise;
+    void getTuners(TVTunerPromise&& );
 
     using RefCounted<TVManager>::ref;
     using RefCounted<TVManager>::deref;

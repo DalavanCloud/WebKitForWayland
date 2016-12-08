@@ -3,8 +3,10 @@
 
 #if ENABLE(TV_CONTROL)
 
+#include "JSTVSource.h"
 #include "TVSource.h"
 #include "PlatformTVTuner.h"
+#include "JSDOMPromise.h"
 //#include "TVMediaStream.h"
 
 namespace WebCore {
@@ -16,9 +18,12 @@ public:
 
     enum class SourceType { DvbT, DvbT2, DvbC, DvbC2, DvbS, DvbS2, DvbH, DvbSh, Atsc, AtscMH, IsdbT, IsdbTb, IsdbS, IsdbC, _1seg, Dtmb, Cmmb, TDmb, SDmb };
 
-    const Vector<SourceType>&         getSupportedSourceTypes ();
-    const Vector<RefPtr<TVSource>>&   getSources ();
-    void                              setCurrentSource (SourceType sourceType);
+    typedef DOMPromise<std::nullptr_t> TVPromise;
+    typedef DOMPromise<TVSourceVector> TVSourcePromise;
+
+    const Vector<SourceType>&   getSupportedSourceTypes ();
+    void                        getSources(TVSourcePromise&&);
+    void                        setCurrentSource (SourceType sourceType, TVPromise&&);
 
     const String&       id () const { return m_platformTVTuner->id(); }
     TVSource*           currentSource() const { return m_currentSource; } //TODO check again
@@ -41,7 +46,7 @@ private:
     ScriptExecutionContext* scriptExecutionContext() const override { return nullptr; }
 
 };
-
+typedef Vector<RefPtr<TVTuner>> TVTunerVector;
 } // namespace WebCore
 
 #endif // ENABLE(TV_CONTROL)

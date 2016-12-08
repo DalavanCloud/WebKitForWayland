@@ -47,6 +47,8 @@ private:
     ScriptExecutionContext* scriptExecutionContext() const override { return nullptr; }
 };
 
+typedef Vector<RefPtr<TVChannel>> TVChannelVector;
+
 } // namespace WebCore
 
 #endif // ENABLE(TV_CONTROL)

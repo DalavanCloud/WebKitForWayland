@@ -26,22 +26,34 @@ const Vector<TVTuner::SourceType>&  TVTuner::getSupportedSourceTypes () {
     return m_sourceTypeList;
 }
 
-const Vector<RefPtr<TVSource>>&  TVTuner::getSources () {
-    if (m_sourceList.size())
-        return m_sourceList;
-
+void  TVTuner::getSources (TVSourcePromise&& promise) {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    if (m_sourceList.size()){
+       promise.resolve(m_sourceList);
+       return;
+    }
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     if (m_platformTVTuner) {
         for (auto& source : m_platformTVTuner->getSources())
             m_sourceList.append(TVSource::create(source, this));
+        promise.resolve(m_sourceList);
     }
-    return m_sourceList;
+    else{
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+        promise.reject(nullptr);
+    }
 }
 
-void  TVTuner::setCurrentSource (TVTuner::SourceType sourceType) {
+void  TVTuner::setCurrentSource (TVTuner::SourceType sourceType, TVPromise&& promise) {
     //m_currentSourceType = sourceType
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     if (m_platformTVTuner) {
         m_platformTVTuner->setCurrentSource((PlatformTVSource::Type)sourceType);
+        promise.resolve(nullptr);
+        return;
     }
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    promise.reject(nullptr);
 }
 
 } // namespace WebCore
