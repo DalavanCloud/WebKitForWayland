@@ -36,8 +36,8 @@ namespace BCMRPi {
 
 class TvTunerBackend {
 public:
-   TvTunerBackend() {}
-   virtual ~TvTunerBackend() {}
+   TvTunerBackend(struct dvbfe_handle*);
+   virtual ~TvTunerBackend();
    void getTunerInfo();
    void getModulation();
    void populateFreq(ChannelList);

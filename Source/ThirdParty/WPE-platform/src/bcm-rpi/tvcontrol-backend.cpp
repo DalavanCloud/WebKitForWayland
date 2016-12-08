@@ -9,7 +9,10 @@
 #include <fcntl.h>
 #include <stdint.h>
 
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
 #include "TunerBackend.h"
+#endif
+
 using namespace std;
 
 namespace BCMRPi {
@@ -17,7 +20,7 @@ namespace BCMRPi {
 struct TvControlBackend {
 public:
     TvControlBackend(struct wpe_tvcontrol_backend* backend);
-    virtual ~TvControlBackend() {}
+    virtual ~TvControlBackend();
     void getTunerList(struct wpe_tvcontrol_string_vector*);
     void getSupportedSourceTypesList(const char*, struct wpe_tvcontrol_src_types_vector*);
 
@@ -28,9 +31,11 @@ private:
     void handleChannelChangedEvent(struct wpe_tvcontrol_channel_event);
     void handleScanningStateChangedEvent(struct wpe_tvcontrol_channel_event);
 
-    Country                      m_country;
     uint64_t                     m_tunerCount;
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
+    Country                      m_country;
     std::vector<TvTunerBackend>  m_tunerList;
+#endif
     wpe_tvcontrol_string*        m_strPtr;
 
     //void GetTunerCapabilites();
@@ -52,13 +57,30 @@ TvControlBackend::TvControlBackend (struct wpe_tvcontrol_backend* backend)
     // Configure Tuners
 }
 
+TvControlBackend::~TvControlBackend () {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    int i ;
+    /*Clear tuner id list*/
+    for(i = 0; i < m_tunerCount; i++){
+        free(m_strPtr[i].data);
+        m_strPtr[i].data = NULL;
+    }
+    free(m_strPtr);
+    m_strPtr = NULL;
+
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
+    /*Clear private tuner  list*/
+    m_tunerList.clear();
+#endif
+}
+
 void TvControlBackend::initializeTuners () {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     int i, j;
     int feOpenMode;
     std::string tunerIdStr;
 
-    TvTunerBackend tInfo;
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
     struct dvbfe_handle* feHandle[DVB_MAX_TUNER];
     feOpenMode = O_RDWR | O_NONBLOCK;
 
@@ -75,9 +97,7 @@ void TvControlBackend::initializeTuners () {
                     feHandle[m_tunerCount]->name, i, j);
             printf("Tuner id %s \n", tunerIdStr.c_str()) ;
 #endif
-            tInfo.m_feHandle.fd = feHandle[m_tunerCount]->fd;
-            tInfo.m_feHandle.type = feHandle[m_tunerCount]->type;
-            tInfo.m_feHandle.name = strdup(feHandle[m_tunerCount]->name);
+            TvTunerBackend tInfo(feHandle[m_tunerCount]);
             tInfo.m_tunerId.assign(tunerIdStr);
 
             /*Update the  private tuner list*/
@@ -86,6 +106,7 @@ void TvControlBackend::initializeTuners () {
             printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         }
     }
+#endif
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
@@ -105,6 +126,7 @@ void TvControlBackend::checkRegion ()
     fObj.open("TVConfig.txt", ios::in);
     fObj >> data;
 
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
     while (!fObj.eof()) {
         if (!data.find("REGION")) {
             fObj.seekp(3, ios::cur);
@@ -116,6 +138,7 @@ void TvControlBackend::checkRegion ()
             }
             break;
     }
+#endif
 }
 
 void TvControlBackend::handleTunerChangedEvent(struct wpe_tvcontrol_tuner_event event)
@@ -145,13 +168,14 @@ void TvControlBackend::getTunerList(struct wpe_tvcontrol_string_vector* out_tune
     if (!m_strPtr && m_tunerCount) {
         /*Create an array of  tuner id struct */
         m_strPtr = (wpe_tvcontrol_string * )new wpe_tvcontrol_string[m_tunerCount];
-
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
         /*Iterate  private tuner list and update the created array  */
         for (auto& element: m_tunerList){
             m_strPtr[i].data = strdup(element.m_tunerId.c_str());
             m_strPtr[i].length = element.m_tunerId.length();
             i++;
         }
+#endif
     }
 
     /* update number of tuners and tuner id */

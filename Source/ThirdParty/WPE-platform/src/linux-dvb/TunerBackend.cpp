@@ -1,6 +1,22 @@
 #include "TunerBackend.h"
 
 namespace BCMRPi {
+
+TvTunerBackend::TvTunerBackend(struct dvbfe_handle* feHandle) {
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+    m_feHandle.fd = feHandle->fd;
+    m_feHandle.type = feHandle->type;
+    m_feHandle.name = strdup(feHandle->name);
+
+    getTunerInfo();
+}
+
+TvTunerBackend::~TvTunerBackend() {
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+    free( m_feHandle.name);
+    m_feHandle.name = nullptr;
+}
+
 void TvTunerBackend::getTunerInfo()
 {
     printf("Info: using DVB adapter auto detection.\n");

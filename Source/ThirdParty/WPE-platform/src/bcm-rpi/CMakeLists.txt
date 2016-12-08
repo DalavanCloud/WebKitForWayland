@@ -5,12 +5,10 @@ add_definitions(-DBACKEND_BCM_RPI=1)
 
 list(APPEND WPE_PLATFORM_INCLUDE_DIRECTORIES
     ${BCM_HOST_INCLUDE_DIRS}
-    ${LINUX_DVB_INCLUDE_DIRS}
 )
 
 list(APPEND WPE_PLATFORM_LIBRARIES
     ${BCM_HOST_LIBRARIES}
-    ${LINUX_DVB_LIBRARIES}
 )
 
 list(APPEND WPE_PLATFORM_SOURCES
@@ -18,5 +16,4 @@ list(APPEND WPE_PLATFORM_SOURCES
     src/bcm-rpi/renderer-backend.cpp
     src/bcm-rpi/view-backend.cpp
     src/bcm-rpi/tvcontrol-backend.cpp
-    src/bcm-rpi/TunerBackend.cpp
 )

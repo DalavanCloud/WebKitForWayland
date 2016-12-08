@@ -17,6 +17,7 @@ option(USE_WPE_BACKEND_WAYLAND "Whether to enable support for the Wayland WPE ba
 
 option(USE_WPE_INPUT_LIBINPUT "Whether to enable support for the libinput input backend" ON)
 option(USE_WPE_INPUT_UDEV "Whether to enable support for the libinput input udev lib" ON)
+option(USE_WPE_TVCONTROL_BACKEND_LINUX_DVB "Whether to enable support for the linux dvb tv backend" ON)
 set(USE_KEY_INPUT_HANDLING_LINUX_INPUT OFF CACHE BOOL "Whether to use <linux/input.h> event codes for keyboard event handling")
 
 find_package(GLIB 2.38.0 REQUIRED COMPONENTS gio gio-unix)
@@ -98,6 +99,21 @@ if (USE_WPE_INPUT_LIBINPUT)
         src/input/Libinput/KeyboardEventRepeating.cpp
         src/input/Libinput/LibinputServer.cpp
     )
+endif()
+
+if (USE_WPE_TVCONTROL_BACKEND_LINUX_DVB)
+    find_package(LinuxDVB REQUIRED)
+    list(APPEND WPE_PLATFORM_INCLUDE_DIRECTORIES
+        "${WPE_PLATFORM_SOURCE_DIR}/src/linux-dvb"
+        ${LINUX_DVB_INCLUDE_DIRS}
+    )
+    list(APPEND WPE_PLATFORM_LIBRARIES
+        ${LINUX_DVB_LIBRARIES}
+    )
+    list(APPEND WPE_PLATFORM_SOURCES
+        src/linux-dvb/TunerBackend.cpp
+    )
+    add_definitions(-DTVCONTROL_BACKEND_LINUX_DVB=1)
 endif()
 
 if (USE_WPE_BACKEND_BCM_NEXUS)
