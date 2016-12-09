@@ -27,7 +27,7 @@ public:
     virtual ~TvControlBackend();
     void getTunerList(struct wpe_tvcontrol_string_vector*);
     void getSupportedSourceTypesList(const char*, struct wpe_tvcontrol_src_types_vector*);
-
+    void getSignalStrength(const char*, double* signalStrength);
 private:
     struct wpe_tvcontrol_backend* m_backend;
     void handleTunerChangedEvent(struct wpe_tvcontrol_tuner_event);
@@ -201,6 +201,10 @@ void TvControlBackend::getSupportedSourceTypesList(const char* tuner_id, struct 
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
+void TvControlBackend::getSignalStrenght(const char* tuner_id, double* signal_strength) {
+    //getTuner from the Tuner List
+    //read signal strength using that tuner instance
+}
 } // namespace BCMRPi
 extern "C" {
 
@@ -232,6 +236,13 @@ struct wpe_tvcontrol_backend_interface bcm_rpi_tvcontrol_backend_interface = {
         auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
         backend.getSupportedSourceTypesList(tuner_id, out_source_types_list);
     },
+    // get_signal_strength
+    [](void* data, const char* tuner_id, double* signal_strength)
+    {
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+        auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
+        backend.getSignalStrength(tuner_id, signal_strength);
+    }
 };
 
 }

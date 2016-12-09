@@ -91,3 +91,12 @@ wpe_tvcontrol_backend_get_supported_source_types_list(struct wpe_tvcontrol_backe
     backend->interface->get_supported_source_types_list(backend->interface_data, tuner_id, out_source_types_list);
     return;
 }
+
+__attribute__((visibility("default")))
+void
+wpe_tvcontrol_backend_get_signal_strength(struct wpe_tvcontrol_backend* backend, const char* tuner_id, double *signal_strength)
+{
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    backend->interface->get_signal_strength(backend->interface_data, tuner_id, signal_strength);
+    return;
+}

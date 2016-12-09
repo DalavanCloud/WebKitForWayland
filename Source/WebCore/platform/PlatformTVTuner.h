@@ -29,7 +29,7 @@ public:
     const String&      id () const { return m_tunerId; }
     PlatformTVSource*  currentSource() const { return m_currentSource; } //TODO check again
     //TVMediaStream*   stream() const { return nullptr; } //TODO enable if it is required for basic functionalities
-    double             signalStrength() const { return m_signalStrength; }
+    double             signalStrength() const;
 private:
     PlatformTVTuner(String, PlatformTVControlBackend*);
     String                     m_tunerId;
