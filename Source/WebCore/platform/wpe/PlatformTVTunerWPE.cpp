@@ -51,8 +51,17 @@ const Vector<RefPtr<PlatformTVSource>>& PlatformTVTuner::getSources()
 {
     if (!m_sourceListIsInitialized) {
         ASSERT(m_sourceList.isEmpty());
-        //Do steps to identify tuners;
-        m_sourceListIsInitialized = true;
+
+        /*Get available source list*/
+        struct wpe_tvcontrol_src_types_vector sourceList;
+        sourceList.length = 0;
+        wpe_tvcontrol_backend_get_source_list(m_tvBackend->m_backend, m_tunerId.utf8().data(), &sourceList);
+        if (sourceList.length) {
+            for(uint64_t i = 0; i < sourceList.length; i++) {
+                m_sourceList.append(PlatformTVSource::create(m_tvBackend, m_tunerId.utf8().data(), PlatformTVSource::Type(sourceList.types[i])));
+            }
+            m_sourceListIsInitialized = true;
+        }
     }
     return m_sourceList;
 }

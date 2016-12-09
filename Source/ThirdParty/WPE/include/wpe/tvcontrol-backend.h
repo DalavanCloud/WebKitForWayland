@@ -59,6 +59,7 @@ struct wpe_tvcontrol_backend_interface {
     void (*destroy)(void*);
     void (*get_tuner_list)(void*, struct wpe_tvcontrol_string_vector*);
     void (*get_supported_source_types_list)(void*, const char*, struct wpe_tvcontrol_src_types_vector*);
+    void (*get_source_list)(void*, const char*, struct wpe_tvcontrol_src_types_vector*);
     void (*get_signal_strength)(void*, const char*, double*);
 };
 
@@ -88,6 +89,9 @@ wpe_tvcontrol_backend_get_tuner_list(struct wpe_tvcontrol_backend* backend, stru
 
 void
 wpe_tvcontrol_backend_get_supported_source_types_list(struct wpe_tvcontrol_backend* backend, const char* tuner_id, struct wpe_tvcontrol_src_types_vector* out_source_types_list);
+
+void
+wpe_tvcontrol_backend_get_source_list(struct wpe_tvcontrol_backend* backend, const char* tuner_id, struct wpe_tvcontrol_src_types_vector* out_source_list);
 
 void
 wpe_tvcontrol_backend_get_signal_strength(struct wpe_tvcontrol_backend* backend, const char* tuner_id, double* signal_strength);

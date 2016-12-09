@@ -191,4 +191,161 @@ int TvTunerBackend::freqStep(int channel, int channelList) {
     }
 }
 
+void TvTunerBackend::getSupportedSrcTypeList(struct dvbfe_handle feHandle, wpe_tvcontrol_src_types_vector* out_source_types_list) { //TODO Remove keyword
+
+    /* Get supported source list from platform*/
+    int  ret = 0;
+    ret  =  getSupportedSources(feHandle, out_source_types_list);
+    if (ret < 0)
+        printf("Failed to get supported source list \n");
+}
+
+void TvTunerBackend::getAvailableSrcList(struct dvbfe_handle feHandle, wpe_tvcontrol_src_types_vector* out_source_list) { //TODO Remove keyword
+    /* Get avaiable source list from platform*/
+    int  ret = 0;
+    ret  =  getSupportedSources(feHandle, out_source_list);
+    if (ret < 0)
+        printf("Failed to get supported source list \n");
+}
+
+int TvTunerBackend::getSupportedSources(struct dvbfe_handle feHandle, wpe_tvcontrol_src_types_vector* out_source_types_list) {
+
+    int i = 0;
+    uint64_t m_supportedSysCount = 0;
+
+    struct dtv_property p = {.cmd = DTV_ENUM_DELSYS };
+    struct dtv_properties cmdName = {.num = 1, .props = &p};
+
+    if (ioctl(feHandle.fd, FE_GET_PROPERTY, &cmdName) == -1) {
+        printf("FE_GET_PROPERTY failed \n");
+        return -1; //TODO retun values
+    }
+
+    m_supportedSysCount = cmdName.props->u.buffer.len;//TODO CHANGE TO DYNAMIC LIST
+    printf("Number of supported Source = %d", m_supportedSysCount);
+
+    /*Update the number of supported Sources*/
+     out_source_types_list->length = m_supportedSysCount;
+
+    if (!m_srcTypeListPtr && m_supportedSysCount) {
+        /*Create an array of  Type */
+        m_srcTypeListPtr = (Type * )new Type[out_source_types_list->length];
+
+        for (i = 0; i < m_supportedSysCount; i++) {
+            /*Map the list  to W3C spec */
+            switch (cmdName.props->u.buffer.data[i]) {
+                case SYS_DVBC_ANNEX_A:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    //TODO m_srcTypeListPtr[i] = ;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_DVBC_ANNEX_B:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    //TODO m_srcTypeListPtr[i] = ;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_DVBT:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    m_srcTypeListPtr[i] = DvbT;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_DSS:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    //TODO m_srcTypeListPtr[i] = ;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_DVBS:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    m_srcTypeListPtr[i] = DvbS;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_DVBS2:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    m_srcTypeListPtr[i] = DvbS2;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_DVBH:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    m_srcTypeListPtr[i] = DvbH;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_ISDBT:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    m_srcTypeListPtr[i] = IsdbT;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_ISDBS:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    m_srcTypeListPtr[i] = IsdbS;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_ISDBC:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    m_srcTypeListPtr[i] = IsdbC;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_ATSC:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    m_srcTypeListPtr[i] = Atsc;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_ATSCMH:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    m_srcTypeListPtr[i] = AtscMH;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_DTMB:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    m_srcTypeListPtr[i] = Dtmb;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_CMMB:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    m_srcTypeListPtr[i] = Cmmb;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_DAB:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    //TODO m_srcTypeListPtr[i] = ;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_DVBT2:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    m_srcTypeListPtr[i] = DvbT2;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_TURBO:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    //TODO m_srcTypeListPtr[i] = ;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_DVBC_ANNEX_C:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    //TODO m_srcTypeListPtr[i] = ;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                case SYS_UNDEFINED:
+                    printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
+                    m_srcTypeListPtr[i] = Undifined;
+                    //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
+                    break;
+                default:
+                    printf("ST: DEFAULT  \n");
+                    m_srcTypeListPtr[i] = Undifined;
+                    break;
+            } //switch
+        } // List cout not zero
+    } //Loop
+
+    /* update source type  ptr */
+    out_source_types_list->types = m_srcTypeListPtr;
+
+    if (m_supportedSysCount == 0) {
+        printf("driver returned 0 supported delivery source type!");
+        return -1;//TODO
+    }
+
+    return m_supportedSysCount;
+}
+
 } // namespace BCMRPi

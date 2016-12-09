@@ -11,11 +11,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <sys/ioctl.h>
-#include <fcntl.h>
-#include <linux/dvb/frontend.h>
 #include <stdint.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <linux/dvb/frontend.h>
 #include <libdvbapi/dvbfe.h>
+#include <wpe/tvcontrol-backend.h>
 #include "TVConfig.h"
 
 using namespace std;
@@ -46,6 +47,10 @@ public:
    struct dvbfe_handle     m_feHandle;
    std::string             m_tunerId;
 
+   void getSupportedSrcTypeList(struct dvbfe_handle, wpe_tvcontrol_src_types_vector* out_source_types_list);
+   //TODO check and add struct keyword :: move to private
+   void getAvailableSrcList(struct dvbfe_handle, wpe_tvcontrol_src_types_vector*);
+
 private:
 
    ChannelList              m_channel;
@@ -53,8 +58,13 @@ private:
    struct dvb_frontend_info m_feInfo;
    struct dvbfe_info fe_info;//TODO check and remove
 
+   Type*                           m_srcTypeListPtr;
+   uint64_t                        m_supportedSysCount;
+   wpe_tvcontrol_src_types_vector* m_srcListPtr; //TODO check and remove
+
    int baseOffset(int channel, int channelList);
    int freqStep(int channel, int channelList);
+   int getSupportedSources(struct dvbfe_handle, wpe_tvcontrol_src_types_vector*);
 };
 
 } // namespace BCMRPi

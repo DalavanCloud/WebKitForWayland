@@ -5,13 +5,14 @@
 
 namespace WebCore {
 
-RefPtr<PlatformTVSource> PlatformTVSource::create(PlatformTVControlBackend* tvBackend, String tunerId)
+RefPtr<PlatformTVSource> PlatformTVSource::create(PlatformTVControlBackend* tvBackend, String tunerId, Type type)
 {
-    return adoptRef(new PlatformTVSource(tvBackend, tunerId));
+    return adoptRef(new PlatformTVSource(tvBackend, tunerId, type));
 }
 
-PlatformTVSource::PlatformTVSource(PlatformTVControlBackend* tvBackend, String tunerId)
+PlatformTVSource::PlatformTVSource(PlatformTVControlBackend* tvBackend, String tunerId, Type type)
     : m_tunerId(tunerId)
+    , m_type(type)
     , m_tvBackend(tvBackend)
     , m_platformTVSourceClient(nullptr)
     , m_channelListIsInitialized(false)

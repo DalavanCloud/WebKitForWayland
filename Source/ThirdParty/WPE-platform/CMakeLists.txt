@@ -111,6 +111,7 @@ if (USE_WPE_TVCONTROL_BACKEND_LINUX_DVB)
         ${LINUX_DVB_LIBRARIES}
     )
     list(APPEND WPE_PLATFORM_SOURCES
+        src/linux-dvb/SourceBackend.cpp
         src/linux-dvb/TunerBackend.cpp
     )
     add_definitions(-DTVCONTROL_BACKEND_LINUX_DVB=1)

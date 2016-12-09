@@ -27,7 +27,9 @@ public:
     virtual ~TvControlBackend();
     void getTunerList(struct wpe_tvcontrol_string_vector*);
     void getSupportedSourceTypesList(const char*, struct wpe_tvcontrol_src_types_vector*);
+    void getSourceList(const char*, struct wpe_tvcontrol_src_types_vector*);
     void getSignalStrength(const char*, double* signalStrength);
+
 private:
     struct wpe_tvcontrol_backend* m_backend;
     void handleTunerChangedEvent(struct wpe_tvcontrol_tuner_event);
@@ -46,6 +48,7 @@ private:
     void checkRegion();
     void initializeTuners();
     void createTunerId(int, int, std::string&);
+    void getTunner( const char* tunerId, TvTunerBackend* tuner);
 };
 
 TvControlBackend::TvControlBackend (struct wpe_tvcontrol_backend* backend)
@@ -197,8 +200,38 @@ void TvControlBackend::getTunerList(struct wpe_tvcontrol_string_vector* out_tune
 #endif
 }
 
-void TvControlBackend::getSupportedSourceTypesList(const char* tuner_id, struct wpe_tvcontrol_src_types_vector* out_source_types_list) {
+void TvControlBackend::getSupportedSourceTypesList(const char* tunerId,
+                                                   struct wpe_tvcontrol_src_types_vector* out_source_types_list) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+
+    /* Get the tuner instance*/
+    TvTunerBackend* curTuner;
+    getTunner(tunerId, curTuner);
+    /* Invoke get supported type list of the particular tuner instance and get the data*/
+    curTuner->getSupportedSrcTypeList(curTuner->m_feHandle, out_source_types_list); //TODO remove handle param
+}
+
+void TvControlBackend::getTunner(const char* tunerId, TvTunerBackend* tuner) {
+
+    /*Iterate  private tuner list and get the particular tuner info  */
+    for (auto& element: m_tunerList){
+#ifdef TV_DEBUG
+        printf("Id of element %s \n",element.m_tunerId.c_str());
+        printf("Id of required tuner %s \n",tunerId);
+        printf(" \n");
+#endif
+        if (strncmp(element.m_tunerId.c_str(), tunerId, 3) == 0)
+            tuner = &element; //TODO test and verify
+    }
+}
+
+void TvControlBackend::getSourceList(const char* tunerId, struct wpe_tvcontrol_src_types_vector* out_source_list) {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    /* Get the tuner instance*/
+    TvTunerBackend* curTuner;
+    getTunner(tunerId, curTuner);
+    /* Invoke get available source type list of the particular tuner and get the data */
+    curTuner->getSupportedSrcTypeList(curTuner->m_feHandle, out_source_list); //TODO remove handle param
 }
 
 void TvControlBackend::getSignalStrength(const char* tuner_id, double* signal_strength) {
@@ -236,6 +269,13 @@ struct wpe_tvcontrol_backend_interface bcm_rpi_tvcontrol_backend_interface = {
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
         backend.getSupportedSourceTypesList(tuner_id, out_source_types_list);
+    },
+    // get_source_list
+    [](void* data, const char* tuner_id, struct wpe_tvcontrol_src_types_vector* out_source_list)
+    {
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+        auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
+        backend.getSourceList(tuner_id, out_source_list);
     },
     // get_signal_strength
     [](void* data, const char* tuner_id, double* signal_strength)

@@ -18,11 +18,10 @@ protected:
 
 class PlatformTVSource : public RefCounted<PlatformTVSource> {
 public:
-    static RefPtr<PlatformTVSource> create(PlatformTVControlBackend*, String);
-
-    virtual ~PlatformTVSource();
-
     enum class Type { DvbT, DvbT2, DvbC, DvbC2, DvbS, DvbS2, DvbH, DvbSh, Atsc, AtscMH, IsdbT, IsdbTb, IsdbS, IsdbC, _1seg, Dtmb, Cmmb, TDmb, SDmb, Undefined };
+
+    static RefPtr<PlatformTVSource> create(PlatformTVControlBackend*, String, Type);
+    virtual ~PlatformTVSource();
 
     const Vector<RefPtr<PlatformTVChannel>>&   getChannels ();
     PlatformTVChannel*                         setCurrentChannel (const String& channelNumber);
@@ -35,7 +34,7 @@ public:
     bool                                       isScanning () const { return m_isScanning; }
 
 private:
-    PlatformTVSource (PlatformTVControlBackend*, String);
+    PlatformTVSource (PlatformTVControlBackend*, String, Type);
     String                      m_tunerId;
     Type                        m_type;
     bool                        m_isScanning;
