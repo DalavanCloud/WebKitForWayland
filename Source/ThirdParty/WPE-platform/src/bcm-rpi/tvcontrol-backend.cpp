@@ -201,10 +201,11 @@ void TvControlBackend::getSupportedSourceTypesList(const char* tuner_id, struct 
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
-void TvControlBackend::getSignalStrenght(const char* tuner_id, double* signal_strength) {
+void TvControlBackend::getSignalStrength(const char* tuner_id, double* signal_strength) {
     //getTuner from the Tuner List
     //read signal strength using that tuner instance
 }
+
 } // namespace BCMRPi
 extern "C" {
 
