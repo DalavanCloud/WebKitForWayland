@@ -61,9 +61,11 @@ void  PlatformTVTuner::setCurrentSource (PlatformTVSource::Type sourceType) {
     m_currentSourceType = sourceType;
 }
 
-void PlatformTVTuner::getSignalStrength() {
+double PlatformTVTuner::signalStrength() {
     wpe_tvcontrol_backend_get_signal_strength(m_tvBackend->m_backend, m_tunerId.utf8().data(), &m_signalStrength);
+    return m_signalStrength;
 }
+
 } // namespace WebCore
 
 #endif // ENABLE(TV_CONTROL)
