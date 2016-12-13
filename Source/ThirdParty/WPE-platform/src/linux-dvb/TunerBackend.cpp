@@ -25,6 +25,7 @@ TvTunerBackend::~TvTunerBackend() {
     m_feHandle.name = nullptr;
     m_supportedSysCount = 0;
 }
+
 void TvTunerBackend::initializeSourceList() {
 
     getAvailableSrcList(&m_srcList);
@@ -106,6 +107,12 @@ void TvTunerBackend::populateFreq(ChannelList channel) {
     {
         cout <<"\n" <<populatedFrequencies[channel] <<"\n";
     }
+}
+
+void TvTunerBackend::getSignalStrength(double* signalStrength) {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    ioctl(m_feHandle.fd, FE_READ_SIGNAL_STRENGTH, fe_info.signal_strength);
+    *signalStrength = static_cast<double>(10 *(log10(fe_info.signal_strength)) + 30);
 }
 
 /*

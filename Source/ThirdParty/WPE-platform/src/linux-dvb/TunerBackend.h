@@ -6,7 +6,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
-
+#include <math.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,6 +44,7 @@ public:
    void getCapabilities();
    void setModulation(int);
    void populateFreq(ChannelList);
+   void getSignalStrength(double*);
 
    struct dvbfe_handle     m_feHandle;
    std::string             m_tunerId;

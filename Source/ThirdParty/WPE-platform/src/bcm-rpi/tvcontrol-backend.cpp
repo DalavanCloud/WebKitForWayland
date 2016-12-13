@@ -247,8 +247,12 @@ void TvControlBackend::getSourceList(const char* tunerId, struct wpe_tvcontrol_s
 }
 
 void TvControlBackend::getSignalStrength(const char* tuner_id, double* signal_strength) {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    TvTunerBackend* tuner;
     //getTuner from the Tuner List
-    //read signal strength using that tuner instance
+    getTunner(tuner_id, &tuner);
+    tuner->getSignalStrength(signal_strength);
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 } // namespace BCMRPi
