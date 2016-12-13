@@ -68,6 +68,12 @@ const Vector<RefPtr<PlatformTVSource>>& PlatformTVTuner::getSources()
 
 void  PlatformTVTuner::setCurrentSource (PlatformTVSource::Type sourceType) {
     m_currentSourceType = sourceType;
+    /* Parse the source list and set current source */
+    for(auto& src : m_sourceList){
+        if(src->type()  == sourceType ){
+            m_currentSource = src;
+        }
+    }
 }
 
 double PlatformTVTuner::signalStrength() {

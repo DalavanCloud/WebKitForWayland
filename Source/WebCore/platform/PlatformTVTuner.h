@@ -27,13 +27,13 @@ public:
     void                                     setTunerClient (PlatformTVTunerClient* client);
 
     const String&      id () const { return m_tunerId; }
-    PlatformTVSource*  currentSource() const { return m_currentSource; } //TODO check again
+    RefPtr<PlatformTVSource>  currentSource() const { return m_currentSource; } //TODO check again
     //TVMediaStream*   stream() const { return nullptr; } //TODO enable if it is required for basic functionalities
     double             signalStrength();
 private:
     PlatformTVTuner(String, PlatformTVControlBackend*);
     String                     m_tunerId;
-    PlatformTVSource*          m_currentSource;
+    RefPtr<PlatformTVSource>   m_currentSource;
     double                     m_signalStrength;
     PlatformTVSource::Type     m_currentSourceType;
     PlatformTVTunerClient*     m_platformTVTunerClient;
