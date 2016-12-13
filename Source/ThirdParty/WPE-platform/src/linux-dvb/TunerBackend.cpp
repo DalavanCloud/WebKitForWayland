@@ -233,8 +233,7 @@ void TvTunerBackend::getSources() {
         /* Read supported type list from the private list
                        and create list of source objects */
         for (i = 0; i < m_supportedSysCount; i++) {
-
-            SourceBackend sInfo(m_srcTypeListPtr[i]); //use pointer of SourceBackend instead of local copy
+            SourceBackend* sInfo = (SourceBackend* )new SourceBackend(m_srcTypeListPtr[i]);
             m_sourceList.push_back(sInfo);
             printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         }
@@ -248,7 +247,7 @@ int TvTunerBackend::getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector* 
     int i = 0;
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
 
-    printf("Number of supported Source = ");
+    printf("Number of supported Source = \n ");
     printf("%" PRIu64 "\n",  m_supportedSysCount);
     if (!m_srcTypeListPtr && (m_supportedSysCount == 0)) {
         printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
@@ -367,7 +366,6 @@ int TvTunerBackend::getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector* 
                 case SYS_UNDEFINED:
                     printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
                     m_srcTypeListPtr[i] = Undifined;
-                    printf("STP: CASE = *****&& \t");
                     //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
                     break;
                 default:

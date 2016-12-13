@@ -48,7 +48,7 @@ private:
     void checkRegion();
     void initializeTuners();
     void createTunerId(int, int, std::string&);
-    void getTunner( const char* tunerId, TvTunerBackend* tuner);
+    void getTunner( const char* tunerId, TvTunerBackend** tuner);
 };
 
 TvControlBackend::TvControlBackend (struct wpe_tvcontrol_backend* backend)
@@ -211,12 +211,12 @@ void TvControlBackend::getSupportedSourceTypesList(const char* tunerId,
 
     /* Get the tuner instance*/
     TvTunerBackend* curTuner;
-    getTunner(tunerId, curTuner);
+    getTunner(tunerId, &curTuner);
     /* Invoke get supported type list of the particular tuner instance and get the data*/
     curTuner->getSupportedSrcTypeList(out_source_types_list);
 }
 
-void TvControlBackend::getTunner(const char* tunerId, TvTunerBackend* tuner) {
+void TvControlBackend::getTunner(const char* tunerId, TvTunerBackend** tuner) {
 
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     /*Iterate  private tuner list and get the particular tuner info  */
@@ -226,11 +226,12 @@ void TvControlBackend::getTunner(const char* tunerId, TvTunerBackend* tuner) {
         printf("Id of required tuner %s \n",tunerId);
         printf(" \n");
 #endif
+
         if (strncmp(element->m_tunerId.c_str(), tunerId, 3) == 0) {
-            tuner = element; //TODO test and verify
+            *tuner = element; //TODO test and verify
 #ifdef TV_DEBUG
             printf("NAME  :  %s\n",element->m_feHandle.name);
-            printf("NAME at list :  %s\n",tuner->m_feHandle.name);
+            printf("NAME at list :  %s\n",(*tuner)->m_feHandle.name);
 #endif
         }
     }
@@ -240,7 +241,7 @@ void TvControlBackend::getSourceList(const char* tunerId, struct wpe_tvcontrol_s
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     /* Get the tuner instance*/
     TvTunerBackend* curTuner;
-    getTunner(tunerId, curTuner);
+    getTunner(tunerId, &curTuner);
     /* Invoke get available source type list of the particular tuner and get the data */
     curTuner->getAvailableSrcList(out_source_list);
 }

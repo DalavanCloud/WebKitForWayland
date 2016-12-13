@@ -48,10 +48,9 @@ public:
    struct dvbfe_handle     m_feHandle;
    std::string             m_tunerId;
 
-   std::vector<SourceBackend>  m_sourceList; //List of source objects
+   std::vector<SourceBackend*>  m_sourceList; //List of source objects
 
    void getSupportedSrcTypeList(wpe_tvcontrol_src_types_vector* out_source_types_list);
-   //TODO check and add struct keyword :: move to private
    void getAvailableSrcList(wpe_tvcontrol_src_types_vector*);
 
 private:
