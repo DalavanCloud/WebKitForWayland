@@ -40,7 +40,7 @@ private:
     uint64_t                     m_tunerCount;
     Country                      m_country;
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
-    std::vector<TvTunerBackend>  m_tunerList;
+    std::vector<TvTunerBackend*>  m_tunerList;
 #endif
     wpe_tvcontrol_string*        m_strPtr;
 
@@ -105,8 +105,8 @@ void TvControlBackend::initializeTuners () {
                     feHandle[m_tunerCount]->name, i, j);
             printf("Tuner id %s \n", tunerIdStr.c_str()) ;
 #endif
-            TvTunerBackend tInfo(feHandle[m_tunerCount], m_tunerCount);
-            tInfo.m_tunerId.assign(tunerIdStr);
+            TvTunerBackend* tInfo = (TvTunerBackend*) new TvTunerBackend(feHandle[m_tunerCount], m_tunerCount);
+            tInfo->m_tunerId.assign(tunerIdStr);
 
             /*Update the  private tuner list*/
             m_tunerList.push_back(tInfo);
@@ -180,23 +180,28 @@ void TvControlBackend::getTunerList(struct wpe_tvcontrol_string_vector* out_tune
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
         /*Iterate  private tuner list and update the created array  */
         for (auto& element: m_tunerList){
-            m_strPtr[i].data = strdup(element.m_tunerId.c_str());
-            m_strPtr[i].length = element.m_tunerId.length();
+            printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+            m_strPtr[i].data = strdup(element->m_tunerId.c_str());
+            printf("\n%s:%s:%d \n ID = %s  \n", __FILE__, __func__, __LINE__,element->m_tunerId.c_str());
+            m_strPtr[i].length = element->m_tunerId.length();
             i++;
         }
 #endif
     }
-
+#ifdef TV_DEBUG
+    printf("Number of  tuners mtc = ");
+    printf("%" PRIu64 "\n", m_tunerCount);
+#endif
     /* update number of tuners and tuner id */
     out_tuner_list->length = m_tunerCount;
     out_tuner_list->strings = m_strPtr;
 
 #ifdef TV_DEBUG
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    printf("Number of  tuners = ");
+    printf("Number of tuners = ");
     printf("%" PRIu64 "\n", out_tuner_list->length);
     for(i = 0; i < out_tuner_list->length; i++)
-        printf("%ld th tuner id  = %s \n ", (i+1), out_tuner_list->strings[i].data);
+        printf("%d th tuner id  = %s \n ", (i+1), out_tuner_list->strings[i].data);
 #endif
 }
 
@@ -208,20 +213,26 @@ void TvControlBackend::getSupportedSourceTypesList(const char* tunerId,
     TvTunerBackend* curTuner;
     getTunner(tunerId, curTuner);
     /* Invoke get supported type list of the particular tuner instance and get the data*/
-    curTuner->getSupportedSrcTypeList(curTuner->m_feHandle, out_source_types_list); //TODO remove handle param
+    curTuner->getSupportedSrcTypeList(out_source_types_list);
 }
 
 void TvControlBackend::getTunner(const char* tunerId, TvTunerBackend* tuner) {
 
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     /*Iterate  private tuner list and get the particular tuner info  */
     for (auto& element: m_tunerList){
 #ifdef TV_DEBUG
-        printf("Id of element %s \n",element.m_tunerId.c_str());
+        printf("Id of element %s \n",element->m_tunerId.c_str());
         printf("Id of required tuner %s \n",tunerId);
         printf(" \n");
 #endif
-        if (strncmp(element.m_tunerId.c_str(), tunerId, 3) == 0)
-            tuner = &element; //TODO test and verify
+        if (strncmp(element->m_tunerId.c_str(), tunerId, 3) == 0) {
+            tuner = element; //TODO test and verify
+#ifdef TV_DEBUG
+            printf("NAME  :  %s\n",element->m_feHandle.name);
+            printf("NAME at list :  %s\n",tuner->m_feHandle.name);
+#endif
+        }
     }
 }
 
@@ -231,7 +242,7 @@ void TvControlBackend::getSourceList(const char* tunerId, struct wpe_tvcontrol_s
     TvTunerBackend* curTuner;
     getTunner(tunerId, curTuner);
     /* Invoke get available source type list of the particular tuner and get the data */
-    curTuner->getSupportedSrcTypeList(curTuner->m_feHandle, out_source_list); //TODO remove handle param
+    curTuner->getAvailableSrcList(out_source_list);
 }
 
 void TvControlBackend::getSignalStrength(const char* tuner_id, double* signal_strength) {

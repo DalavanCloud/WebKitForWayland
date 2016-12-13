@@ -1,14 +1,21 @@
 #include "TunerBackend.h"
+#include <inttypes.h>
+
 
 namespace BCMRPi {
 
-TvTunerBackend::TvTunerBackend(struct dvbfe_handle* feHandle, int tunerCnt) {
+TvTunerBackend::TvTunerBackend(struct dvbfe_handle* feHandle, int tunerCnt)
+    :m_srcTypeListPtr(NULL),
+     m_supportedSysCount(0) {
+
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     m_feHandle.fd = feHandle->fd;
     m_feHandle.type = feHandle->type;
     m_feHandle.name = strdup(feHandle->name);
+    printf("FE handle  priv = %s , param = %s \n", m_feHandle.name,feHandle->name);
 
     getTunerInfo();
+    initializeSourceList();
     setModulation(tunerCnt);
 }
 
@@ -16,6 +23,11 @@ TvTunerBackend::~TvTunerBackend() {
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     free( m_feHandle.name);
     m_feHandle.name = nullptr;
+    m_supportedSysCount = 0;
+}
+void TvTunerBackend::initializeSourceList() {
+
+    getAvailableSrcList(&m_srcList);
 }
 
 void TvTunerBackend::getTunerInfo()
@@ -191,45 +203,73 @@ int TvTunerBackend::freqStep(int channel, int channelList) {
     }
 }
 
-void TvTunerBackend::getSupportedSrcTypeList(struct dvbfe_handle feHandle, wpe_tvcontrol_src_types_vector* out_source_types_list) { //TODO Remove keyword
+void TvTunerBackend::getSupportedSrcTypeList(wpe_tvcontrol_src_types_vector* out_source_types_list) {
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
 
     /* Get supported source list from platform*/
     int  ret = 0;
-    ret  =  getSupportedSources(feHandle, out_source_types_list);
+    ret  =  getSupportedSourcesTypeList(out_source_types_list);
     if (ret < 0)
         printf("Failed to get supported source list \n");
 }
 
-void TvTunerBackend::getAvailableSrcList(struct dvbfe_handle feHandle, wpe_tvcontrol_src_types_vector* out_source_list) { //TODO Remove keyword
+void TvTunerBackend::getAvailableSrcList(wpe_tvcontrol_src_types_vector* out_source_list) {
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     /* Get avaiable source list from platform*/
     int  ret = 0;
-    ret  =  getSupportedSources(feHandle, out_source_list);
+    ret  =  getSupportedSourcesTypeList(out_source_list);
     if (ret < 0)
         printf("Failed to get supported source list \n");
+    /* Create private list of sources  */
+    getSources();
 }
 
-int TvTunerBackend::getSupportedSources(struct dvbfe_handle feHandle, wpe_tvcontrol_src_types_vector* out_source_types_list) {
+void TvTunerBackend::getSources() {
+
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+    int i;
+
+    if (m_srcTypeListPtr && (m_supportedSysCount != 0) && m_sourceList.empty()) {
+        /* Read supported type list from the private list
+                       and create list of source objects */
+        for (i = 0; i < m_supportedSysCount; i++) {
+
+            SourceBackend sInfo(m_srcTypeListPtr[i]); //use pointer of SourceBackend instead of local copy
+            m_sourceList.push_back(sInfo);
+            printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+        }
+    } else {
+        printf("Private source list already created \n");
+    }
+}
+
+int TvTunerBackend::getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector* out_source_types_list) {
 
     int i = 0;
-    uint64_t m_supportedSysCount = 0;
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
 
-    struct dtv_property p = {.cmd = DTV_ENUM_DELSYS };
-    struct dtv_properties cmdName = {.num = 1, .props = &p};
+    printf("Number of supported Source = ");
+    printf("%" PRIu64 "\n",  m_supportedSysCount);
+    if (!m_srcTypeListPtr && (m_supportedSysCount == 0)) {
+        printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
 
-    if (ioctl(feHandle.fd, FE_GET_PROPERTY, &cmdName) == -1) {
-        printf("FE_GET_PROPERTY failed \n");
-        return -1; //TODO retun values
-    }
+        struct dtv_property p = {.cmd = DTV_ENUM_DELSYS };
+        struct dtv_properties cmdName = {.num = 1, .props = &p};
 
-    m_supportedSysCount = cmdName.props->u.buffer.len;//TODO CHANGE TO DYNAMIC LIST
-    printf("Number of supported Source = %d", m_supportedSysCount);
+        printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+        if (ioctl(m_feHandle.fd, FE_GET_PROPERTY, &cmdName) == -1) {
+            printf("FE_GET_PROPERTY failed \n");
+            return -1;
+        }
 
-    /*Update the number of supported Sources*/
-     out_source_types_list->length = m_supportedSysCount;
+        m_supportedSysCount = cmdName.props->u.buffer.len;
+        printf("Number of supported Source = ");
+        printf("%" PRIu64 "\n",  m_supportedSysCount);
 
-    if (!m_srcTypeListPtr && m_supportedSysCount) {
+
         /*Create an array of  Type */
-        m_srcTypeListPtr = (Type * )new Type[out_source_types_list->length];
+        m_srcTypeListPtr = (Type *)new Type[cmdName.props->u.buffer.len];
+        printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
 
         for (i = 0; i < m_supportedSysCount; i++) {
             /*Map the list  to W3C spec */
@@ -241,7 +281,7 @@ int TvTunerBackend::getSupportedSources(struct dvbfe_handle feHandle, wpe_tvcont
                     break;
                 case SYS_DVBC_ANNEX_B:
                     printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
-                    //TODO m_srcTypeListPtr[i] = ;
+                    m_srcTypeListPtr[i] =  DvbC; //TODO
                     //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
                     break;
                 case SYS_DVBT:
@@ -327,6 +367,7 @@ int TvTunerBackend::getSupportedSources(struct dvbfe_handle feHandle, wpe_tvcont
                 case SYS_UNDEFINED:
                     printf("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
                     m_srcTypeListPtr[i] = Undifined;
+                    printf("STP: CASE = *****&& \t");
                     //printf("ST: %s \n", p_delivery_system_name[ cmdName.props->u.buffer.data[i]]);
                     break;
                 default:
@@ -334,16 +375,20 @@ int TvTunerBackend::getSupportedSources(struct dvbfe_handle feHandle, wpe_tvcont
                     m_srcTypeListPtr[i] = Undifined;
                     break;
             } //switch
-        } // List cout not zero
-    } //Loop
+        } // Loop
+        if (m_supportedSysCount == 0) {
+            printf("driver returned 0 supported delivery source type!");
+            return -1;
+        }
+    } //List already created
 
+    /*Update the number of supported Sources*/
+    out_source_types_list->length = m_supportedSysCount;
+
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     /* update source type  ptr */
     out_source_types_list->types = m_srcTypeListPtr;
-
-    if (m_supportedSysCount == 0) {
-        printf("driver returned 0 supported delivery source type!");
-        return -1;//TODO
-    }
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
 
     return m_supportedSysCount;
 }

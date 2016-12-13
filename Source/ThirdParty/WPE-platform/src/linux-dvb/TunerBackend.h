@@ -18,6 +18,7 @@
 #include <libdvbapi/dvbfe.h>
 #include <wpe/tvcontrol-backend.h>
 #include "TVConfig.h"
+#include "SourceBackend.h"
 
 using namespace std;
 
@@ -47,9 +48,11 @@ public:
    struct dvbfe_handle     m_feHandle;
    std::string             m_tunerId;
 
-   void getSupportedSrcTypeList(struct dvbfe_handle, wpe_tvcontrol_src_types_vector* out_source_types_list);
+   std::vector<SourceBackend>  m_sourceList; //List of source objects
+
+   void getSupportedSrcTypeList(wpe_tvcontrol_src_types_vector* out_source_types_list);
    //TODO check and add struct keyword :: move to private
-   void getAvailableSrcList(struct dvbfe_handle, wpe_tvcontrol_src_types_vector*);
+   void getAvailableSrcList(wpe_tvcontrol_src_types_vector*);
 
 private:
 
@@ -60,11 +63,13 @@ private:
 
    Type*                           m_srcTypeListPtr;
    uint64_t                        m_supportedSysCount;
-   wpe_tvcontrol_src_types_vector* m_srcListPtr; //TODO check and remove
+   wpe_tvcontrol_src_types_vector m_srcList; //List of src type
 
    int baseOffset(int channel, int channelList);
    int freqStep(int channel, int channelList);
-   int getSupportedSources(struct dvbfe_handle, wpe_tvcontrol_src_types_vector*);
+   int getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector*);
+   void initializeSourceList();
+   void getSources();
 };
 
 } // namespace BCMRPi
