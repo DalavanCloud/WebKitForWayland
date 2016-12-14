@@ -11,11 +11,11 @@ namespace BCMRPi {
 class SourceBackend {
 
 public:
-   SourceBackend(Type);
+   SourceBackend(SourceType);
    virtual ~SourceBackend() {}
 
 private:
-    Type m_sType;
+    SourceType m_sType;
 };
 
 

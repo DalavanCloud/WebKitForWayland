@@ -103,9 +103,45 @@ wpe_tvcontrol_backend_get_source_list(struct wpe_tvcontrol_backend* backend, con
 
 __attribute__((visibility("default")))
 void
-wpe_tvcontrol_backend_get_signal_strength(struct wpe_tvcontrol_backend* backend, const char* tuner_id, double *signal_strength)
+wpe_tvcontrol_backend_get_signal_strength(struct wpe_tvcontrol_backend* backend, const char* tuner_id, double* out_signal_strength)
 {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    backend->interface->get_signal_strength(backend->interface_data, tuner_id, signal_strength);
+    backend->interface->get_signal_strength(backend->interface_data, tuner_id, out_signal_strength);
+    return;
+}
+
+__attribute__((visibility("default")))
+void
+wpe_tvcontrol_backend_start_scanning(struct wpe_tvcontrol_backend* backend, const char* tuner_id, SourceType type)
+{
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    backend->interface->start_scanning(backend->interface_data, tuner_id, type);
+    return;
+}
+
+__attribute__((visibility("default")))
+void
+wpe_tvcontrol_backend_stop_scanning(struct wpe_tvcontrol_backend* backend, const char* tuner_id)
+{
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    backend->interface->stop_scanning(backend->interface_data, tuner_id);
+    return;
+}
+
+__attribute__((visibility("default")))
+void
+wpe_tvcontrol_backend_set_current_channel(struct wpe_tvcontrol_backend* backend, const char* tuner_id, SourceType type, uint64_t channel_number)
+{
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    backend->interface->set_current_channel(backend->interface_data, tuner_id, type, channel_number);
+    return;
+}
+
+__attribute__((visibility("default")))
+void
+wpe_tvcontrol_backend_get_channel_list(struct wpe_tvcontrol_backend* backend, const char* tuner_id, SourceType type, struct wpe_tvcontrol_channel_vector* out_channel_list)
+{
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    backend->interface->get_channel_list(backend->interface_data, tuner_id, type, out_channel_list);
     return;
 }

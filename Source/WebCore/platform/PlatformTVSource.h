@@ -24,7 +24,7 @@ public:
     virtual ~PlatformTVSource();
 
     const Vector<RefPtr<PlatformTVChannel>>&   getChannels ();
-    PlatformTVChannel*                         setCurrentChannel (const String& channelNumber);
+    RefPtr<PlatformTVChannel>                  setCurrentChannel (const String& channelNumber);
     void                                       startScanning ();
     void                                       stopScanning ();
     void                                       setSourceClient (PlatformTVSourceClient* client);
@@ -38,9 +38,9 @@ private:
     String                      m_tunerId;
     Type                        m_type;
     bool                        m_isScanning;
-    PlatformTVChannel*          m_currentChannel;
-    PlatformTVSourceClient*     m_platformTVSourceClient;
+    RefPtr<PlatformTVChannel>   m_currentChannel;
     PlatformTVControlBackend*   m_tvBackend;
+    PlatformTVSourceClient*     m_platformTVSourceClient;
 
     Vector<RefPtr<PlatformTVChannel>> m_channelList;
     bool m_channelListIsInitialized;

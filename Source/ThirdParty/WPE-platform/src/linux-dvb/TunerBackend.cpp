@@ -274,7 +274,7 @@ int TvTunerBackend::getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector* 
 
 
         /*Create an array of  Type */
-        m_srcTypeListPtr = (Type *)new Type[cmdName.props->u.buffer.len];
+        m_srcTypeListPtr = (SourceType *)new SourceType[cmdName.props->u.buffer.len];
         printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
 
         for (i = 0; i < m_supportedSysCount; i++) {

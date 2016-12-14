@@ -11,6 +11,7 @@
 namespace WebCore {
 
 class PlatformTVControlBackend;
+class PlatformTVSource;
 
 class PlatformTVChannelClient {
 public:
@@ -26,7 +27,7 @@ public:
 
     enum class Type { Tv, Radio, Data };
 
-    const String&                   networkId () const { return m_networkId; }
+    const String&                  networkId () const { return m_networkId; }
     const String                   transportStreamId () const { return m_transportStreamId; }
     const String                   name () const { return m_name; }
     const String                   number () const { return m_number; }

@@ -61,7 +61,7 @@ private:
    struct dvb_frontend_info m_feInfo;
    struct dvbfe_info fe_info;//TODO check and remove
 
-   Type*                           m_srcTypeListPtr;
+   SourceType*                     m_srcTypeListPtr;
    uint64_t                        m_supportedSysCount;
    wpe_tvcontrol_src_types_vector m_srcList; //List of src type
 

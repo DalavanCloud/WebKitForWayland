@@ -1,6 +1,9 @@
 #include "config.h"
 #include "PlatformTVSource.h"
 
+#include "PlatformTVControl.h"
+#include <wpe/tvcontrol-backend.h>
+
 #if ENABLE(TV_CONTROL)
 
 namespace WebCore {
@@ -31,23 +34,40 @@ void PlatformTVSource::setSourceClient(PlatformTVSourceClient* client)
 const Vector<RefPtr<PlatformTVChannel>>& PlatformTVSource::getChannels () {
     if (!m_channelListIsInitialized) {
         ASSERT(m_channelList.isEmpty());
-        //Do steps to identify tuners;
-        m_channelListIsInitialized = true;
+
+        /* Get available channel list*/
+        struct wpe_tvcontrol_channel_vector channelList;
+        channelList.length = 0;
+        wpe_tvcontrol_backend_get_channel_list(m_tvBackend->m_backend, m_tunerId.utf8().data(), (SourceType)m_type, &channelList);
+        if (channelList.length) {
+            for (uint64_t i = 0; i < channelList.length; i++) {
+                m_channelList.append(PlatformTVChannel::create(m_tvBackend, m_tunerId.utf8().data()/*, channelList[i]:TODO add code to set channel details got from backend*/));
+            }
+            m_channelListIsInitialized = true;
+        }
     }
     return m_channelList;
 }
 
-PlatformTVChannel* PlatformTVSource::setCurrentChannel (const String& channelNumber) {
+RefPtr<PlatformTVChannel> PlatformTVSource::setCurrentChannel (const String& channelNumber) {
+    m_currentChannel = nullptr;
     //Do steps to setCurrentChannel based on ChannelNumber
+    wpe_tvcontrol_backend_set_current_channel(m_tvBackend->m_backend, m_tunerId.utf8().data(), (SourceType)m_type, atoi(channelNumber.utf8().data()));
+    /* Parse the channel list and set current channel */
+    for(auto& channel : m_channelList){
+        if(channel->number() == channelNumber ){
+            m_currentChannel = channel;
+        }
+    }
     return m_currentChannel;
 }
 
 void PlatformTVSource::startScanning () {
-
+    wpe_tvcontrol_backend_start_scanning(m_tvBackend->m_backend, m_tunerId.utf8().data(), (SourceType)m_type);
 }
 
 void PlatformTVSource::stopScanning () {
-
+    wpe_tvcontrol_backend_stop_scanning(m_tvBackend->m_backend, m_tunerId.utf8().data());
 }
 
 } // namespace WebCore

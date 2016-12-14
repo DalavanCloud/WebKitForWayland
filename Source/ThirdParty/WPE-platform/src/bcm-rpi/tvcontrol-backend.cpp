@@ -29,7 +29,10 @@ public:
     void getSupportedSourceTypesList(const char*, struct wpe_tvcontrol_src_types_vector*);
     void getSourceList(const char*, struct wpe_tvcontrol_src_types_vector*);
     void getSignalStrength(const char*, double* signalStrength);
-
+    void startScanning(const char*, SourceType);
+    void stopScanning(const char*);
+    void setCurrentChannel(const char*, SourceType, uint64_t);
+    void getChannelList(const char*, SourceType, struct wpe_tvcontrol_channel_vector*);
 private:
     struct wpe_tvcontrol_backend* m_backend;
     void handleTunerChangedEvent(struct wpe_tvcontrol_tuner_event);
@@ -170,7 +173,7 @@ void TvControlBackend::handleScanningStateChangedEvent(struct wpe_tvcontrol_chan
     wpe_tvcontrol_backend_dispatch_scanning_state_event(m_backend, event);
 }
 
-void TvControlBackend::getTunerList(struct wpe_tvcontrol_string_vector* out_tuner_list) {
+void TvControlBackend::getTunerList(struct wpe_tvcontrol_string_vector* outTunerList) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     int i = 0;
 
@@ -193,27 +196,27 @@ void TvControlBackend::getTunerList(struct wpe_tvcontrol_string_vector* out_tune
     printf("%" PRIu64 "\n", m_tunerCount);
 #endif
     /* update number of tuners and tuner id */
-    out_tuner_list->length = m_tunerCount;
-    out_tuner_list->strings = m_strPtr;
+    outTunerList->length = m_tunerCount;
+    outTunerList->strings = m_strPtr;
 
 #ifdef TV_DEBUG
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     printf("Number of tuners = ");
-    printf("%" PRIu64 "\n", out_tuner_list->length);
-    for(i = 0; i < out_tuner_list->length; i++)
-        printf("%d th tuner id  = %s \n ", (i+1), out_tuner_list->strings[i].data);
+    printf("%" PRIu64 "\n", outTunerList->length);
+    for(i = 0; i < outTunerList->length; i++)
+        printf("%d th tuner id  = %s \n ", (i+1), outTunerList->strings[i].data);
 #endif
 }
 
 void TvControlBackend::getSupportedSourceTypesList(const char* tunerId,
-                                                   struct wpe_tvcontrol_src_types_vector* out_source_types_list) {
+                                                   struct wpe_tvcontrol_src_types_vector* outSourceTypesList) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 
     /* Get the tuner instance*/
     TvTunerBackend* curTuner;
     getTunner(tunerId, &curTuner);
     /* Invoke get supported type list of the particular tuner instance and get the data*/
-    curTuner->getSupportedSrcTypeList(out_source_types_list);
+    curTuner->getSupportedSrcTypeList(outSourceTypesList);
 }
 
 void TvControlBackend::getTunner(const char* tunerId, TvTunerBackend** tuner) {
@@ -237,22 +240,34 @@ void TvControlBackend::getTunner(const char* tunerId, TvTunerBackend** tuner) {
     }
 }
 
-void TvControlBackend::getSourceList(const char* tunerId, struct wpe_tvcontrol_src_types_vector* out_source_list) {
+void TvControlBackend::getSourceList(const char* tunerId, struct wpe_tvcontrol_src_types_vector* outSourceList) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     /* Get the tuner instance*/
     TvTunerBackend* curTuner;
     getTunner(tunerId, &curTuner);
     /* Invoke get available source type list of the particular tuner and get the data */
-    curTuner->getAvailableSrcList(out_source_list);
+    curTuner->getAvailableSrcList(outSourceList);
 }
 
-void TvControlBackend::getSignalStrength(const char* tuner_id, double* signal_strength) {
+void TvControlBackend::getSignalStrength(const char* tunerId, double* signalStrength) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     TvTunerBackend* tuner;
     //getTuner from the Tuner List
-    getTunner(tuner_id, &tuner);
-    tuner->getSignalStrength(signal_strength);
+    getTunner(tunerId, &tuner);
+    tuner->getSignalStrength(signalStrength);
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+}
+
+void TvControlBackend::startScanning(const char* tuner_id, SourceType type) {
+}
+
+void TvControlBackend::stopScanning(const char* tuner_id) {
+}
+
+void TvControlBackend::setCurrentChannel(const char* tuner_id, SourceType type, uint64_t channelNumber) {
+}
+
+void TvControlBackend::getChannelList(const char* tuner_id, SourceType type, struct wpe_tvcontrol_channel_vector*) {
 }
 
 } // namespace BCMRPi
@@ -294,12 +309,40 @@ struct wpe_tvcontrol_backend_interface bcm_rpi_tvcontrol_backend_interface = {
         backend.getSourceList(tuner_id, out_source_list);
     },
     // get_signal_strength
-    [](void* data, const char* tuner_id, double* signal_strength)
+    [](void* data, const char* tuner_id, double* out_signal_strength)
     {
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
-        backend.getSignalStrength(tuner_id, signal_strength);
-    }
+        backend.getSignalStrength(tuner_id, out_signal_strength);
+    },
+    // start_scanning
+    [](void* data, const char* tuner_id, SourceType type)
+    {
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+        auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
+        backend.startScanning(tuner_id, type);
+    },
+    // stop_scanning
+    [](void* data, const char* tuner_id)
+    {
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+        auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
+        backend.stopScanning(tuner_id);
+    },
+    // set_current_channel
+    [](void* data, const char* tuner_id, SourceType type, uint64_t channel_number)
+    {
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+        auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
+        backend.setCurrentChannel(tuner_id, type, channel_number);
+    },
+    // get_channel_list
+    [](void* data, const char* tuner_id, SourceType type, struct wpe_tvcontrol_channel_vector* out_channel_list)
+    {
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+        auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
+        backend.getChannelList(tuner_id, type, out_channel_list);
+    },
 };
 
 }

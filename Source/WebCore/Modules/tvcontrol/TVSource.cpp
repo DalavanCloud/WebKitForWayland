@@ -17,6 +17,12 @@ TVSource::TVSource (RefPtr<PlatformTVSource> platformTVSource, TVTuner* parentTV
 
 void TVSource::getChannels(TVChannelPromise&& promise) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+
+    if (SCANNING_STARTED == m_scanState) {
+        promise.reject(nullptr);//TODO replace with state values
+        return;
+    }
+
     if (m_channelList.size()){
         promise.resolve(m_channelList);
         return;
@@ -34,20 +40,47 @@ void TVSource::getChannels(TVChannelPromise&& promise) {
 
 void TVSource::setCurrentChannel (const String& channelNumber, TVPromise&& promise) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    m_platformTVSource->setCurrentChannel(channelNumber);
-    promise.resolve(nullptr);
+    if (SCANNING_STARTED == m_scanState) {
+        promise.reject(nullptr);//TODO replace with state values
+        return;
+    }
+    if (m_platformTVSource) {
+         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+         if (m_platformTVSource->setCurrentChannel(channelNumber)) {
+             promise.resolve(nullptr);
+             return;
+         }
+    }
+    promise.reject(nullptr);
 }
 
 void TVSource::startScanning (TVPromise&& promise) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    m_platformTVSource->startScanning();
-    promise.resolve(nullptr);
+    if (SCANNING_STARTED == m_scanState) { //scanning is in progress
+        promise.reject(nullptr);//TODO replace with state values
+        return;
+    }
+    if (m_platformTVSource) {
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+        m_scanState = SCANNING_STARTED;
+        m_platformTVSource->startScanning();
+        m_scanState = SCANNING_COMPLETED;
+        promise.resolve(nullptr);
+    }
+    promise.reject(nullptr);
 }
 
 void TVSource::stopScanning (TVPromise&& promise) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    m_platformTVSource->stopScanning();
-    promise.resolve(nullptr);
+    if (m_platformTVSource) {
+        if (SCANNING_COMPLETED != m_scanState) { //scanning is already finished
+            printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+            m_platformTVSource->stopScanning();
+            m_scanState = SCANNING_COMPLETED;
+            promise.resolve(nullptr);
+        }
+    }
+    promise.reject(nullptr);
 }
 
 } // namespace WebCore

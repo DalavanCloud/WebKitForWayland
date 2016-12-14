@@ -23,13 +23,13 @@ public:
 
     const Vector<PlatformTVSource::Type>&    getSupportedSourceTypes();
     const Vector<RefPtr<PlatformTVSource>>&  getSources ();
-    void                                     setCurrentSource (PlatformTVSource::Type sourceType);
+    RefPtr<PlatformTVSource>                 setCurrentSource (PlatformTVSource::Type sourceType);
     void                                     setTunerClient (PlatformTVTunerClient* client);
 
-    const String&      id () const { return m_tunerId; }
+    const String&             id () const { return m_tunerId; }
     RefPtr<PlatformTVSource>  currentSource() const { return m_currentSource; } //TODO check again
     //TVMediaStream*   stream() const { return nullptr; } //TODO enable if it is required for basic functionalities
-    double             signalStrength();
+    double                    signalStrength();
 private:
     PlatformTVTuner(String, PlatformTVControlBackend*);
     String                     m_tunerId;

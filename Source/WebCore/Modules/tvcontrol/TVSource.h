@@ -47,6 +47,9 @@ private:
     Vector<RefPtr<TVChannel>>  m_channelList;
     TVChannel*                 m_channel;
 
+    enum ScanningState { SCANNING_STARTED, SCANNING_COMPLETED };
+    ScanningState              m_scanState;
+
     void refEventTarget() override { ref(); }
     void derefEventTarget() override { deref(); }
 

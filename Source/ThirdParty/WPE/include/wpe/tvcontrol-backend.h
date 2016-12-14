@@ -15,18 +15,18 @@ typedef enum { Added, Removed } tuner_changed_operation;
 typedef enum { Cleared, Scanned, Completed, Stopped } scanning_state;
 
 struct wpe_tvcontrol_string {
-    char* data;
+    char*    data;
     uint64_t length;
 };
 
 struct wpe_tvcontrol_string_vector {
     struct wpe_tvcontrol_string* strings;
-    uint64_t length;
+    uint64_t                     length;
 };
 
 struct wpe_tvcontrol_tuner_event {
     struct wpe_tvcontrol_string tuner_id;
-    tuner_changed_operation operation;
+    tuner_changed_operation     operation;
 };
 
 struct wpe_tvcontrol_source_event {
@@ -35,10 +35,10 @@ struct wpe_tvcontrol_source_event {
 };
 
 struct wpe_tvcontrol_channel_event {
+    scanning_state              state;
     struct wpe_tvcontrol_string tuner_id;
     struct wpe_tvcontrol_string source_id;
     struct wpe_tvcontrol_string channel_id;
-    scanning_state              state;
 };
 
 struct wpe_tvcontrol_backend_manager_event_client {
@@ -48,19 +48,38 @@ struct wpe_tvcontrol_backend_manager_event_client {
     void (*handle_scanning_state_changed_event)(void*, struct wpe_tvcontrol_channel_event);
 };
 
-typedef enum { DvbT, DvbT2, DvbC, DvbC2, DvbS, DvbS2, DvbH, DvbSh, Atsc, AtscMH, IsdbT, IsdbTb, IsdbS, IsdbC, _1seg, Dtmb, Cmmb, TDmb, SDmb, Undifined } Type;
+typedef enum { DvbT, DvbT2, DvbC, DvbC2, DvbS, DvbS2, DvbH, DvbSh, Atsc, AtscMH, IsdbT, IsdbTb, IsdbS, IsdbC, _1seg, Dtmb, Cmmb, TDmb, SDmb, Undifined } SourceType;
 struct wpe_tvcontrol_src_types_vector {
-    Type*    types;
-    uint64_t length;
+    SourceType* types;
+    uint64_t    length;
+};
+
+typedef enum { Tv, Radio, Data } ChannelType;
+struct wpe_tvcontrol_channel {
+    char*       networkId;
+    char*       transportSId;
+    char*       serviceId;
+    char*       name;
+    char*       number;
+    ChannelType type;
+};
+
+struct wpe_tvcontrol_channel_vector {
+    struct wpe_tvcontrol_channel* channels;
+    uint64_t                      length;
 };
 
 struct wpe_tvcontrol_backend_interface {
     void* (*create)(struct  wpe_tvcontrol_backend*);
-    void (*destroy)(void*);
-    void (*get_tuner_list)(void*, struct wpe_tvcontrol_string_vector*);
-    void (*get_supported_source_types_list)(void*, const char*, struct wpe_tvcontrol_src_types_vector*);
-    void (*get_source_list)(void*, const char*, struct wpe_tvcontrol_src_types_vector*);
-    void (*get_signal_strength)(void*, const char*, double*);
+    void  (*destroy)(void*);
+    void  (*get_tuner_list)(void*, struct wpe_tvcontrol_string_vector*);
+    void  (*get_supported_source_types_list)(void*, const char*, struct wpe_tvcontrol_src_types_vector*);
+    void  (*get_source_list)(void*, const char*, struct wpe_tvcontrol_src_types_vector*);
+    void  (*get_signal_strength)(void*, const char*, double*);
+    void  (*start_scanning)(void*, const char*, SourceType);
+    void  (*stop_scanning)(void*, const char*);
+    void  (*set_current_channel)(void*, const char*, SourceType, uint64_t);
+    void  (*get_channel_list)(void*, const char*, SourceType, struct wpe_tvcontrol_channel_vector*);
 };
 
 struct wpe_tvcontrol_backend*
@@ -94,7 +113,19 @@ void
 wpe_tvcontrol_backend_get_source_list(struct wpe_tvcontrol_backend* backend, const char* tuner_id, struct wpe_tvcontrol_src_types_vector* out_source_list);
 
 void
-wpe_tvcontrol_backend_get_signal_strength(struct wpe_tvcontrol_backend* backend, const char* tuner_id, double* signal_strength);
+wpe_tvcontrol_backend_get_signal_strength(struct wpe_tvcontrol_backend* backend, const char* tuner_id, double* out_signal_strength);
+
+void
+wpe_tvcontrol_backend_start_scanning(struct wpe_tvcontrol_backend*, const char* tuner_id, SourceType type);
+
+void
+wpe_tvcontrol_backend_stop_scanning(struct wpe_tvcontrol_backend*, const char* tuner_id);
+
+void
+wpe_tvcontrol_backend_set_current_channel(struct wpe_tvcontrol_backend*, const char* tuner_id, SourceType type, uint64_t channel_number);
+
+void
+wpe_tvcontrol_backend_get_channel_list(struct wpe_tvcontrol_backend*, const char* tuner_id, SourceType type, struct wpe_tvcontrol_channel_vector* out_channel_list);
 
 #ifdef __cplusplus
 }

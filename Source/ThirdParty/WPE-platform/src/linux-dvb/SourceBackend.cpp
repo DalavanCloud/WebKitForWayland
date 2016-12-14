@@ -3,7 +3,7 @@
 
 namespace BCMRPi {
 
-SourceBackend::SourceBackend(Type type)
+SourceBackend::SourceBackend(SourceType type)
 {
     m_sType = type;
 }

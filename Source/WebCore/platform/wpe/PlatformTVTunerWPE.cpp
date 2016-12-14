@@ -57,7 +57,7 @@ const Vector<RefPtr<PlatformTVSource>>& PlatformTVTuner::getSources()
         sourceList.length = 0;
         wpe_tvcontrol_backend_get_source_list(m_tvBackend->m_backend, m_tunerId.utf8().data(), &sourceList);
         if (sourceList.length) {
-            for(uint64_t i = 0; i < sourceList.length; i++) {
+            for (uint64_t i = 0; i < sourceList.length; i++) {
                 m_sourceList.append(PlatformTVSource::create(m_tvBackend, m_tunerId.utf8().data(), PlatformTVSource::Type(sourceList.types[i])));
             }
             m_sourceListIsInitialized = true;
@@ -66,14 +66,16 @@ const Vector<RefPtr<PlatformTVSource>>& PlatformTVTuner::getSources()
     return m_sourceList;
 }
 
-void  PlatformTVTuner::setCurrentSource (PlatformTVSource::Type sourceType) {
+RefPtr<PlatformTVSource> PlatformTVTuner::setCurrentSource(PlatformTVSource::Type sourceType) {
     m_currentSourceType = sourceType;
+    m_currentSource = nullptr;
     /* Parse the source list and set current source */
     for(auto& src : m_sourceList){
         if(src->type()  == sourceType ){
             m_currentSource = src;
         }
     }
+    return m_currentSource;
 }
 
 double PlatformTVTuner::signalStrength() {

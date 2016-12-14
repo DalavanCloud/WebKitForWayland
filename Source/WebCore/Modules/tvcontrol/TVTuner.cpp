@@ -48,9 +48,11 @@ void  TVTuner::setCurrentSource (TVTuner::SourceType sourceType, TVPromise&& pro
     //m_currentSourceType = sourceType
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     if (m_platformTVTuner) {
-        m_platformTVTuner->setCurrentSource((PlatformTVSource::Type)sourceType);
-        promise.resolve(nullptr);
-        return;
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+        if (m_platformTVTuner->setCurrentSource((PlatformTVSource::Type)sourceType)) {
+            promise.resolve(nullptr);
+            return;
+        }
     }
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     promise.reject(nullptr);
