@@ -4,12 +4,14 @@
 #if ENABLE(TV_CONTROL)
 
 struct wpe_tvcontrol_backend;
+struct wpe_tvcontrol_channel;
 
 namespace WebCore {
 
 class PlatformTVControlBackend {
 public: 
     struct wpe_tvcontrol_backend* m_backend;
+    struct wpe_tvcontrol_channel* m_channel;
 };
 
 } // namespace WebCore

@@ -60,7 +60,7 @@ struct wpe_tvcontrol_channel {
     char*       transportSId;
     char*       serviceId;
     char*       name;
-    char*       number;
+    uint64_t    number;
     ChannelType type;
 };
 

@@ -1,10 +1,10 @@
 #include "config.h"
 #include "PlatformTVSource.h"
 
+#if ENABLE(TV_CONTROL)
+
 #include "PlatformTVControl.h"
 #include <wpe/tvcontrol-backend.h>
-
-#if ENABLE(TV_CONTROL)
 
 namespace WebCore {
 
@@ -39,9 +39,11 @@ const Vector<RefPtr<PlatformTVChannel>>& PlatformTVSource::getChannels () {
         struct wpe_tvcontrol_channel_vector channelList;
         channelList.length = 0;
         wpe_tvcontrol_backend_get_channel_list(m_tvBackend->m_backend, m_tunerId.utf8().data(), (SourceType)m_type, &channelList);
+
         if (channelList.length) {
             for (uint64_t i = 0; i < channelList.length; i++) {
-                m_channelList.append(PlatformTVChannel::create(m_tvBackend, m_tunerId.utf8().data()/*, channelList[i]:TODO add code to set channel details got from backend*/));
+                m_tvBackend->m_channel = &channelList.channels[i];
+                m_channelList.append(PlatformTVChannel::create(m_tvBackend, m_tunerId.utf8().data()));
             }
             m_channelListIsInitialized = true;
         }
