@@ -4,7 +4,6 @@
 #include <cstdio>
 #include <iostream>
 #include <fstream>
-#include <string>
 #include <vector>
 #include <math.h>
 #include <unistd.h>
@@ -15,7 +14,6 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <linux/dvb/frontend.h>
-#include <libdvbapi/dvbfe.h>
 #include <wpe/tvcontrol-backend.h>
 #include "TVConfig.h"
 #include "SourceBackend.h"
@@ -26,13 +24,6 @@ using namespace std;
 #define DVB_FE_SCAN 6
 #define DVB_MAX_TUNER 6
 #define FE_STATUS_PARAMS (DVBFE_INFO_LOCKSTATUS|DVBFE_INFO_FEPARAMS|DVBFE_INFO_SIGNAL_STRENGTH|DVBFE_INFO_BER|DVBFE_INFO_SNR|DVBFE_INFO_UNCORRECTED_BLOCKS)
-
-struct dvbfe_handle {
-    int fd;
-    enum dvbfe_type type;
-    char *name;
-};
-
 
 namespace BCMRPi {
 
@@ -46,8 +37,7 @@ public:
    void populateFreq(ChannelList);
    void getSignalStrength(double*);
 
-   struct dvbfe_handle     m_feHandle;
-   std::string             m_tunerId;
+   struct dvbfe_handle*    m_feHandle;
 
    std::vector<SourceBackend*>  m_sourceList; //List of source objects
 

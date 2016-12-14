@@ -3,8 +3,9 @@
 
 namespace BCMRPi {
 
-SourceBackend::SourceBackend(SourceType type) {
-    m_sType = type;
+SourceBackend::SourceBackend(SourceType type, dvbfe_handle* feHandle)
+    : m_sType(type)
+    , m_feHandle(feHandle) {
 
 }
 

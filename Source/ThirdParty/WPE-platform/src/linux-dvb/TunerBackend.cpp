@@ -5,14 +5,12 @@
 namespace BCMRPi {
 
 TvTunerBackend::TvTunerBackend(struct dvbfe_handle* feHandle, int tunerCnt)
-    :m_srcTypeListPtr(NULL),
-     m_supportedSysCount(0) {
+    : m_feHandle(feHandle)
+    , m_srcTypeListPtr(NULL)
+    , m_supportedSysCount(0) {
 
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
-    m_feHandle.fd = feHandle->fd;
-    m_feHandle.type = feHandle->type;
-    m_feHandle.name = strdup(feHandle->name);
-    printf("FE handle  priv = %s , param = %s \n", m_feHandle.name,feHandle->name);
+    printf("FE handle  priv = %s , param = %s \n", m_feHandle->name, feHandle->name);
 
     getTunerInfo();
     initializeSourceList();
@@ -21,8 +19,12 @@ TvTunerBackend::TvTunerBackend(struct dvbfe_handle* feHandle, int tunerCnt)
 
 TvTunerBackend::~TvTunerBackend() {
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
-    free( m_feHandle.name);
-    m_feHandle.name = nullptr;
+    free(m_feHandle->name);
+    m_feHandle->name = nullptr;
+
+    free(m_feHandle);
+    m_feHandle = nullptr;
+
     m_supportedSysCount = 0;
 }
 
@@ -36,7 +38,7 @@ void TvTunerBackend::getTunerInfo()
     printf("Info: using DVB adapter auto detection.\n");
 
     /* determine FE type and caps */
-    if (ioctl(m_feHandle.fd, FE_GET_INFO, &m_feInfo) == -1) {
+    if (ioctl(m_feHandle->fd, FE_GET_INFO, &m_feInfo) == -1) {
         printf("   ERROR: unable to determine frontend type\n");
     }
     printf("\n%s - - -> ", m_feInfo.name);
@@ -45,8 +47,7 @@ void TvTunerBackend::getTunerInfo()
 
 void TvTunerBackend::getCapabilities() {
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
-    dvbfe_get_info(&m_feHandle, dvbfe_info_mask(FE_STATUS_PARAMS), &fe_info, DVBFE_INFO_QUERYTYPE_IMMEDIATE, 0);
-    // printf("\n %d \n",feHandle->type);
+    dvbfe_get_info(m_feHandle, dvbfe_info_mask(FE_STATUS_PARAMS), &fe_info, DVBFE_INFO_QUERYTYPE_IMMEDIATE, 0);
     if (m_feInfo.caps & FE_CAN_INVERSION_AUTO) {
         printf("INVERSION_AUTO\n");
     }
@@ -81,7 +82,7 @@ void TvTunerBackend::setModulation(int tunerCnt) {
         if (!data.find(tunerStr)) {
             fObj.seekp(3, ios::cur);
             fObj >> modulation;
-            if (!modulation.find("8VSB") && (m_feHandle.type ==  DVBFE_TYPE_ATSC) && (m_feInfo.caps & FE_CAN_8VSB)) {
+            if (!modulation.find("8VSB") && (m_feHandle->type ==  DVBFE_TYPE_ATSC) && (m_feInfo.caps & FE_CAN_8VSB)) {
                 fe_info.feparams.u.atsc.modulation = DVBFE_ATSC_MOD_VSB_8;
                  m_channel = ATSC_VSB;
                 cout << "\nModulation set to 8VSB";
@@ -111,7 +112,7 @@ void TvTunerBackend::populateFreq(ChannelList channel) {
 
 void TvTunerBackend::getSignalStrength(double* signalStrength) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    ioctl(m_feHandle.fd, FE_READ_SIGNAL_STRENGTH, fe_info.signal_strength);
+    ioctl(m_feHandle->fd, FE_READ_SIGNAL_STRENGTH, fe_info.signal_strength);
     *signalStrength = static_cast<double>(10 *(log10(fe_info.signal_strength)) + 30);
 }
 
@@ -240,7 +241,7 @@ void TvTunerBackend::getSources() {
         /* Read supported type list from the private list
                        and create list of source objects */
         for (i = 0; i < m_supportedSysCount; i++) {
-            SourceBackend* sInfo = (SourceBackend* )new SourceBackend(m_srcTypeListPtr[i]);
+            SourceBackend* sInfo = (SourceBackend* )new SourceBackend(m_srcTypeListPtr[i], m_feHandle);
             m_sourceList.push_back(sInfo);
             printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         }
@@ -263,7 +264,7 @@ int TvTunerBackend::getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector* 
         struct dtv_properties cmdName = {.num = 1, .props = &p};
 
         printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
-        if (ioctl(m_feHandle.fd, FE_GET_PROPERTY, &cmdName) == -1) {
+        if (ioctl(m_feHandle->fd, FE_GET_PROPERTY, &cmdName) == -1) {
             printf("FE_GET_PROPERTY failed \n");
             return -1;
         }

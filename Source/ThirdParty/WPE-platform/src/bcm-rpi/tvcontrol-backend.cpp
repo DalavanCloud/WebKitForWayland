@@ -102,6 +102,7 @@ void TvControlBackend::initializeTuners () {
                 continue;
 
             createTunerId(i, j, tunerIdStr);
+            feHandle[m_tunerCount]->tunerId.assign(tunerIdStr);
 
 #ifdef TV_DEBUG
             printf("Tuner identified as  %s \n Adapter: %d Frontend: %d \n ",
@@ -109,7 +110,6 @@ void TvControlBackend::initializeTuners () {
             printf("Tuner id %s \n", tunerIdStr.c_str()) ;
 #endif
             TvTunerBackend* tInfo = (TvTunerBackend*) new TvTunerBackend(feHandle[m_tunerCount], m_tunerCount);
-            tInfo->m_tunerId.assign(tunerIdStr);
 
             /*Update the  private tuner list*/
             m_tunerList.push_back(tInfo);
@@ -184,9 +184,9 @@ void TvControlBackend::getTunerList(struct wpe_tvcontrol_string_vector* outTuner
         /*Iterate  private tuner list and update the created array  */
         for (auto& element: m_tunerList){
             printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-            m_strPtr[i].data = strdup(element->m_tunerId.c_str());
-            printf("\n%s:%s:%d \n ID = %s  \n", __FILE__, __func__, __LINE__,element->m_tunerId.c_str());
-            m_strPtr[i].length = element->m_tunerId.length();
+            m_strPtr[i].data = strdup(element->m_feHandle->tunerId.c_str());
+            printf("\n%s:%s:%d \n ID = %s  \n", __FILE__, __func__, __LINE__,element->m_feHandle->tunerId.c_str());
+            m_strPtr[i].length = element->m_feHandle->tunerId.length();
             i++;
         }
 #endif
@@ -225,16 +225,16 @@ void TvControlBackend::getTunner(const char* tunerId, TvTunerBackend** tuner) {
     /*Iterate  private tuner list and get the particular tuner info  */
     for (auto& element: m_tunerList){
 #ifdef TV_DEBUG
-        printf("Id of element %s \n",element->m_tunerId.c_str());
+        printf("Id of element %s \n",element->m_feHandle->tunerId.c_str());
         printf("Id of required tuner %s \n",tunerId);
         printf(" \n");
 #endif
 
-        if (strncmp(element->m_tunerId.c_str(), tunerId, 3) == 0) {
+        if (strncmp(element->m_feHandle->tunerId.c_str(), tunerId, 3) == 0) {
             *tuner = element; //TODO test and verify
 #ifdef TV_DEBUG
-            printf("NAME  :  %s\n",element->m_feHandle.name);
-            printf("NAME at list :  %s\n",(*tuner)->m_feHandle.name);
+            printf("NAME  :  %s\n",element->m_feHandle->name);
+            printf("NAME at list :  %s\n",(*tuner)->m_feHandle->name);
 #endif
         }
     }
