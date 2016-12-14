@@ -52,7 +52,6 @@ public:
    std::vector<SourceBackend*>  m_sourceList; //List of source objects
 
    void getSupportedSrcTypeList(wpe_tvcontrol_src_types_vector* out_source_types_list);
-   void getAvailableSrcList(wpe_tvcontrol_src_types_vector*);
 
 private:
 
@@ -68,6 +67,8 @@ private:
    int baseOffset(int channel, int channelList);
    int freqStep(int channel, int channelList);
    int getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector*);
+
+   void getAvailableSrcList(wpe_tvcontrol_src_types_vector*);
    void initializeSourceList();
    void getSources();
 };

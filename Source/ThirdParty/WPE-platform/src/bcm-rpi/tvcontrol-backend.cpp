@@ -246,7 +246,7 @@ void TvControlBackend::getSourceList(const char* tunerId, struct wpe_tvcontrol_s
     TvTunerBackend* curTuner;
     getTunner(tunerId, &curTuner);
     /* Invoke get available source type list of the particular tuner and get the data */
-    curTuner->getAvailableSrcList(outSourceList);
+    curTuner->getSupportedSrcTypeList(outSourceList);
 }
 
 void TvControlBackend::getSignalStrength(const char* tunerId, double* signalStrength) {

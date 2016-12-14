@@ -3,10 +3,25 @@
 
 namespace BCMRPi {
 
-SourceBackend::SourceBackend(SourceType type)
-{
+SourceBackend::SourceBackend(SourceType type) {
     m_sType = type;
+
 }
 
+void SourceBackend::startScanning() {
+    /* */
+}
+
+void SourceBackend::stopScanning() {
+    /* */
+}
+
+void  SourceBackend::setCurrentChannel(uint64_t channelNo) {
+    /* */
+}
+
+void SourceBackend::getChannels() {
+    /* */
+}
 
 } // namespace BCMRPi

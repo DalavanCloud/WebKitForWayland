@@ -14,6 +14,11 @@ public:
    SourceBackend(SourceType);
    virtual ~SourceBackend() {}
 
+   void startScanning();
+   void stopScanning();
+   void setCurrentChannel(uint64_t channelNo);
+   void getChannels();
+
 private:
     SourceType m_sType;
 };
