@@ -27,6 +27,7 @@ public:
    void stopScanning();
    void setCurrentChannel(uint64_t channelNo);
    void getChannels();
+   SourceType srcType() { return m_sType; }
 
 private:
     SourceType    m_sType;

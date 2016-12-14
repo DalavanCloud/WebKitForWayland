@@ -258,7 +258,11 @@ void TvControlBackend::getSignalStrength(const char* tunerId, double* signalStre
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
-void TvControlBackend::startScanning(const char* tuner_id, SourceType type) {
+void TvControlBackend::startScanning(const char* tunerId, SourceType type) {
+    TvTunerBackend* tuner;
+    //getTuner from the Tuner List
+    getTunner(tunerId, &tuner);
+    tuner->startScanning(type);
 }
 
 void TvControlBackend::stopScanning(const char* tuner_id) {
