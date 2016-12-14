@@ -36,6 +36,7 @@ public:
    void setModulation(int);
    void populateFreq(ChannelList);
    void getSignalStrength(double*);
+   void startScanning(SourceType);
 
    struct dvbfe_handle*    m_feHandle;
 
@@ -61,6 +62,7 @@ private:
    void getAvailableSrcList(wpe_tvcontrol_src_types_vector*);
    void initializeSourceList();
    void getSources();
+   void getSource(SourceType, SourceBackend**);
 };
 
 } // namespace BCMRPi

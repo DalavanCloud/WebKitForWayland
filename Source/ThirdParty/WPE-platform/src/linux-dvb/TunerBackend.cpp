@@ -399,4 +399,25 @@ int TvTunerBackend::getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector* 
     return m_supportedSysCount;
 }
 
+void TvTunerBackend::startScanning(SourceType sType) {
+
+    /* Get source corresponds to this type  */
+     SourceBackend *source;
+     getSource(sType, &source);
+     source->startScanning();
+}
+
+void TvTunerBackend::getSource(SourceType sType, SourceBackend **source) {
+
+    /* Iterate list and get the source matching the list*/
+    for(auto& src : m_sourceList) {
+        printf("SRC type from list =  %d from param = %d", src->srcType(), sType);
+        if(src->srcType() == sType) {
+            *source = src;
+        }
+    }
+
+}
+
+
 } // namespace BCMRPi
