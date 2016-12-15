@@ -31,12 +31,18 @@ class TvTunerBackend {
 public:
    TvTunerBackend(struct dvbfe_handle*, int);
    virtual ~TvTunerBackend();
+
+   SourceType getSrcType() { return m_sType; };
+   void setSrcType(SourceType sType){ m_sType = sType; };
    void getTunerInfo();
    void getCapabilities();
    void setModulation(int);
    void populateFreq(ChannelList);
    void getSignalStrength(double*);
-   void startScanning(SourceType);
+   void startScanning();
+   void stopScanning();
+   void getChannelList(SourceType, struct wpe_tvcontrol_channel_vector*);
+   void setCurrentChannel(SourceType, uint64_t);
 
    struct dvbfe_handle*    m_feHandle;
 
@@ -51,9 +57,10 @@ private:
    struct dvb_frontend_info m_feInfo;
    struct dvbfe_info fe_info;//TODO check and remove
 
+   SourceType                      m_sType;
    SourceType*                     m_srcTypeListPtr;
    uint64_t                        m_supportedSysCount;
-   wpe_tvcontrol_src_types_vector m_srcList; //List of src type
+   wpe_tvcontrol_src_types_vector  m_srcList; //List of src type
 
    int baseOffset(int channel, int channelList);
    int freqStep(int channel, int channelList);

@@ -247,6 +247,7 @@ void TvControlBackend::getSourceList(const char* tunerId, struct wpe_tvcontrol_s
     getTunner(tunerId, &curTuner);
     /* Invoke get available source type list of the particular tuner and get the data */
     curTuner->getSupportedSrcTypeList(outSourceList);
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 void TvControlBackend::getSignalStrength(const char* tunerId, double* signalStrength) {
@@ -259,19 +260,40 @@ void TvControlBackend::getSignalStrength(const char* tunerId, double* signalStre
 }
 
 void TvControlBackend::startScanning(const char* tunerId, SourceType type) {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     TvTunerBackend* tuner;
     //getTuner from the Tuner List
     getTunner(tunerId, &tuner);
-    tuner->startScanning(type);
+    tuner->setSrcType(type);
+    tuner->startScanning();
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
-void TvControlBackend::stopScanning(const char* tuner_id) {
+void TvControlBackend::stopScanning(const char* tunerId) {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    TvTunerBackend* tuner;
+    //getTuner from the Tuner List
+    getTunner(tunerId, &tuner);
+    tuner->stopScanning();
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
-void TvControlBackend::setCurrentChannel(const char* tuner_id, SourceType type, uint64_t channelNumber) {
+void TvControlBackend::setCurrentChannel(const char* tunerId, SourceType type, uint64_t channelNumber) {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    TvTunerBackend* tuner;
+    //getTuner from the Tuner List
+    getTunner(tunerId, &tuner);
+    tuner->setCurrentChannel(type, channelNumber);
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
-void TvControlBackend::getChannelList(const char* tuner_id, SourceType type, struct wpe_tvcontrol_channel_vector*) {
+void TvControlBackend::getChannelList(const char* tunerId, SourceType type, struct wpe_tvcontrol_channel_vector* channelVector) {
+    TvTunerBackend* tuner;
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    //getTuner from the Tuner List
+    getTunner(tunerId, &tuner);
+    tuner->getChannelList(type, channelVector);
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 } // namespace BCMRPi
