@@ -3,7 +3,6 @@
 
 #include <string>
 #include <wpe/tvcontrol-backend.h>
-#include <SourceBackend.h>
 
 using namespace std;
 #define TV_DEBUG 1 //TODO remove
@@ -13,8 +12,8 @@ namespace BCMRPi {
 class ChannelBackend {
 
 public:
-   ChannelBackend(){}
-   virtual ~ChannelBackend() {}
+    ChannelBackend(){}
+    virtual ~ChannelBackend() {}
 
 private:
     string m_networkId;
@@ -25,11 +24,6 @@ private:
 
     bool       m_isEmergency;
     bool       m_isFree;
-    bool       m_isParentalLocked;
-
-    SourceBackend*   m_source;
-//  TVChannelType m_ctype; //TODO check type
-//  string    m_casSystemId; //TODO
 };
 
 
