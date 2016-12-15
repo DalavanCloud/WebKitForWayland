@@ -399,16 +399,18 @@ int TvTunerBackend::getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector* 
     return m_supportedSysCount;
 }
 
-void TvTunerBackend::startScanning(SourceType sType) {
+void TvTunerBackend::startScanning() {
 
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     /* Get source corresponds to this type  */
      SourceBackend *source;
-     getSource(sType, &source);
+     getSource(m_sType, &source);
      source->startScanning();
 }
 
 void TvTunerBackend::getSource(SourceType sType, SourceBackend **source) {
 
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     /* Iterate list and get the source matching the list*/
     for(auto& src : m_sourceList) {
         printf("SRC type from list =  %d from param = %d", src->srcType(), sType);
@@ -416,8 +418,33 @@ void TvTunerBackend::getSource(SourceType sType, SourceBackend **source) {
             *source = src;
         }
     }
-
 }
 
+void TvTunerBackend::stopScanning() {
+
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+    /* Get source corresponds to this type  */
+    SourceBackend *source;
+    getSource(m_sType, &source);
+    source->stopScanning();
+}
+
+void TvTunerBackend::getChannelList(SourceType sType, struct wpe_tvcontrol_channel_vector* channelVector) {
+
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+    /* Get source corresponds to this type  */
+    SourceBackend *source;
+    getSource(sType, &source);
+    source->getChannelList(channelVector);
+}
+
+void TvTunerBackend::setCurrentChannel(SourceType sType ,uint64_t channelNumber) {
+
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+    /* Get source corresponds to this type  */
+    SourceBackend *source;
+    getSource(sType, &source);
+    source->setCurrentChannel(channelNumber);
+}
 
 } // namespace BCMRPi
