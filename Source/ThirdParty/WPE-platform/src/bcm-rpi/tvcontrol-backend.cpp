@@ -91,25 +91,31 @@ void TvControlBackend::initializeTuners () {
     std::string tunerIdStr;
 
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
-    struct dvbfe_handle* feHandle[DVB_MAX_TUNER];
+    struct dvbfe_handle *feHandle, *feHandleTmp;
     feOpenMode = O_RDWR | O_NONBLOCK;
 
     m_tunerCount = 0;
     for (i = 0; i < DVB_ADAPTER_SCAN; i++) {
         for (j = 0; j < DVB_ADAPTER_SCAN; j++) {
-            feHandle[m_tunerCount] = dvbfe_open(i, j, feOpenMode);
-            if (feHandle[m_tunerCount] == NULL)
+
+            feHandleTmp = dvbfe_open(i, j, feOpenMode);
+            if (feHandleTmp == NULL)
                 continue;
 
+            feHandle = new dvbfe_handle;
             createTunerId(i, j, tunerIdStr);
-            feHandle[m_tunerCount]->tunerId.assign(tunerIdStr);
+            feHandle->fd = feHandleTmp->fd;
+            feHandle->type = feHandleTmp->type;
+            feHandle->name =  feHandleTmp->name;
+            feHandle->tunerId.assign(tunerIdStr);
+            free(feHandleTmp);
 
 #ifdef TV_DEBUG
             printf("Tuner identified as  %s \n Adapter: %d Frontend: %d \n ",
-                    feHandle[m_tunerCount]->name, i, j);
+                    feHandle->name, i, j);
             printf("Tuner id %s \n", tunerIdStr.c_str()) ;
 #endif
-            TvTunerBackend* tInfo = (TvTunerBackend*) new TvTunerBackend(feHandle[m_tunerCount], m_tunerCount);
+            TvTunerBackend* tInfo = (TvTunerBackend*) new TvTunerBackend(feHandle, m_tunerCount);
 
             /*Update the  private tuner list*/
             m_tunerList.push_back(tInfo);
@@ -118,6 +124,7 @@ void TvControlBackend::initializeTuners () {
         }
     }
 #endif
+
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
