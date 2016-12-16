@@ -38,10 +38,15 @@ find_path(LINUX_DVB_INCLUDE_DIRS
     PATH_SUFFIXES libdvbapi
 )
 
-find_library(LINUX_DVB_LIBRARIES
+find_library(LINUX_DVB_API
     NAMES dvbapi
 )
+find_library(LINUX_DVB_UCSI
+    NAMES ucsi
+    PATH_SUFFIXES libucsi
+)
 
+set(LINUX_DVB_LIBRARIES ${LINUX_DVB_API} ${LINUX_DVB_UCSI})
 include(FindPackageHandleStandardArgs)
 set(LINUX_DVB_LIBRARIES ${LINUX_DVB_LIBRARIES}  CACHE PATH "Path to LINUX_DVB library")
 set(LINUX_DVB_INCLUDE_DIRS ${LINUX_DVB_INCLUDE_DIRS}  CACHE PATH "Path to LINUX_DVB include")
