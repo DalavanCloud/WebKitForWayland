@@ -17,7 +17,7 @@ option(USE_WPE_BACKEND_WAYLAND "Whether to enable support for the Wayland WPE ba
 
 option(USE_WPE_INPUT_LIBINPUT "Whether to enable support for the libinput input backend" ON)
 option(USE_WPE_INPUT_UDEV "Whether to enable support for the libinput input udev lib" ON)
-option(USE_WPE_TVCONTROL_BACKEND_LINUX_DVB "Whether to enable support for the linux dvb tv backend" ON)
+option(USE_WPE_TVCONTROL_BACKEND_LINUX_DVB "Whether to enable support for the linux dvb tv backend" OFF)
 set(USE_KEY_INPUT_HANDLING_LINUX_INPUT OFF CACHE BOOL "Whether to use <linux/input.h> event codes for keyboard event handling")
 
 find_package(GLIB 2.38.0 REQUIRED COMPONENTS gio gio-unix)

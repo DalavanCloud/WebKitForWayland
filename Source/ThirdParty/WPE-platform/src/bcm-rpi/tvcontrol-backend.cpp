@@ -10,9 +10,8 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-#include "TVConfig.h"
-
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
+#include "TVConfig.h"
 #include "TunerBackend.h"
 #endif
 
@@ -41,17 +40,18 @@ private:
     void handleScanningStateChangedEvent(struct wpe_tvcontrol_channel_event);
 
     uint64_t                     m_tunerCount;
-    Country                      m_country;
-#ifdef TVCONTROL_BACKEND_LINUX_DVB
-    std::vector<TvTunerBackend*>  m_tunerList;
-#endif
     wpe_tvcontrol_string*        m_strPtr;
 
     //void GetTunerCapabilites();
     void checkRegion();
     void initializeTuners();
     void createTunerId(int, int, std::string&);
+
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
+    Country                       m_country;
+    std::vector<TvTunerBackend*>  m_tunerList;
     void getTunner( const char* tunerId, TvTunerBackend** tuner);
+#endif
 };
 
 TvControlBackend::TvControlBackend (struct wpe_tvcontrol_backend* backend)
@@ -92,7 +92,7 @@ void TvControlBackend::initializeTuners () {
 
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
     struct dvbfe_handle *feHandle, *feHandleTmp;
-    feOpenMode = O_RDWR | O_NONBLOCK;
+    feOpenMode = 0;
 
     m_tunerCount = 0;
     for (i = 0; i < DVB_ADAPTER_SCAN; i++) {
@@ -140,6 +140,7 @@ void TvControlBackend::checkRegion () {
     string country, data;
     printf("Country");
     fstream fObj;
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
     fObj.open(TV_CONFIG_FILE, ios::in);
 
     while (!fObj.eof()) {
@@ -158,6 +159,7 @@ void TvControlBackend::checkRegion () {
         }
     }
     fObj.close();
+#endif
 }
 
 void TvControlBackend::handleTunerChangedEvent(struct wpe_tvcontrol_tuner_event event)
@@ -218,14 +220,17 @@ void TvControlBackend::getTunerList(struct wpe_tvcontrol_string_vector* outTuner
 void TvControlBackend::getSupportedSourceTypesList(const char* tunerId,
                                                    struct wpe_tvcontrol_src_types_vector* outSourceTypesList) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
     /* Get the tuner instance*/
     TvTunerBackend* curTuner;
     getTunner(tunerId, &curTuner);
     /* Invoke get supported type list of the particular tuner instance and get the data*/
     curTuner->getSupportedSrcTypeList(outSourceTypesList);
+#endif
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
 void TvControlBackend::getTunner(const char* tunerId, TvTunerBackend** tuner) {
 
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
@@ -246,60 +251,73 @@ void TvControlBackend::getTunner(const char* tunerId, TvTunerBackend** tuner) {
         }
     }
 }
+#endif
 
 void TvControlBackend::getSourceList(const char* tunerId, struct wpe_tvcontrol_src_types_vector* outSourceList) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     /* Get the tuner instance*/
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
     TvTunerBackend* curTuner;
     getTunner(tunerId, &curTuner);
     /* Invoke get available source type list of the particular tuner and get the data */
     curTuner->getSupportedSrcTypeList(outSourceList);
+#endif
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 void TvControlBackend::getSignalStrength(const char* tunerId, double* signalStrength) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
     TvTunerBackend* tuner;
     //getTuner from the Tuner List
     getTunner(tunerId, &tuner);
     tuner->getSignalStrength(signalStrength);
+#endif
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 void TvControlBackend::startScanning(const char* tunerId, SourceType type) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
     TvTunerBackend* tuner;
     //getTuner from the Tuner List
     getTunner(tunerId, &tuner);
     tuner->setSrcType(type);
     tuner->startScanning();
+#endif
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 void TvControlBackend::stopScanning(const char* tunerId) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
     TvTunerBackend* tuner;
     //getTuner from the Tuner List
     getTunner(tunerId, &tuner);
     tuner->stopScanning();
+#endif
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 void TvControlBackend::setCurrentChannel(const char* tunerId, SourceType type, uint64_t channelNumber) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
     TvTunerBackend* tuner;
     //getTuner from the Tuner List
     getTunner(tunerId, &tuner);
     tuner->setCurrentChannel(type, channelNumber);
+#endif
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 void TvControlBackend::getChannelList(const char* tunerId, SourceType type, struct wpe_tvcontrol_channel_vector* channelVector) {
-    TvTunerBackend* tuner;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
+    TvTunerBackend* tuner;
     //getTuner from the Tuner List
     getTunner(tunerId, &tuner);
     tuner->getChannelList(type, channelVector);
+#endif
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 

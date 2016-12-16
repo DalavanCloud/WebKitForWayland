@@ -22,7 +22,8 @@ TvTunerBackend::~TvTunerBackend() {
     free(m_feHandle->name);
     m_feHandle->name = nullptr;
 
-    free(m_feHandle);
+    close(m_feHandle->fd);
+    delete (m_feHandle);
     m_feHandle = nullptr;
 
     m_supportedSysCount = 0;
