@@ -11,7 +11,8 @@ Ref<TVSource> TVSource::create(RefPtr<PlatformTVSource> platformTVSource, TVTune
 
 TVSource::TVSource (RefPtr<PlatformTVSource> platformTVSource, TVTuner* parentTVTuner)
     : m_platformTVSource(platformTVSource)
-    , m_parentTVTuner(parentTVTuner) {
+    , m_parentTVTuner(parentTVTuner)
+    , m_scanState(SCANNING_NOT_INITIALISED) {
 
 }
 
@@ -57,6 +58,7 @@ void TVSource::setCurrentChannel (const String& channelNumber, TVPromise&& promi
 void TVSource::startScanning (TVPromise&& promise) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     if (SCANNING_STARTED == m_scanState) { //scanning is in progress
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         promise.reject(nullptr);//TODO replace with state values
         return;
     }
