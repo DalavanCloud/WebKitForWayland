@@ -20,10 +20,12 @@ PlatformTVTuner::PlatformTVTuner(String Id, PlatformTVControlBackend* tvBackend)
     , m_sourceTypeListIsInitialized(false)
     , m_sourceListIsInitialized(false)
 {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 PlatformTVTuner::~PlatformTVTuner()
 {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 void PlatformTVTuner::setTunerClient(PlatformTVTunerClient* client)
@@ -67,14 +69,18 @@ const Vector<RefPtr<PlatformTVSource>>& PlatformTVTuner::getSources()
 }
 
 RefPtr<PlatformTVSource> PlatformTVTuner::setCurrentSource(PlatformTVSource::Type sourceType) {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     m_currentSourceType = sourceType;
     m_currentSource = nullptr;
     /* Parse the source list and set current source */
     for(auto& src : m_sourceList){
+        printf("Type of this src = %d, given type  = %d", src->type(), sourceType);
         if(src->type()  == sourceType ){
+            printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
             m_currentSource = src;
         }
     }
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     return m_currentSource;
 }
 

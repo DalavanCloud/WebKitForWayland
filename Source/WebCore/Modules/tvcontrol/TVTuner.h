@@ -26,7 +26,7 @@ public:
     void                        setCurrentSource (SourceType sourceType, TVPromise&&);
 
     const String&       id () const { return m_platformTVTuner->id(); }
-    TVSource*           currentSource() const { return m_currentSource; } //TODO check again
+    RefPtr<TVSource>    currentSource() const { return m_currentSource; } //TODO check again
     //TVMediaStream*    stream() const { return nullptr; } //TODO enable if it is required for basic functionalities
     double              signalStrength() const { return m_platformTVTuner->signalStrength(); }
 
@@ -38,7 +38,7 @@ private:
     RefPtr<PlatformTVTuner>   m_platformTVTuner;
     Vector<RefPtr<TVSource>>  m_sourceList;
     Vector<SourceType>        m_sourceTypeList;
-    TVSource*                 m_currentSource;
+    RefPtr<TVSource>          m_currentSource;
 
     void refEventTarget() override { ref(); }
     void derefEventTarget() override { deref(); }
