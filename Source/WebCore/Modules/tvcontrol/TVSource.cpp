@@ -68,7 +68,10 @@ void TVSource::startScanning (TVPromise&& promise) {
         m_platformTVSource->startScanning();
         m_scanState = SCANNING_COMPLETED;
         promise.resolve(nullptr);
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+        return;
     }
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     promise.reject(nullptr);
 }
 
