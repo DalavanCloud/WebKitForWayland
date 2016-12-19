@@ -429,13 +429,13 @@ void TvTunerBackend::stopScanning() {
     source->stopScanning();
 }
 
-void TvTunerBackend::getChannelList(SourceType sType, struct wpe_tvcontrol_channel_vector* channelVector) {
+void TvTunerBackend::getChannels(SourceType sType, struct wpe_tvcontrol_channel_vector* channelVector) {
 
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     /* Get source corresponds to this type  */
     SourceBackend *source;
     getSource(sType, &source);
-    source->getChannelList(channelVector);
+    source->getChannels(channelVector);
 }
 
 void TvTunerBackend::setCurrentChannel(SourceType sType ,uint64_t channelNumber) {

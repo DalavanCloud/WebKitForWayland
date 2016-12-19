@@ -41,7 +41,7 @@ public:
    void getSignalStrength(double*);
    void startScanning();
    void stopScanning();
-   void getChannelList(SourceType, struct wpe_tvcontrol_channel_vector*);
+   void getChannels(SourceType, struct wpe_tvcontrol_channel_vector*);
    void setCurrentChannel(SourceType, uint64_t);
    void setCurrentSource(SourceType sType);
 
