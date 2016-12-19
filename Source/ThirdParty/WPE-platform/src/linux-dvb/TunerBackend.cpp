@@ -22,8 +22,7 @@ TvTunerBackend::~TvTunerBackend() {
     free(m_feHandle->name);
     m_feHandle->name = nullptr;
 
-    close(m_feHandle->fd);
-    delete (m_feHandle);
+    free(m_feHandle);
     m_feHandle = nullptr;
 
     m_supportedSysCount = 0;
@@ -446,6 +445,132 @@ void TvTunerBackend::setCurrentChannel(SourceType sType ,uint64_t channelNumber)
     SourceBackend *source;
     getSource(sType, &source);
     source->setCurrentChannel(channelNumber);
+}
+void TvTunerBackend::setCurrentSource(SourceType sType) {
+
+    fe_delivery_system  platSrcType;
+    struct dtv_property p[] = {{.cmd = DTV_DELIVERY_SYSTEM}};
+    struct dtv_properties cmdseq = {.num = 1, .props = p};
+    struct dtv_property *propPtr;
+
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+    /* Set the value of private member */
+    setSrcType(sType);
+    /* Retrive the source type corresponds to dvb*/
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+    getSourceTypeDVB(sType, &platSrcType);
+    propPtr = p;
+    propPtr->u.data = platSrcType;
+
+    /* Set the current to platform*/
+    if (ioctl(m_feHandle->fd, FE_SET_PROPERTY, &cmdseq) == -1) {
+        printf("Failed to set  Srource %d at plarform \n %s:%s:%d \n",
+                 platSrcType , __FILE__, __func__, __LINE__);
+        //TODO  return
+    }
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+    propPtr->u.data = SYS_UNDEFINED; //RESET
+
+    /*Get the delivery system*/
+    if (ioctl(m_feHandle->fd, FE_GET_PROPERTY, &cmdseq) == -1) {
+        printf(" Get ioctl  failed \n");
+    }
+    printf(" Current v5 delivery system: %d \n", p[0].u.data);
+}
+
+void TvTunerBackend::getSourceTypeDVB(SourceType sType ,fe_delivery_system* platSrcType) {
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+    switch(sType) {
+#if 0
+        case anexa: //TODO
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_DVBC_ANNEX_B;
+            break;
+#endif
+        case DvbC:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_DVBC_ANNEX_B;
+            break;
+        case DvbT:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_DVBT;
+            break;
+#if 0 //TODO
+        case dss:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_DSS;
+            break;
+#endif
+        case DvbS:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_DVBS;
+            break;
+        case DvbS2:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_DVBS2;
+            break;
+        case DvbH:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_DVBH;
+            break;
+        case IsdbT:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_ISDBT;
+            break;
+        case IsdbS:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_ISDBS;
+            break;
+        case IsdbC:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_ISDBC;
+            break;
+        case Atsc:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_ATSC;
+            break;
+        case AtscMH:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_ATSCMH;
+            break;
+        case Dtmb:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_DTMB;
+            break;
+        case Cmmb:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_CMMB;
+            break;
+#if 0
+        case dab:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_DAB;
+            break;
+#endif
+        case DvbT2:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_DVBT2;
+            break;
+#if 0
+        case sturbo:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_TURBO;
+            break;
+        case annexc:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_DVBC_ANNEX_C;
+            break;
+#endif
+        case Undifined:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_UNDEFINED;
+            break;
+        default:
+            printf("STP: CASE = %d \t", sType);
+            *platSrcType = SYS_UNDEFINED;
+            break;
+    }
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
 }
 
 } // namespace BCMRPi

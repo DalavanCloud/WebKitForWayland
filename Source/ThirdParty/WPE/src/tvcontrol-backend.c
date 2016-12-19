@@ -103,6 +103,15 @@ wpe_tvcontrol_backend_get_source_list(struct wpe_tvcontrol_backend* backend, con
 
 __attribute__((visibility("default")))
 void
+wpe_tvcontrol_backend_set_current_source(struct wpe_tvcontrol_backend* backend, const char* tuner_id, SourceType sType)
+{
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    backend->interface->set_current_source(backend->interface_data, tuner_id, sType);
+    return;
+}
+
+__attribute__((visibility("default")))
+void
 wpe_tvcontrol_backend_get_signal_strength(struct wpe_tvcontrol_backend* backend, const char* tuner_id, double* out_signal_strength)
 {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);

@@ -32,6 +32,7 @@ public:
     void stopScanning(const char*);
     void setCurrentChannel(const char*, SourceType, uint64_t);
     void getChannelList(const char*, SourceType, struct wpe_tvcontrol_channel_vector*);
+    void setCurrentSource(const char*, SourceType);
 private:
     struct wpe_tvcontrol_backend* m_backend;
     void handleTunerChangedEvent(struct wpe_tvcontrol_tuner_event);
@@ -135,6 +136,7 @@ void TvControlBackend::createTunerId(int i, int j, std::string& tunerId) {
     tunerId.append(std::to_string(j));
     printf("Tuner id %s \n", tunerId.c_str()) ;
 }
+
 
 void TvControlBackend::checkRegion () {
     string country, data;
@@ -321,6 +323,17 @@ void TvControlBackend::getChannelList(const char* tunerId, SourceType type, stru
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
+void TvControlBackend::setCurrentSource(const char* tunerId, SourceType sType) {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
+    TvTunerBackend* tuner;
+    //getTuner from the Tuner List
+    getTunner(tunerId, &tuner);
+    tuner->setCurrentSource(sType);
+#endif
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+}
+
 } // namespace BCMRPi
 extern "C" {
 
@@ -393,6 +406,13 @@ struct wpe_tvcontrol_backend_interface bcm_rpi_tvcontrol_backend_interface = {
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
         backend.getChannelList(tuner_id, type, out_channel_list);
+    },
+    // set current source
+    [](void* data, const char* tuner_id, SourceType type)
+    {
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+        auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
+        backend.setCurrentSource(tuner_id, type);
     },
 };
 

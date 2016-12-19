@@ -43,6 +43,7 @@ public:
    void stopScanning();
    void getChannelList(SourceType, struct wpe_tvcontrol_channel_vector*);
    void setCurrentChannel(SourceType, uint64_t);
+   void setCurrentSource(SourceType sType);
 
    struct dvbfe_handle*    m_feHandle;
 
@@ -70,6 +71,7 @@ private:
    void initializeSourceList();
    void getSources();
    void getSource(SourceType, SourceBackend**);
+   void getSourceTypeDVB(SourceType sType, fe_delivery_system*);
 };
 
 } // namespace BCMRPi

@@ -72,6 +72,7 @@ RefPtr<PlatformTVSource> PlatformTVTuner::setCurrentSource(PlatformTVSource::Typ
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     m_currentSourceType = sourceType;
     m_currentSource = nullptr;
+    wpe_tvcontrol_backend_set_current_source(m_tvBackend->m_backend, m_tunerId.utf8().data(), (SourceType)sourceType);
     /* Parse the source list and set current source */
     for(auto& src : m_sourceList){
         printf("Type of this src = %d, given type  = %d", src->type(), sourceType);

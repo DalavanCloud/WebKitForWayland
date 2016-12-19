@@ -80,6 +80,7 @@ struct wpe_tvcontrol_backend_interface {
     void  (*stop_scanning)(void*, const char*);
     void  (*set_current_channel)(void*, const char*, SourceType, uint64_t);
     void  (*get_channel_list)(void*, const char*, SourceType, struct wpe_tvcontrol_channel_vector*);
+    void  (*set_current_source)(void*, const char*, SourceType);
 };
 
 struct wpe_tvcontrol_backend*
@@ -111,6 +112,9 @@ wpe_tvcontrol_backend_get_supported_source_types_list(struct wpe_tvcontrol_backe
 
 void
 wpe_tvcontrol_backend_get_source_list(struct wpe_tvcontrol_backend* backend, const char* tuner_id, struct wpe_tvcontrol_src_types_vector* out_source_list);
+
+void
+wpe_tvcontrol_backend_set_current_source(struct wpe_tvcontrol_backend* backend, const char* tuner_id, SourceType sType);
 
 void
 wpe_tvcontrol_backend_get_signal_strength(struct wpe_tvcontrol_backend* backend, const char* tuner_id, double* out_signal_strength);
