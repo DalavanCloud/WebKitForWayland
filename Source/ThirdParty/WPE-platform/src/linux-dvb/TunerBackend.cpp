@@ -14,7 +14,7 @@ TvTunerBackend::TvTunerBackend(struct dvbfe_handle* feHandle, int tunerCnt)
 
     getTunerInfo();
     initializeSourceList();
-    setModulation(tunerCnt);
+    configureTuner(tunerCnt);
 }
 
 TvTunerBackend::~TvTunerBackend() {
@@ -68,35 +68,70 @@ void TvTunerBackend::getCapabilities() {
     }
 }
 
-void TvTunerBackend::setModulation(int tunerCnt) {
+void TvTunerBackend::configureTuner(int tunerCnt) {
+
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    string modulation, data, tunerStr;
+    string  data, tunerStr;
     char tmpStr[20];
+    std::string modulation;
     printf("Getting Modulation for Tuner:%d", tunerCnt);
-    fstream fObj;
-    fObj.open(TV_CONFIG_FILE, ios::in);
+
+    /* Get configuration */
+    getConfiguration();
+
+    /* Get modulation from config  */
     snprintf(tmpStr, 20, "TUNER_%d_MODULATION", tunerCnt + 1);
     tunerStr = string(tmpStr);
-    while (!fObj.eof()) {
-        fObj >> data;
-        if (!data.find(tunerStr)) {
-            fObj.seekp(3, ios::cur);
-            fObj >> modulation;
-            if (!modulation.find("8VSB") && (m_feHandle->type ==  DVBFE_TYPE_ATSC) && (m_feInfo.caps & FE_CAN_8VSB)) {
-                fe_info.feparams.u.atsc.modulation = DVBFE_ATSC_MOD_VSB_8;
-                 m_channel = ATSC_VSB;
-                cout << "\nModulation set to 8VSB";
-                populateFreq(m_channel);
-            } else {
-                cout << "Modulation set ERROR";
-            }
-            break;
-        }
+    if (m_configValues.find(tunerStr) != m_configValues.end()) {
+        std::cout << "Modulation  found = " << m_configValues.find(tunerStr)->second << std::endl;
+        modulation.assign(m_configValues.find(tunerStr)->second) ;
+    } else {
+        modulation.assign("8VSB");
+        std::cout << "Setting default modulation\n";
     }
-    fObj.close();
+    std::cout << modulation << "\n";
+    setModulation(modulation);
+    populateFreq();
 }
 
-void TvTunerBackend::populateFreq(ChannelList channel) {
+void TvTunerBackend::setModulation(std::string& modulation) {
+    /*Set modulation */
+    if (!modulation.compare("8VSB")) { //TODO add other modulations
+        if (m_feHandle->type ==  DVBFE_TYPE_ATSC && (m_feInfo.caps & FE_CAN_8VSB)) {
+            m_channel = ATSC_VSB; //TODO  check and remove
+
+            /* Set the modulation */
+            struct dtv_property p[] = {{.cmd = DTV_MODULATION}};
+            struct dtv_properties cmdseq = {.num = 1, .props = p};
+            struct dtv_property *propPtr;
+            propPtr = p;
+            propPtr->u.data = VSB_8;
+
+            /* Set the current to platform*/
+            if (ioctl(m_feHandle->fd, FE_SET_PROPERTY, &cmdseq) == -1) {
+                printf("Failed to set  Srource %d at plarform \n %s:%s:%d \n",
+                        ATSC_VSB, __FILE__, __func__, __LINE__);
+            }
+            printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+            cout << "\nModulation set to 8VSB";
+            propPtr->u.data = 0;
+
+            /* Get modulation */
+            if (ioctl(m_feHandle->fd, FE_GET_PROPERTY, &cmdseq) == -1) {
+                printf("Failed to get  Srource  at plarform \n %s:%s:%d \n"
+                        , __FILE__, __func__, __LINE__);
+            } else {
+                printf("Current modulation is  %d  \n", p[0].u.data);
+            }
+        } else { //caps
+            cout << "In sufficient capabilities details";
+        }
+    } else { //modulation
+        cout << "In sufficient details";
+    }
+}
+
+void TvTunerBackend::populateFreq() {
     long populatedFrequencies[150];
 
     for (int channel = 0; channel < 68 ;channel++)
@@ -111,12 +146,12 @@ void TvTunerBackend::populateFreq(ChannelList channel) {
 }
 
 void TvTunerBackend::getSignalStrength(double* signalStrength) {
-    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    printf("\n%s:%tions:%d\n", __FILE__, __func__, __LINE__);
     ioctl(m_feHandle->fd, FE_READ_SIGNAL_STRENGTH, fe_info.signal_strength);
     *signalStrength = static_cast<double>(10 *(log10(fe_info.signal_strength)) + 30);
 }
 
-/*
+/*modulation
  * return the base offsets for specified channellist and channel.
  */
 int TvTunerBackend::baseOffset(int channel, int channelList) {
@@ -458,7 +493,7 @@ void TvTunerBackend::setCurrentSource(SourceType sType) {
     setSrcType(sType);
     /* Retrive the source type corresponds to dvb*/
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
-    getSourceTypeDVB(sType, &platSrcType);
+    getSourceType(sType, &platSrcType);
     propPtr = p;
     propPtr->u.data = platSrcType;
 
@@ -468,6 +503,7 @@ void TvTunerBackend::setCurrentSource(SourceType sType) {
                  platSrcType , __FILE__, __func__, __LINE__);
         //TODO  return
     }
+
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     propPtr->u.data = SYS_UNDEFINED; //RESET
 
@@ -478,7 +514,7 @@ void TvTunerBackend::setCurrentSource(SourceType sType) {
     printf(" Current v5 delivery system: %d \n", p[0].u.data);
 }
 
-void TvTunerBackend::getSourceTypeDVB(SourceType sType ,fe_delivery_system* platSrcType) {
+void TvTunerBackend::getSourceType(SourceType sType ,fe_delivery_system* platSrcType) {
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     switch(sType) {
 #if 0
@@ -571,6 +607,41 @@ void TvTunerBackend::getSourceTypeDVB(SourceType sType ,fe_delivery_system* plat
             break;
     }
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+}
+
+void TvTunerBackend::getConfiguration() {
+
+    std::ifstream fileStream(CONFIGFILE);
+    std::string line;
+    while (std::getline(fileStream, line)) {
+        std::istringstream is_line(line);
+        std::string key;
+        if (std::getline(is_line, key,'='))
+        {
+            std::string value;
+            if (key[0] == '#')
+                continue;
+            if (std::getline(is_line, value))
+            {
+                m_configValues.insert(make_pair(key,value));
+            }
+        }
+    }
+    if(m_configValues.empty()) {
+        printf("***************************************\n");
+        printf("******TVConfig file is MISSING*********\n");
+    }
+#ifdef TV_DEBUG
+    std::cout << "Configuration details " << "\n" ;
+    /* Iterate through all elements in std::map */
+    ConfigInfo::const_iterator::iterator it = m_configValues.begin();
+    while(it != m_configValues.end())
+    {
+        std::cout<<it->first<<" :: "<<it->second<<std::endl;
+        it++;
+    }
+#endif
+
 }
 
 } // namespace BCMRPi

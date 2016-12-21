@@ -24,7 +24,7 @@ struct TvControlBackend {
 public:
     TvControlBackend(struct wpe_tvcontrol_backend* backend);
     virtual ~TvControlBackend();
-    void getTunerList(struct wpe_tvcontrol_string_vector*);
+    void getTuners(struct wpe_tvcontrol_string_vector*);
     void getSupportedSourceTypesList(const char*, struct wpe_tvcontrol_src_types_vector*);
     void getSourceList(const char*, struct wpe_tvcontrol_src_types_vector*);
     void getSignalStrength(const char*, double* signalStrength);
@@ -44,7 +44,6 @@ private:
     wpe_tvcontrol_string*        m_strPtr;
 
     //void GetTunerCapabilites();
-    void checkRegion();
     void initializeTuners();
     void createTunerId(int, int, std::string&);
 
@@ -63,7 +62,6 @@ TvControlBackend::TvControlBackend (struct wpe_tvcontrol_backend* backend)
     // Initialize Tuner list
     initializeTuners();
     // Identify Region
-    checkRegion();
     // Read Tuner Capabilities
     // Configure Tuners
 }
@@ -137,33 +135,6 @@ void TvControlBackend::createTunerId(int i, int j, std::string& tunerId) {
     printf("Tuner id %s \n", tunerId.c_str()) ;
 }
 
-
-void TvControlBackend::checkRegion () {
-    string country, data;
-    printf("Country");
-    fstream fObj;
-#ifdef TVCONTROL_BACKEND_LINUX_DVB
-    fObj.open(TV_CONFIG_FILE, ios::in);
-
-    while (!fObj.eof()) {
-        fObj >> data;
-        if (!data.find("REGION")) {
-            fObj.seekp(3, ios::cur);
-            fObj >> country;
-            if (!country.find("US")) {
-               m_country = US;
-               cout << m_country << "\n";
-            }
-            else{
-               cout << "Country Not Found...Setting Default to GB";
-            }
-            break;
-        }
-    }
-    fObj.close();
-#endif
-}
-
 void TvControlBackend::handleTunerChangedEvent(struct wpe_tvcontrol_tuner_event event)
 {
     wpe_tvcontrol_backend_dispatch_tuner_event(m_backend, event);
@@ -184,7 +155,7 @@ void TvControlBackend::handleScanningStateChangedEvent(struct wpe_tvcontrol_chan
     wpe_tvcontrol_backend_dispatch_scanning_state_event(m_backend, event);
 }
 
-void TvControlBackend::getTunerList(struct wpe_tvcontrol_string_vector* outTunerList) {
+void TvControlBackend::getTuners(struct wpe_tvcontrol_string_vector* outTunerList) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     int i = 0;
 
@@ -356,7 +327,7 @@ struct wpe_tvcontrol_backend_interface bcm_rpi_tvcontrol_backend_interface = {
     {
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
-        backend.getTunerList(out_tuner_list);
+        backend.getTuners(out_tuner_list);
     }, 
     // get_supported_source_types_list
     [](void* data, const char* tuner_id, struct wpe_tvcontrol_src_types_vector* out_source_types_list)

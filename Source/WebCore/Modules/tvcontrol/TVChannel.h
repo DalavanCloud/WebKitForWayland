@@ -21,13 +21,13 @@ public:
        Data
     };
 
-    const String&                   networkId () const { return m_platformTVChannel->networkId(); }
-    const String&                   transportStreamId () const { return m_platformTVChannel->transportStreamId(); }
-    const String&                   serviceId () const { return m_platformTVChannel->serviceId(); }
+    const String                    networkId () const { return m_platformTVChannel->networkId(); }
+    const String                    transportStreamId () const { return m_platformTVChannel->transportStreamId(); }
+    const String                    serviceId () const { return m_platformTVChannel->serviceId(); }
     TVSource*                       source () const { return m_parentTVSource; }
     Type                            type () const {  return ((Type)m_platformTVChannel->type()); }
-    const String&                   name () const { return m_platformTVChannel->name(); }
-    const String&                   number () const { return m_platformTVChannel->number(); }
+    const String                    name () const { return m_platformTVChannel->name(); }
+    const String                    number () const { return m_platformTVChannel->number(); }
     bool                            isEmergency () const { return m_platformTVChannel->isEmergency(); }
     bool                            isFree () const { return true; }
 

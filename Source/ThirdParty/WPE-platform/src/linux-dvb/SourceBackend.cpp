@@ -6,8 +6,8 @@ namespace BCMRPi {
 SourceBackend::SourceBackend(SourceType type, dvbfe_handle* feHandle)
     : m_sType(type)
     , m_feHandle(feHandle) {
-    adapter = stoi(m_feHandle->tunerId.substr(0, m_feHandle->tunerId.find(":")));
-    demux = stoi(m_feHandle->tunerId.substr(m_feHandle->tunerId.find(":")+1));
+    m_adapter = stoi(m_feHandle->tunerId.substr(0, m_feHandle->tunerId.find(":")));
+    m_demux = stoi(m_feHandle->tunerId.substr(m_feHandle->tunerId.find(":")+1));
 }
 
 void SourceBackend::startScanning() {
@@ -36,7 +36,7 @@ void SourceBackend::startScanning() {
     }
 }
 
-void SourceBackend::processPmt(int pmtFd)
+void SourceBackend::processPMT(int pmtFd, std::map<int, int>& streamInfo)
 {
     int size;
     uint8_t siBuf[4096];
@@ -67,6 +67,7 @@ void SourceBackend::processPmt(int pmtFd)
     struct mpeg_pmt_stream *curStream;
     mpeg_pmt_section_streams_for_each(pmt, curStream) {
         printf("stream_type : %x pid : %x \n", curStream->stream_type, curStream->pid);
+        streamInfo[curStream->pid] = curStream->stream_type;
     }
 }
 
@@ -74,17 +75,60 @@ void SourceBackend::stopScanning() {
     /* */
 }
 
+ChannelBackend* SourceBackend::getChannelByLCN(uint64_t channelNo) {
+    for (std::vector<ChannelBackend*>::iterator it = m_channelList.begin() ; it != m_channelList.end(); ++it) {
+        if(channelNo == (*it)->getLCN()){
+            return *it;
+        }
+    }
+    return NULL;
+}
+
 void  SourceBackend::setCurrentChannel(uint64_t channelNo) {
-    /* */
+    ChannelBackend* channel = getChannelByLCN(channelNo);
+    if (channel) {
+        int freq = channel->getFrequency();
+        int programNumber = channel->getProgramNumber();
+        int modulation = DVBFE_ATSC_MOD_VSB_8;
+        if (tuneToFrequency(freq, modulation)) {
+            std::map<int, int> streamInfo;
+            mpegScan(programNumber, streamInfo);
+            if (!streamInfo.empty()) {
+                for (std::map<int,int>::iterator it = streamInfo.begin(); it != streamInfo.end(); ++it)
+                    printf("Stream Type: %d Pid : %d \n" , it->second,it->first);
+            }
+        }
+        else {
+            printf("Cannot tune to channel \n");
+        }
+    }
 }
 
 void SourceBackend::getChannels(wpe_tvcontrol_channel_vector* channelVector) {
-
     /*Populate channel list */
-    if(!m_channelList.empty())
-      printf(" Populate the channel vector \n");
-    else
-      printf("Channel list is empty .Scanning is incomplete \n");
+    printf("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+    if (!m_channelList.empty()) {
+        printf("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+        channelVector->length = m_channelList.size();
+        channelVector->channels = new wpe_tvcontrol_channel[m_channelList.size()];
+        std::vector<ChannelBackend*>::iterator it;
+        int i;
+        for (it = m_channelList.begin(), i = 0; it != m_channelList.end(); ++it,++i){
+            if(!((*it)->getNetworkId()).empty())
+                channelVector->channels[i].networkId = strdup(((*it)->getNetworkId()).c_str());
+            if(!((*it)->getName()).empty())
+                channelVector->channels[i].name = strdup(((*it)->getName()).c_str());
+            if(!((*it)->getServiceId()).empty())
+                channelVector->channels[i].serviceId = strdup(((*it)->getServiceId()).c_str());
+            if(!((*it)->getTransportStreamId()).empty())
+                channelVector->channels[i].transportSId = strdup(((*it)->getTransportStreamId()).c_str());
+            channelVector->channels[i].number = (*it)->getLCN();
+        }
+    }
+    else {
+        channelVector->channels = NULL;
+        printf("Channel list is empty .Scanning is incomplete \n");
+    }
 
 }
 
@@ -129,14 +173,18 @@ bool SourceBackend::tuneToFrequency(int frequency, int modulation){
     return true;
 }
 
-void SourceBackend::mpegScan(){
-    struct pollfd pollFd;
+void SourceBackend::mpegScan(int programNumber, std::map<int, int>& streamInfo){
+    struct pollfd pollFd[2];
+    int pmtFd;
     int patFd = createSectionFilter(PID_PAT, TABLE_PAT);
-    pollFd.fd = patFd;
-    pollFd.events = POLLIN|POLLPRI|POLLERR;
+    pollFd[0].fd = patFd;                           // PAT
+    pollFd[0].events = POLLIN|POLLPRI|POLLERR;
+    pollFd[1].fd = 0;                               // PMT
+    pollFd[1].events = 0;
+
     bool flag = true;;
     while (flag){
-        int count = poll(&pollFd, 1, 100);
+        int count = poll(pollFd, 2, 100);
                 if (count < 0) {
             fprintf(stderr, "Poll error\n");
             break;
@@ -144,11 +192,18 @@ void SourceBackend::mpegScan(){
         if (count == 0) {
             continue;
         }
-        if (pollFd.revents & (POLLIN|POLLPRI)){
-            if (processPAT(pollFd.fd)){
-                dvbdemux_stop(pollFd.fd);
+        if (pollFd[0].revents & (POLLIN|POLLPRI)) {
+            if (processPAT(pollFd[0].fd, programNumber, &pollFd[1])) {
+                dvbdemux_stop(pollFd[0].fd);
+            }
+            else {
                 flag = false;
             }
+        }
+        if (pollFd[1].revents & (POLLIN|POLLPRI)) {
+            processPMT(pollFd[1].fd, streamInfo);
+            dvbdemux_stop(pollFd[1].fd);
+            flag = false;
         }
     }
 }
@@ -201,7 +256,7 @@ int SourceBackend::createSectionFilter(uint16_t pid, uint8_t tableId) {
     uint8_t mask[18];
 
     // open the demuxer
-    if ((demuxFd = dvbdemux_open_demux(adapter, demux, 0)) < 0) {
+    if ((demuxFd = dvbdemux_open_demux(m_adapter, m_demux, 0)) < 0) {
         return -1;
     }
 
@@ -219,7 +274,7 @@ int SourceBackend::createSectionFilter(uint16_t pid, uint8_t tableId) {
     return demuxFd;
 }
 
-bool SourceBackend::processPAT(int patFd) {
+bool SourceBackend::processPAT(int patFd, int programNumber, struct pollfd *pollfd) {
     int size;
     uint8_t siBuf[4096];
     // read the section
@@ -251,6 +306,15 @@ bool SourceBackend::processPAT(int patFd) {
     struct mpeg_pat_program *cur_program;
     mpeg_pat_section_programs_for_each(pat, cur_program) {
         printf("Program Number:- %d PMT Pid:- %x\n", cur_program->program_number, cur_program->pid);
+        if (cur_program->program_number == programNumber) {
+            if (pollfd->fd != -1)
+                    close(pollfd->fd);
+            if ((pollfd->fd = createSectionFilter(cur_program->pid, TABLE_PMT)) < 0) {
+                    return false;
+            }
+            pollfd->events = POLLIN|POLLPRI|POLLERR;
+            break;
+        }
     }
 
     // remember the PAT version
@@ -332,29 +396,29 @@ int SourceBackend::processTVCT(int dmxfd, int frequency) {
             /* initialize the currInfo structure */
             /* each EIT covers 3 hours */
             ChannelBackend *currInfo = new ChannelBackend();
-            char *servicename = reinterpret_cast<char*>(malloc(sizeof(char)*8));
+            char *serviceName = reinterpret_cast<char*>(malloc(sizeof(char)*8));
             for (k = 0; k < 7; k++) {
-                servicename[k] =
+                serviceName[k] =
                     getBits((const uint8_t *)ch->short_name,
                     k * 16, 16);
             }
+            serviceName[7] = '\0';
 
-            servicename[7] = '\0';
             int majorNum = ch->major_channel_number;
             int minorNum = ch->minor_channel_number;
             int logicalChannelNumber = majorNum << 10 | minorNum;
 
             printf("TSID : %d\n", ch->channel_TSID);
-            printf("ProgramNumbe : %d\n", ch->program_number);
+            printf("ProgramNumber : %d\n", ch->program_number);
             printf("LCN : %d\n",logicalChannelNumber);
             printf("ServiceID : %d\n",ch->source_id);
 
-            currInfo->setNumber(to_string(logicalChannelNumber));
+            currInfo->setNumber(logicalChannelNumber);
             currInfo->setTransportStreamId(to_string(ch->channel_TSID));
             currInfo->setServiceId(to_string(ch->source_id));
             currInfo->setProgramNumber(ch->program_number);
             currInfo->setFrequency(frequency);
-            printf("currInfo->servicename : %c%c%c%c%c%c%c\n", servicename[0], servicename[1], servicename[2], servicename[3], servicename[4], servicename[5], servicename[6]);
+            printf("currInfo->serviceName : %c%c%c%c%c%c%c\n", serviceName[0], serviceName[1], serviceName[2], serviceName[3], serviceName[4], serviceName[5], serviceName[6]);
             struct descriptor *desc;
             int i, j;
             atsc_tvct_channel_descriptors_for_each(ch, desc) {
@@ -367,7 +431,7 @@ int SourceBackend::processTVCT(int dmxfd, int frequency) {
                         int size = 7, pos = 0;
                         atsc_text_string_segments_for_each(str, seg, j) {
                             if (0 > atsc_text_segment_decode(seg,
-                                (uint8_t **)&servicename,
+                                (uint8_t **)&serviceName,
                                 (size_t *)&size,
                                 (size_t *)&pos)) {
                                 fprintf(stderr, "%s(): error calling "
@@ -382,7 +446,7 @@ int SourceBackend::processTVCT(int dmxfd, int frequency) {
                     printf("No extended channel name descriptor\n");
                 }
             }
-            string name(servicename);
+            string name(serviceName);
             currInfo->setName(name);
             m_channelList.push_back(currInfo);
         }

@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <wpe/tvcontrol-backend.h>
 #include <vector>
+#include <map>
 #include "ChannelBackend.h"
 #include <linux/dvb/frontend.h>
 #include <linux/dvb/dmx.h>
@@ -104,21 +105,22 @@ public:
     SourceType srcType() { return m_sType; }
 
 private:
+    ChannelBackend* getChannelByLCN(uint64_t channelNo);
     bool tuneToFrequency(int frequency, int modulation);
     uint32_t getBits(const uint8_t *buf, int startbit, int bitlen);
     void atscScan(int frequency, int modulation);
-    void mpegScan();
+    void mpegScan(int programNumber, std::map<int, int>& streamInfo);
     void dvbScan();
-    int processTVCT(int dmxfd, int frequency);
-    bool processPAT(int patFd);
-    void processPmt(int pmtFd);
-    int createSectionFilter(uint16_t pid, uint8_t tableId);
+    int  processTVCT(int dmxfd, int frequency);
+    bool processPAT(int patFd, int programNumber, struct pollfd *pollfd);
+    void processPMT(int pmtFd, std::map<int, int>& streamInfo);
+    int  createSectionFilter(uint16_t pid, uint8_t tableId);
 
     std::vector<ChannelBackend*> m_channelList;
     SourceType    m_sType;
     dvbfe_handle* m_feHandle;
-    int adapter;
-    int demux;
+    int           m_adapter;
+    int           m_demux;
 };
 
 
