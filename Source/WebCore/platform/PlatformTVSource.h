@@ -25,7 +25,7 @@ public:
 
     const Vector<RefPtr<PlatformTVChannel>>&   getChannels ();
     RefPtr<PlatformTVChannel>                  setCurrentChannel (const String& channelNumber);
-    void                                       startScanning ();
+    void                                       startScanning (bool scanningOption);
     void                                       stopScanning ();
     void                                       setSourceClient (PlatformTVSourceClient* client);
 

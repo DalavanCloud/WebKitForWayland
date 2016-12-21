@@ -1,15 +1,14 @@
 enum TVSourceType { "dvb-t", "dvb-t2", "dvb-c", "dvb-c2", "dvb-s", "dvb-s2", "dvb-h", "dvb-sh", "atsc", "atsc-m-h", "isdb-t", "isdb-tb", "isdb-s", "isdb-c", "1seg", "dtmb", "cmmb", "t-dmb", "s-dmb" };
 
-/*dictionary TVStartScanningOptions {
+dictionary TVStartScanningOptions {
     boolean isRescanned = false;
-};*/
-
+};
 [
     Conditional=TV_CONTROL,
 ] interface TVSource : EventTarget {
     Promise         getChannels ();
     Promise         setCurrentChannel (DOMString channelNumber);
-    Promise         startScanning ();
+    Promise         startScanning (optional TVStartScanningOptions isRescanned);
     Promise         stopScanning ();
     readonly        attribute TVTuner      tuner;
     readonly        attribute TVSourceType type;

@@ -65,7 +65,7 @@ RefPtr<PlatformTVChannel> PlatformTVSource::setCurrentChannel (const String& cha
     return m_currentChannel;
 }
 
-void PlatformTVSource::startScanning () {
+void PlatformTVSource::startScanning (bool scanningOption) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     wpe_tvcontrol_backend_start_scanning(m_tvBackend->m_backend, m_tunerId.utf8().data(), (SourceType)m_type);
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);

@@ -14,21 +14,22 @@ class TVTuner;
 
 class TVSource : public RefCounted<TVSource>, public PlatformTVSourceClient, public EventTargetWithInlineData {
 public:
+
+    struct StartScanningOptions {
+        bool isRescanned;
+    };
+
     static Ref<TVSource> create (RefPtr<PlatformTVSource>, TVTuner*);
     virtual ~TVSource () { }
 
     enum class Type { DvbT, DvbT2, DvbC, DvbC2, DvbS, DvbS2, DvbH, DvbSh, Atsc, AtscMH, IsdbT, IsdbTb, IsdbS, IsdbC, _1seg, Dtmb, Cmmb, TDmb, SDmb };
-
-    struct Options {
-        bool isRescanned;
-    };
 
     typedef DOMPromise<TVChannelVector> TVChannelPromise;
     typedef DOMPromise<std::nullptr_t> TVPromise;
 
     void getChannels(TVChannelPromise&&);
     void setCurrentChannel (const String& channelNumber, TVPromise&&);
-    void startScanning (TVPromise&&);
+    void startScanning (const StartScanningOptions&, TVPromise&&);
     void stopScanning(TVPromise&&);
 
     TVTuner*                        tuner () const { return m_parentTVTuner; }

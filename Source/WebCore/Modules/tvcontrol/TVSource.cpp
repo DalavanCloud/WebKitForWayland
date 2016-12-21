@@ -1,4 +1,5 @@
 #include "config.h"
+#include "ExceptionCode.h"
 #include "TVSource.h"
 
 #if ENABLE(TV_CONTROL)
@@ -20,7 +21,7 @@ void TVSource::getChannels(TVChannelPromise&& promise) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 
     if (SCANNING_STARTED == m_scanState) {
-        promise.reject(nullptr);//TODO replace with state values
+        promise.reject(INVALID_STATE_ERR, "Invalid state: scanning in progress");
         return;
     }
 
@@ -42,7 +43,7 @@ void TVSource::getChannels(TVChannelPromise&& promise) {
 void TVSource::setCurrentChannel (const String& channelNumber, TVPromise&& promise) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     if (SCANNING_STARTED == m_scanState) {
-        promise.reject(nullptr);//TODO replace with state values
+        promise.reject(INVALID_STATE_ERR, "Invalid state: scanning in progress");
         return;
     }
     if (m_platformTVSource) {
@@ -55,7 +56,7 @@ void TVSource::setCurrentChannel (const String& channelNumber, TVPromise&& promi
     promise.reject(nullptr);
 }
 
-void TVSource::startScanning (TVPromise&& promise) {
+void TVSource::startScanning (const StartScanningOptions& scanningOptions, TVPromise&& promise) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     if (SCANNING_STARTED == m_scanState) { //scanning is in progress
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
@@ -65,7 +66,7 @@ void TVSource::startScanning (TVPromise&& promise) {
     if (m_platformTVSource) {
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         m_scanState = SCANNING_STARTED;
-        m_platformTVSource->startScanning();
+        m_platformTVSource->startScanning(scanningOptions.isRescanned);
         m_scanState = SCANNING_COMPLETED;
         promise.resolve(nullptr);
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
