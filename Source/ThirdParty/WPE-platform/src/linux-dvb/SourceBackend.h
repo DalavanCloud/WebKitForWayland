@@ -88,6 +88,8 @@ struct dvbfe_handle {
     enum dvbfe_type type;
     char           *name;
     std::string     tunerId;
+    uint64_t        modulation;
+    vector<long>    frequency;
 };
 
 namespace BCMRPi {
@@ -106,9 +108,9 @@ public:
 
 private:
     ChannelBackend* getChannelByLCN(uint64_t channelNo);
-    bool tuneToFrequency(int frequency, int modulation);
+    bool tuneToFrequency(int frequency, uint64_t modulation);
     uint32_t getBits(const uint8_t *buf, int startbit, int bitlen);
-    void atscScan(int frequency, int modulation);
+    void atscScan(int frequency, uint64_t modulation);
     void mpegScan(int programNumber, std::map<int, int>& streamInfo);
     void dvbScan();
     int  processTVCT(int dmxfd, int frequency);

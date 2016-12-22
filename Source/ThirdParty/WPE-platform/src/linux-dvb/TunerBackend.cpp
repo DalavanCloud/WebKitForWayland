@@ -116,13 +116,7 @@ void TvTunerBackend::setModulation(std::string& modulation) {
             cout << "\nModulation set to 8VSB";
             propPtr->u.data = 0;
 
-            /* Get modulation */
-            if (ioctl(m_feHandle->fd, FE_GET_PROPERTY, &cmdseq) == -1) {
-                printf("Failed to get  Srource  at plarform \n %s:%s:%d \n"
-                        , __FILE__, __func__, __LINE__);
-            } else {
-                printf("Current modulation is  %d  \n", p[0].u.data);
-            }
+            m_feHandle->modulation = DVBFE_ATSC_MOD_VSB_8;
         } else { //caps
             cout << "In sufficient capabilities details";
         }
@@ -132,16 +126,15 @@ void TvTunerBackend::setModulation(std::string& modulation) {
 }
 
 void TvTunerBackend::populateFreq() {
-    long populatedFrequencies[150];
-
     for (int channel = 0; channel < 68 ;channel++)
     {
         if (baseOffset(channel+2, m_channel) != -1)
-            populatedFrequencies[channel] = baseOffset( channel+2, m_channel) + ((channel+2) * freqStep(channel+2, m_channel));
+            m_feHandle->frequency.push_back(baseOffset( channel+2, m_channel) + ((channel+2) * freqStep(channel+2, m_channel)));
     }
-    for (int channel = 0; channel < 68; channel++)
+    int length = (m_feHandle->frequency).size();
+    for (int channel = 0; channel < length; channel++)
     {
-        cout <<"\n" <<populatedFrequencies[channel] <<"\n";
+        cout <<"\n" << m_feHandle->frequency[channel] <<"\n";
     }
 }
 

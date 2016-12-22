@@ -11,28 +11,31 @@ SourceBackend::SourceBackend(SourceType type, dvbfe_handle* feHandle)
 }
 
 void SourceBackend::startScanning() {
-    int frequency = 575000000; // TODO: remove hardcoding
-    int modulation = DVBFE_ATSC_MOD_VSB_8; //TODO: remove hardcoding
-    if (tuneToFrequency(frequency, modulation)) {
-       switch(m_sType) {
-           case Atsc:
-           case AtscMH:
-               atscScan(frequency, modulation);
-               break;
-           case DvbT:
-           case DvbT2:
-           case DvbC:
-           case DvbC2:
-           case DvbS:
-           case DvbS2:
-           case DvbH:
-           case DvbSh:
-               dvbScan();
-               break;
-           default:
-               printf("Type Not supported!!");
-               break;
-       }
+    uint64_t modulation = m_feHandle->modulation;
+    int length =  (m_feHandle->frequency).size();
+    for (int i = 0; i < length; i++) {
+        int frequency = m_feHandle->frequency[i];
+        if (tuneToFrequency(frequency, modulation)) {
+           switch(m_sType) {
+               case Atsc:
+               case AtscMH:
+                   atscScan(frequency, modulation);
+                   break;
+               case DvbT:
+               case DvbT2:
+               case DvbC:
+               case DvbC2:
+               case DvbS:
+               case DvbS2:
+               case DvbH:
+               case DvbSh:
+                   dvbScan();
+                   break;
+               default:
+                   printf("Type Not supported!!");
+                   break;
+           }
+        }
     }
 }
 
@@ -89,7 +92,7 @@ void  SourceBackend::setCurrentChannel(uint64_t channelNo) {
     if (channel) {
         int freq = channel->getFrequency();
         int programNumber = channel->getProgramNumber();
-        int modulation = DVBFE_ATSC_MOD_VSB_8;
+        uint64_t modulation = m_feHandle->modulation;
         if (tuneToFrequency(freq, modulation)) {
             std::map<int, int> streamInfo;
             mpegScan(programNumber, streamInfo);
@@ -136,10 +139,12 @@ void SourceBackend::dvbScan(){
     /* */
 }
 
-bool SourceBackend::tuneToFrequency(int frequency, int modulation){
-    struct dvbfe_info feInfo;
+bool SourceBackend::tuneToFrequency(int frequency, uint64_t modulation){
     int timeout = 3;
+
+    struct dvbfe_info feInfo;
     dvbfe_get_info(m_feHandle, DVBFE_INFO_FEPARAMS, &feInfo, DVBFE_INFO_QUERYTYPE_IMMEDIATE, 0);
+
     switch (m_sType) {
         case Atsc:
         case AtscMH:
@@ -208,7 +213,7 @@ void SourceBackend::mpegScan(int programNumber, std::map<int, int>& streamInfo){
     }
 }
 
-void SourceBackend::atscScan(int frequency, int modulation) {
+void SourceBackend::atscScan(int frequency, uint64_t modulation) {
     int vctFd;
     struct pollfd pollFd;
     switch (modulation) {
