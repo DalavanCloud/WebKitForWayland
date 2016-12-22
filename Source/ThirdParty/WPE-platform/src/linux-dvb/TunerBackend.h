@@ -1,23 +1,9 @@
 #ifndef TUNER_BACKEND_H_
 #define TUNER_BACKEND_H_
 
-#include <cstdio>
-#include <iostream>
 #include <fstream>
-#include <vector>
 #include <math.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <map>
-
-#include <stdint.h>
-#include <fcntl.h>
 #include <sstream>
-#include <sys/ioctl.h>
-#include <linux/dvb/frontend.h>
-#include <wpe/tvcontrol-backend.h>
-
 #include "TVConfig.h"
 #include "SourceBackend.h"
 

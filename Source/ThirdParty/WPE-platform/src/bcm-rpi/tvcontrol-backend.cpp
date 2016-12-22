@@ -1,14 +1,3 @@
-#include <wpe/tvcontrol-backend.h>
-
-#include <cstdio>
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <vector>
-
-#include <fcntl.h>
-#include <stdint.h>
-#include <inttypes.h>
 
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
 #include "TVConfig.h"
@@ -216,7 +205,7 @@ void TvControlBackend::getTunner(const char* tunerId, TvTunerBackend** tuner) {
 #endif
 
         if (strncmp(element->m_feHandle->tunerId.c_str(), tunerId, 3) == 0) {
-            *tuner = element; //TODO test and verify
+            *tuner = element;
 #ifdef TV_DEBUG
             printf("NAME  :  %s\n",element->m_feHandle->name);
             printf("NAME at list :  %s\n",(*tuner)->m_feHandle->name);

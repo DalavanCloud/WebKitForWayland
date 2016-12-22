@@ -29,15 +29,12 @@ public:
     void                                       stopScanning ();
     void                                       setSourceClient (PlatformTVSourceClient* client);
 
-    //PlatformTVTuner*                         tuner () const { return m_tuner; } //need to check the tuner part again
     Type                                       type () const { return m_type; }
-    bool                                       isScanning () const { return m_isScanning; }
 
 private:
     PlatformTVSource (PlatformTVControlBackend*, String, Type);
     String                      m_tunerId;
     Type                        m_type;
-    bool                        m_isScanning;
     RefPtr<PlatformTVChannel>   m_currentChannel;
     PlatformTVControlBackend*   m_tvBackend;
     PlatformTVSourceClient*     m_platformTVSourceClient;

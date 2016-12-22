@@ -34,7 +34,7 @@ public:
 
     TVTuner*                        tuner () const { return m_parentTVTuner; }
     Type                            type () const { return ((Type)m_platformTVSource->type()); }
-    bool                            isScanning () const { return m_platformTVSource->isScanning(); }
+    bool                            isScanning () const { return m_isScanning; }
     TVChannel*                      currentChannel () const { return m_channel; }
 
     using RefCounted<TVSource>::ref;
@@ -50,6 +50,7 @@ private:
 
     enum ScanningState { SCANNING_NOT_INITIALISED, SCANNING_STARTED, SCANNING_COMPLETED };
     ScanningState              m_scanState;
+    bool                       m_isScanning;
 
     void refEventTarget() override { ref(); }
     void derefEventTarget() override { deref(); }

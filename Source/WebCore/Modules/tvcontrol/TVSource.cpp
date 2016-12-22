@@ -13,7 +13,8 @@ Ref<TVSource> TVSource::create(RefPtr<PlatformTVSource> platformTVSource, TVTune
 TVSource::TVSource (RefPtr<PlatformTVSource> platformTVSource, TVTuner* parentTVTuner)
     : m_platformTVSource(platformTVSource)
     , m_parentTVTuner(parentTVTuner)
-    , m_scanState(SCANNING_NOT_INITIALISED) {
+    , m_scanState(SCANNING_NOT_INITIALISED)
+    , m_isScanning(false) {
 
 }
 
@@ -66,8 +67,10 @@ void TVSource::startScanning (const StartScanningOptions& scanningOptions, TVPro
     if (m_platformTVSource) {
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         m_scanState = SCANNING_STARTED;
+        m_isScanning = true;
         m_platformTVSource->startScanning(scanningOptions.isRescanned);
         m_scanState = SCANNING_COMPLETED;
+        m_isScanning = false;
         promise.resolve(nullptr);
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         return;
