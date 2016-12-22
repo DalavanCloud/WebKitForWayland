@@ -41,6 +41,8 @@ extern struct wpe_renderer_backend_egl_offscreen_target_interface bcm_nexus_rend
 
 extern struct wpe_view_backend_interface bcm_nexus_view_backend_interface;
 
+extern struct wpe_tvcontrol_backend_interface bcm_tvcontrol_backend_interface;
+
 #ifdef __cplusplus
 }
 #endif

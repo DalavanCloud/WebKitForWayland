@@ -14,3 +14,12 @@ list(APPEND WPE_PLATFORM_SOURCES
     src/bcm-nexus/renderer-backend.cpp
     src/bcm-nexus/view-backend.cpp
 )
+
+if (USE_WPE_TVCONTROL_BACKEND_BCM)
+list(APPEND WPE_PLATFORM_SOURCES
+    src/bcm-nexus/tvcontrol-backend.cpp
+)
+endif()
+
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${PC_EGL_CFLAGS_OTHER}")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${PC_EGL_CFLAGS_OTHER}")
