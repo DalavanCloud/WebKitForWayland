@@ -3,6 +3,10 @@
 #include "TVConfig.h"
 #include "TunerBackend.h"
 #endif
+#include <stdio.h>
+#include <string>
+#include <inttypes.h>
+#include <wpe/tvcontrol-backend.h>
 
 #define TV_DEBUG 1
 using namespace std;
