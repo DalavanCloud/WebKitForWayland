@@ -10,8 +10,8 @@
 using namespace std;
 
 #define DVB_ADAPTER_SCAN 6
-#define DVB_FE_SCAN 6
-#define DVB_MAX_TUNER 6
+#define DVB_FE_SCAN      6
+#define DVB_MAX_TUNER    6
 #define FE_STATUS_PARAMS (DVBFE_INFO_LOCKSTATUS|DVBFE_INFO_FEPARAMS|DVBFE_INFO_SIGNAL_STRENGTH|DVBFE_INFO_BER|DVBFE_INFO_SNR|DVBFE_INFO_UNCORRECTED_BLOCKS)
 #define CONFIGFILE "TVConfig.txt"
 typedef std::map<std::string, std::string> ConfigInfo;
@@ -20,12 +20,11 @@ namespace BCMRPi {
 
 class TvTunerBackend {
 public:
-   TvTunerBackend(struct dvbfe_handle*, int);
+   TvTunerBackend(int, TunerData*);
    virtual ~TvTunerBackend();
 
    SourceType getSrcType() { return m_sType; };
    void setSrcType(SourceType sType){ m_sType = sType; };
-   void getTunerInfo();
    void getSignalStrength(double*);
    void startScanning();
    void stopScanning();
@@ -33,7 +32,7 @@ public:
    void setCurrentChannel(SourceType, uint64_t);
    void setCurrentSource(SourceType sType);
 
-   struct dvbfe_handle*    m_feHandle;
+   struct TunerData*   m_tunerData;
 
    std::vector<SourceBackend*>  m_sourceList; //List of source objects
 
@@ -43,8 +42,6 @@ private:
 
    ChannelList              m_channel;
 
-   struct dvb_frontend_info m_feInfo;
-   struct dvbfe_info fe_info;//TODO check and remove
 
    SourceType                      m_sType;
    SourceType*                     m_srcTypeListPtr;

@@ -3,39 +3,43 @@
 
 namespace BCMRPi {
 
-SourceBackend::SourceBackend(SourceType type, dvbfe_handle* feHandle)
+SourceBackend::SourceBackend(SourceType type, TunerData* tunerData)
     : m_sType(type)
-    , m_feHandle(feHandle) {
-    m_adapter = stoi(m_feHandle->tunerId.substr(0, m_feHandle->tunerId.find(":")));
-    m_demux = stoi(m_feHandle->tunerId.substr(m_feHandle->tunerId.find(":")+1));
+    , m_tunerData(tunerData) {
+    m_adapter = stoi(m_tunerData->tunerId.substr(0, m_tunerData->tunerId.find(":")));
+    m_demux = stoi(m_tunerData->tunerId.substr(m_tunerData->tunerId.find(":")+1));
 }
 
 void SourceBackend::startScanning() {
-    uint64_t modulation = m_feHandle->modulation;
-    int length =  (m_feHandle->frequency).size();
-    for (int i = 0; i < length; i++) {
-        int frequency = m_feHandle->frequency[i];
-        if (tuneToFrequency(frequency, modulation)) {
-           switch(m_sType) {
-               case Atsc:
-               case AtscMH:
-                   atscScan(frequency, modulation);
-                   break;
-               case DvbT:
-               case DvbT2:
-               case DvbC:
-               case DvbC2:
-               case DvbS:
-               case DvbS2:
-               case DvbH:
-               case DvbSh:
-                   dvbScan();
-                   break;
-               default:
-                   printf("Type Not supported!!");
-                   break;
-           }
+    uint64_t modulation = m_tunerData->modulation;
+    int length =  (m_tunerData->frequency).size();
+    struct dvbfe_handle* feHandle = openFE(m_tunerData->tunerId);
+    if (feHandle) {
+        for (int i = 0; i < length; i++) {
+            int frequency = m_tunerData->frequency[i];
+            if (tuneToFrequency(frequency, modulation, feHandle)) {
+               switch(m_sType) {
+                   case Atsc:
+                   case AtscMH:
+                       atscScan(frequency, modulation);
+                       break;
+                   case DvbT:
+                   case DvbT2:
+                   case DvbC:
+                   case DvbC2:
+                   case DvbS:
+                   case DvbS2:
+                   case DvbH:
+                   case DvbSh:
+                       dvbScan();
+                       break;
+                   default:
+                       printf("Type Not supported!!");
+                       break;
+               }
+            }
         }
+        dvbfe_close(feHandle);
     }
 }
 
@@ -80,29 +84,89 @@ void SourceBackend::stopScanning() {
 
 ChannelBackend* SourceBackend::getChannelByLCN(uint64_t channelNo) {
     for (std::vector<ChannelBackend*>::iterator it = m_channelList.begin() ; it != m_channelList.end(); ++it) {
-        if(channelNo == (*it)->getLCN()){
+         if (channelNo == (*it)->getLCN()){
             return *it;
         }
     }
     return NULL;
 }
 
+static void  parse(char *line, char **argv)
+{
+     while (*line != '\0') {       /* if not the end of line ....... */
+          while (*line == ' ' || *line == '\t' || *line == '\n')
+               *line++ = '\0';     /* replace white spaces with 0    */
+          *argv++ = line;          /* save the argument position     */
+          while (*line != '\0' && *line != ' ' &&
+                 *line != '\t' && *line != '\n')
+               line++;             /* skip the argument until ...    */
+     }
+     *argv = '\0';                 /* mark the end of argument list  */
+}
+
+void SourceBackend::execute(char **argv)
+{
+    pid_t  pid;
+    int    status;
+
+    if ((pid = fork()) < 0) {     /* fork a child process           */
+         printf("*** ERROR: forking child process failed\n");
+         exit(1);
+    }
+    else if (pid == 0) {          /* for the child process:         */
+         if (execvp(*argv, argv) < 0) {     /* execute the command  */
+              printf("*** ERROR: exec failed\n");
+              exit(1);
+         }
+    }
+    else {
+        m_pid = pid;
+    }
+}
+
+void SourceBackend::startPlayBack(int frequency, uint64_t modulation, int pmtPid, int videoPid, int audioPid) {
+    char  command[1024];
+    char  *argv[64];
+    snprintf ( command, 1024, "gst-launch-1.0 dvbsrc frequency=%d delsys=\"atsc\" modulation=\"8vsb\" pids=%d:%d:%d ! decodebin name=dec dec. ! videoconvert ! autovideosink dec. ! audioconvert ! autoaudiosink", frequency, pmtPid, videoPid, audioPid);
+    printf("Command : %s\n", command);
+    parse(command, argv);
+    execute(argv);
+}
+
 void  SourceBackend::setCurrentChannel(uint64_t channelNo) {
+    printf("\nTune to Channel %" PRIu64 "\n",channelNo);
     ChannelBackend* channel = getChannelByLCN(channelNo);
     if (channel) {
+        kill(m_pid, SIGTERM);
         int freq = channel->getFrequency();
         int programNumber = channel->getProgramNumber();
-        uint64_t modulation = m_feHandle->modulation;
-        if (tuneToFrequency(freq, modulation)) {
-            std::map<int, int> streamInfo;
-            mpegScan(programNumber, streamInfo);
-            if (!streamInfo.empty()) {
-                for (std::map<int,int>::iterator it = streamInfo.begin(); it != streamInfo.end(); ++it)
-                    printf("Stream Type: %d Pid : %d \n" , it->second,it->first);
+        unsigned modulation = m_tunerData->modulation;
+        struct dvbfe_handle* feHandle = openFE(m_tunerData->tunerId);
+        if (feHandle) {
+            if (tuneToFrequency(freq, modulation, feHandle)) {
+                std::map<int, int> streamInfo;
+                mpegScan(programNumber, streamInfo);
+                dvbfe_close(feHandle);
+                if (!streamInfo.empty()) {
+                    int pmtPid = streamInfo[0];
+                    int videoPid = 0;
+                    int audioPid = 0;
+                    for (std::map<int,int>::iterator it = streamInfo.begin(); it != streamInfo.end(); ++it){
+                        printf("Stream Type: %d Pid : %d \n" , it->second,it->first);
+                         if (videoPid == 0 && it->second == 0x2){
+                            videoPid = it->first;
+                        }
+                         if (audioPid == 0 && it->second == 0x81){
+                            audioPid = it->first;
+                        }
+                    }
+                    startPlayBack(freq, modulation, pmtPid, videoPid, audioPid);
+                }
             }
-        }
-        else {
-            printf("Cannot tune to channel \n");
+            else {
+                dvbfe_close(feHandle);
+                printf("Cannot tune to channel \n");
+            }
         }
     }
 }
@@ -117,13 +181,13 @@ void SourceBackend::getChannels(wpe_tvcontrol_channel_vector* channelVector) {
         std::vector<ChannelBackend*>::iterator it;
         int i;
         for (it = m_channelList.begin(), i = 0; it != m_channelList.end(); ++it,++i){
-            if(!((*it)->getNetworkId()).empty())
+             if (!((*it)->getNetworkId()).empty())
                 channelVector->channels[i].networkId = strdup(((*it)->getNetworkId()).c_str());
-            if(!((*it)->getName()).empty())
+             if (!((*it)->getName()).empty())
                 channelVector->channels[i].name = strdup(((*it)->getName()).c_str());
-            if(!((*it)->getServiceId()).empty())
+             if (!((*it)->getServiceId()).empty())
                 channelVector->channels[i].serviceId = strdup(((*it)->getServiceId()).c_str());
-            if(!((*it)->getTransportStreamId()).empty())
+             if (!((*it)->getTransportStreamId()).empty())
                 channelVector->channels[i].transportSId = strdup(((*it)->getTransportStreamId()).c_str());
             channelVector->channels[i].number = (*it)->getLCN();
         }
@@ -139,11 +203,11 @@ void SourceBackend::dvbScan(){
     /* */
 }
 
-bool SourceBackend::tuneToFrequency(int frequency, uint64_t modulation){
+bool SourceBackend::tuneToFrequency(int frequency, uint64_t modulation, struct dvbfe_handle* feHandle){
     int timeout = 3;
 
     struct dvbfe_info feInfo;
-    dvbfe_get_info(m_feHandle, DVBFE_INFO_FEPARAMS, &feInfo, DVBFE_INFO_QUERYTYPE_IMMEDIATE, 0);
+    dvbfe_get_info(feHandle, DVBFE_INFO_FEPARAMS, &feInfo, DVBFE_INFO_QUERYTYPE_IMMEDIATE, 0);
 
     switch (m_sType) {
         case Atsc:
@@ -169,7 +233,7 @@ bool SourceBackend::tuneToFrequency(int frequency, uint64_t modulation){
             return false;
     }
     fprintf(stdout, "tuning to %d Hz, please wait...\n", frequency);
-    if (dvbfe_set(m_feHandle, &feInfo.feparams, timeout * 1000)) {
+    if (dvbfe_set(feHandle, &feInfo.feparams, timeout * 1000)) {
         fprintf(stderr, "%s(): cannot lock to %d Hz in %d seconds\n",
             __FUNCTION__, frequency, timeout);
         return false;
@@ -198,7 +262,7 @@ void SourceBackend::mpegScan(int programNumber, std::map<int, int>& streamInfo){
             continue;
         }
         if (pollFd[0].revents & (POLLIN|POLLPRI)) {
-            if (processPAT(pollFd[0].fd, programNumber, &pollFd[1])) {
+            if (processPAT(pollFd[0].fd, programNumber, &pollFd[1], streamInfo)) {
                 dvbdemux_stop(pollFd[0].fd);
             }
             else {
@@ -279,7 +343,7 @@ int SourceBackend::createSectionFilter(uint16_t pid, uint8_t tableId) {
     return demuxFd;
 }
 
-bool SourceBackend::processPAT(int patFd, int programNumber, struct pollfd *pollfd) {
+bool SourceBackend::processPAT(int patFd, int programNumber, struct pollfd *pollfd, std::map<int, int>& streamInfo) {
     int size;
     uint8_t siBuf[4096];
     // read the section
@@ -318,6 +382,7 @@ bool SourceBackend::processPAT(int patFd, int programNumber, struct pollfd *poll
                     return false;
             }
             pollfd->events = POLLIN|POLLPRI|POLLERR;
+            streamInfo[0] = cur_program->pid;
             break;
         }
     }
@@ -377,7 +442,7 @@ int SourceBackend::processTVCT(int dmxfd, int frequency) {
 
         if (-1 == numSections) {
             numSections = 1 + tvct->head.ext_head.last_section_number;
-            if(32 < numSections) {
+             if (32 < numSections) {
                 fprintf(stderr, "%s(): no support yet for "
                     "tables having more than 32 sections\n",
                     __FUNCTION__);

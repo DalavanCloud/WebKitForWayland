@@ -19,6 +19,20 @@ using namespace std;
 
 #define TV_CONFIG_FILE  "TVConfig.txt"
 
+struct dvbfe_handle {
+    int fd;
+    enum dvbfe_type type;
+    char *name;
+};
+
+inline struct dvbfe_handle* openFE(std::string& tunerId) {
+/* Change id to int*/
+    int adapter = stoi(tunerId.substr(0, tunerId.find(":")));
+    int frontend = stoi(tunerId.substr(tunerId.find(":")+1));
+/* Open dvbFe*/
+    return dvbfe_open(adapter, frontend, 0);
+}
+
 typedef enum {
     AF, AX, AL, DZ, AS, AD, AO, AI, AQ, AG, AR, AM, AW, AU, AT, AZ,
     BS, BH, BD, BB, BY, BE, BZ, BJ, BM, BT, BO, BQ, BA, BW, BV, BR,
@@ -109,4 +123,5 @@ enum pid_type {
     PID_SIT                                 = 0x001F,
     PID_VCT                                 = 0x1FFB,
 };
+
 #endif //TV_CONFIG_H_

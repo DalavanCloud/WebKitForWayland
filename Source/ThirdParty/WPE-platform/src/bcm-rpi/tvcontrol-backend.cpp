@@ -36,7 +36,6 @@ private:
     uint64_t                     m_tunerCount;
     wpe_tvcontrol_string*        m_strPtr;
 
-    //void GetTunerCapabilites();
     void initializeTuners();
     void createTunerId(int, int, std::string&);
 
@@ -52,11 +51,7 @@ TvControlBackend::TvControlBackend (struct wpe_tvcontrol_backend* backend)
     , m_strPtr(nullptr)
     , m_tunerCount(0) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    // Initialize Tuner list
     initializeTuners();
-    // Identify Region
-    // Read Tuner Capabilities
-    // Configure Tuners
 }
 
 TvControlBackend::~TvControlBackend () {
@@ -83,7 +78,8 @@ void TvControlBackend::initializeTuners () {
     std::string tunerIdStr;
 
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
-    struct dvbfe_handle *feHandle, *feHandleTmp;
+    struct dvbfe_handle *feHandleTmp;
+    TunerData *tunerData;
     feOpenMode = 0;
 
     m_tunerCount = 0;
@@ -94,21 +90,16 @@ void TvControlBackend::initializeTuners () {
             if (feHandleTmp == NULL)
                 continue;
 
-            feHandle = new dvbfe_handle;
+            tunerData = new TunerData;
             createTunerId(i, j, tunerIdStr);
-            feHandle->fd = feHandleTmp->fd;
-            feHandle->type = feHandleTmp->type;
-            feHandle->name =  feHandleTmp->name;
-            feHandle->tunerId.assign(tunerIdStr);
-            free(feHandleTmp);
-
 #ifdef TV_DEBUG
             printf("Tuner identified as  %s \n Adapter: %d Frontend: %d \n ",
-                    feHandle->name, i, j);
+                    feHandleTmp->name, i, j);
             printf("Tuner id %s \n", tunerIdStr.c_str()) ;
 #endif
-            TvTunerBackend* tInfo = (TvTunerBackend*) new TvTunerBackend(feHandle, m_tunerCount);
-
+            tunerData->tunerId.assign(tunerIdStr);
+            dvbfe_close(feHandleTmp);
+            TvTunerBackend* tInfo = (TvTunerBackend*) new TvTunerBackend(m_tunerCount, tunerData);
             /*Update the  private tuner list*/
             m_tunerList.push_back(tInfo);
             m_tunerCount += 1;
@@ -159,9 +150,9 @@ void TvControlBackend::getTuners(struct wpe_tvcontrol_string_vector* outTunerLis
         /*Iterate  private tuner list and update the created array  */
         for (auto& element: m_tunerList){
             printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-            m_strPtr[i].data = strdup(element->m_feHandle->tunerId.c_str());
-            printf("\n%s:%s:%d \n ID = %s  \n", __FILE__, __func__, __LINE__,element->m_feHandle->tunerId.c_str());
-            m_strPtr[i].length = element->m_feHandle->tunerId.length();
+            m_strPtr[i].data = strdup(element->m_tunerData->tunerId.c_str());
+            printf("\n%s:%s:%d \n ID = %s  \n", __FILE__, __func__, __LINE__,element->m_tunerData->tunerId.c_str());
+            m_strPtr[i].length = element->m_tunerData->tunerId.length();
             i++;
         }
 #endif
@@ -203,17 +194,12 @@ void TvControlBackend::getTunner(const char* tunerId, TvTunerBackend** tuner) {
     /*Iterate  private tuner list and get the particular tuner info  */
     for (auto& element: m_tunerList){
 #ifdef TV_DEBUG
-        printf("Id of element %s \n",element->m_feHandle->tunerId.c_str());
+        printf("Id of this tuner %s \n", element->m_tunerData->tunerId.c_str());
         printf("Id of required tuner %s \n",tunerId);
         printf(" \n");
 #endif
-
-        if (strncmp(element->m_feHandle->tunerId.c_str(), tunerId, 3) == 0) {
+        if (strncmp(element->m_tunerData->tunerId.c_str(), tunerId, 3) == 0) {
             *tuner = element;
-#ifdef TV_DEBUG
-            printf("NAME  :  %s\n",element->m_feHandle->name);
-            printf("NAME at list :  %s\n",(*tuner)->m_feHandle->name);
-#endif
         }
     }
 }
