@@ -488,35 +488,21 @@ int SourceBackend::processTVCT(int dmxfd, int frequency) {
             currInfo->setServiceId(to_string(ch->source_id));
             currInfo->setProgramNumber(ch->program_number);
             currInfo->setFrequency(frequency);
-            printf("currInfo->serviceName : %c%c%c%c%c%c%c\n", serviceName[0], serviceName[1], serviceName[2], serviceName[3], serviceName[4], serviceName[5], serviceName[6]);
+            printf("Short Name : %s\n", serviceName);
             struct descriptor *desc;
             int i, j;
             atsc_tvct_channel_descriptors_for_each(ch, desc) {
-                struct atsc_extended_channel_name_descriptor *extendedChannelName = atsc_extended_channel_name_descriptor_codec(desc);
-                if (extendedChannelName) {
-                    struct atsc_text* text = atsc_extended_channel_name_descriptor_text(extendedChannelName);
-                    struct atsc_text_string *str;
-                    atsc_text_strings_for_each(text, str, i) {
-                        struct atsc_text_string_segment *seg;
-                        int size = 7, pos = 0;
-                        atsc_text_string_segments_for_each(str, seg, j) {
-                            if (0 > atsc_text_segment_decode(seg,
-                                (uint8_t **)&serviceName,
-                                (size_t *)&size,
-                                (size_t *)&pos)) {
-                                fprintf(stderr, "%s(): error calling "
-                                    "atsc_text_segment_decode()\n",
-                                    __FUNCTION__);
-                                return -1;
-                            }
-                        }
-                    }
-                }
-                else{
-                    printf("No extended channel name descriptor\n");
+                printf("Descriptor : %x\n",desc->tag);
+                switch(desc->tag){
+                    case dtag_atsc_extended_channel_name:
+                        parseAtscExtendedChannelNameDescriptor(&serviceName, const_cast<const unsigned char*>(reinterpret_cast<unsigned char*>(desc)));
+                        break;
+                    default:
+                        break;
                 }
             }
             string name(serviceName);
+            printf("Extended name : %s\n",name.c_str());
             currInfo->setName(name);
             m_channelList.push_back(currInfo);
         }
@@ -524,6 +510,38 @@ int SourceBackend::processTVCT(int dmxfd, int frequency) {
 
     return 0;
 }
+
+void SourceBackend::parseAtscExtendedChannelNameDescriptor(char **serviceName, const unsigned char *buf) {
+    unsigned char *b = (unsigned char *) buf+2;
+    int i,j;
+    int num_str = b[0];
+    char *name = *serviceName;
+    #define uncompressed_string 0x00
+
+    b++;
+    for(i = 0; i < num_str; i++) {
+        int num_seg = b[3];
+        b += 4; /* skip lang code */
+        for(j = 0; j < num_seg; j++) {
+           int compression_type = b[0],/* mode = b[1],*/ num_bytes = b[2];
+
+            switch (compression_type) {
+                case uncompressed_string:
+                    if (name)
+                        free(name);
+                    name = reinterpret_cast<char*>(malloc(num_bytes * sizeof(char) + 1));
+                    memcpy(name,&b[3],num_bytes);
+                    name[num_bytes] = '\0';
+                    *serviceName = name;
+                    break;
+                default:
+                    break;
+            }
+            b += 3 + num_bytes;
+        }
+    }
+}
+
 
 uint32_t SourceBackend::getBits(const uint8_t *buf, int startbit, int bitlen)
 {

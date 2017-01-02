@@ -37,6 +37,7 @@ public:
     SourceType srcType() { return m_sType; }
 
 private:
+    void parseAtscExtendedChannelNameDescriptor(char **name, const unsigned char *buf);
     void startPlayBack(int frequency, uint64_t modulation, int pmtPid, int videoPid, int audioPid);
     void execute(char **argv);
     ChannelBackend* getChannelByLCN(uint64_t channelNo);

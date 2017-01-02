@@ -5,9 +5,11 @@
 #endif
 #include <stdio.h>
 #include <string>
+#include <thread>
 #include <inttypes.h>
-#include <wpe/tvcontrol-backend.h>
 #include <libudev.h>
+#include <wpe/event-queue.h>
+#include <wpe/tvcontrol-backend.h>
 
 #define TV_DEBUG 1
 using namespace std;
@@ -16,6 +18,7 @@ namespace BCMRPi {
 
 struct TvControlBackend {
 public:
+    EventQueue<wpe_tvcontrol_event* > eventQueue;
     TvControlBackend(struct wpe_tvcontrol_backend* backend);
     virtual ~TvControlBackend();
     void getTuners(struct wpe_tvcontrol_string_vector*);
@@ -27,19 +30,22 @@ public:
     void setCurrentChannel(const char*, SourceType, uint64_t);
     void getChannels(const char*, SourceType, struct wpe_tvcontrol_channel_vector*);
     void setCurrentSource(const char*, SourceType);
-    static void* TunerChangedListener(void *);  //Listens and triggers the TunerChangedEvent
-    bool isRunning() { return m_isRunning; }
 
 private:
     struct wpe_tvcontrol_backend* m_backend;
-    void handleTunerChangedEvent(struct wpe_tvcontrol_tuner_event);
-    void handleSourceChangedEvent(struct wpe_tvcontrol_source_event);
-    void handleChannelChangedEvent(struct wpe_tvcontrol_channel_event);
-    void handleScanningStateChangedEvent(struct wpe_tvcontrol_channel_event);
+    void eventProcessor();
+    void TunerChangedListener();  //Listens and triggers the TunerChangedEvent
+    void handleTunerChangedEvent(struct wpe_tvcontrol_event*);
+    void handleSourceChangedEvent(struct wpe_tvcontrol_event*);
+    void handleChannelChangedEvent(struct wpe_tvcontrol_event*);
+    void handleScanningStateChangedEvent(struct wpe_tvcontrol_event*);
 
     uint64_t                     m_tunerCount;
     wpe_tvcontrol_string*        m_strPtr;
     bool                         m_isRunning;
+    thread                       m_eventThread;
+    thread                       m_tunerThread;
+    bool                         m_isEventProcessing;
 
     void initializeTuners();
     void createTunerId(int, int, std::string&);
@@ -56,6 +62,10 @@ TvControlBackend::TvControlBackend (struct wpe_tvcontrol_backend* backend)
     , m_strPtr(nullptr)
     , m_tunerCount(0) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    m_isEventProcessing = true;
+    m_isRunning = true;
+    m_eventThread = thread(&TvControlBackend::eventProcessor, this);
+    m_tunerThread = thread(&TvControlBackend::TunerChangedListener, this);
     initializeTuners();
 }
 
@@ -69,6 +79,10 @@ TvControlBackend::~TvControlBackend () {
     }
     free(m_strPtr);
     m_strPtr = NULL;
+    m_isEventProcessing = false;
+    m_isRunning = false;
+    m_tunerThread.join();
+    m_eventThread.join();
 
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
     /*Clear private tuner  list*/
@@ -76,6 +90,34 @@ TvControlBackend::~TvControlBackend () {
     // TODO : call pthread join to wait for thread exit
     m_tunerList.clear();
 #endif
+}
+
+void TvControlBackend::eventProcessor () {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    while (m_isEventProcessing) {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+        wpe_tvcontrol_event* event = eventQueue.getEvents();
+        if(!event)
+            continue;
+        switch (event->eventID) {
+            case TUNER_CHANGED:
+                handleTunerChangedEvent(event);
+                break;
+            case SOURCE_CHANGED:
+                handleSourceChangedEvent(event);
+                break;
+            case CHANNEL_CHANGED:
+                handleChannelChangedEvent(event);
+                break;
+            case SCANNING_CHANGED:
+                handleScanningStateChangedEvent(event);
+                break;
+            default:
+                printf("Unknown Event\n");
+        }
+        free(event);
+    }
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 void TvControlBackend::initializeTuners () {
@@ -126,22 +168,22 @@ void TvControlBackend::createTunerId(int i, int j, std::string& tunerId) {
     printf("Tuner id %s \n", tunerId.c_str()) ;
 }
 
-void TvControlBackend::handleTunerChangedEvent(struct wpe_tvcontrol_tuner_event event)
+void TvControlBackend::handleTunerChangedEvent(struct wpe_tvcontrol_event* event)
 {
     wpe_tvcontrol_backend_dispatch_tuner_event(m_backend, event);
 }
 
-void TvControlBackend::handleSourceChangedEvent(struct wpe_tvcontrol_source_event event)
+void TvControlBackend::handleSourceChangedEvent(struct wpe_tvcontrol_event* event)
 {
     wpe_tvcontrol_backend_dispatch_source_event(m_backend, event);
 }
 
-void TvControlBackend::handleChannelChangedEvent(struct wpe_tvcontrol_channel_event event)
+void TvControlBackend::handleChannelChangedEvent(struct wpe_tvcontrol_event* event)
 {
     wpe_tvcontrol_backend_dispatch_channel_event(m_backend, event);
 }
 
-void TvControlBackend::handleScanningStateChangedEvent(struct wpe_tvcontrol_channel_event event)
+void TvControlBackend::handleScanningStateChangedEvent(struct wpe_tvcontrol_event* event)
 {
     wpe_tvcontrol_backend_dispatch_scanning_state_event(m_backend, event);
 }
@@ -179,25 +221,6 @@ void TvControlBackend::getTuners(struct wpe_tvcontrol_string_vector* outTunerLis
     for(i = 0; i < outTunerList->length; i++)
         printf("%d th tuner id  = %s \n ", (i+1), outTunerList->strings[i].data);
 #endif
-    //Thread for TunerChange is spawned form here.
-    pthread_t tunerChangeThread;
-    pthread_attr_t attr;
-    void *status;
-    // Initialize and set thread joinable
-    m_isRunning = true;
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-    int rc = pthread_create(&tunerChangeThread, NULL, TunerChangedListener, (void *)m_backend);
-    if (rc) {
-        printf("Error:unable to create thread,%d\n", rc);
-        exit(-1);
-    }
-    else if(rc == 0) {
-        printf("\nTuner Add/Remove monitoring thread is created");
-    }
-
-    // free attribute and wait for the other threads
-    pthread_attr_destroy(&attr);
 }
 
 void TvControlBackend::getSupportedSourceTypesList(const char* tunerId,
@@ -311,12 +334,11 @@ void TvControlBackend::setCurrentSource(const char* tunerId, SourceType sType) {
 }
 
 /* TunerChangedListener waits for the addition/removal of Tuner and triggers the event*/
-void* TvControlBackend::TunerChangedListener(void *backend) {
+void TvControlBackend::TunerChangedListener() {
     struct udev *udev;
     struct udev_enumerate *enumerate;
     struct udev_list_entry *devices, *dev_list_entry;
     struct udev_device *dev;
-    struct TvControlBackend tBackend((struct wpe_tvcontrol_backend*)backend);
 
     sleep(10);  // Sleep for 10 seconds so that the device goes through the initial setup process.
 
@@ -362,9 +384,10 @@ void* TvControlBackend::TunerChangedListener(void *backend) {
     udev_monitor_filter_add_match_subsystem_devtype(mon, "dvb", NULL);
     udev_monitor_enable_receiving(mon);
     fd = udev_monitor_get_fd(mon);
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 
     // Loop and wait for new Tuners.
-    while (tBackend.isRunning()) {
+    while (m_isRunning) {
         fd_set fds;
         struct timeval tv;
         int ret;
@@ -384,24 +407,28 @@ void* TvControlBackend::TunerChangedListener(void *backend) {
                std::string tunerId;
                string fpath;
                int i, j;
-               struct wpe_tvcontrol_tuner_event event;
+               printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+               struct wpe_tvcontrol_event* event = reinterpret_cast<struct wpe_tvcontrol_event*>(malloc(sizeof(struct wpe_tvcontrol_event)));
+               event->eventID = TUNER_CHANGED;
                fpath = udev_device_get_devnode(dev);
                // The data from udev is in string format. So.converting the operation into the appropriate data type.
                if (strcmp("add", udev_device_get_action(dev)) == 0) { // Case when DVB adapter is added.
-                  event.operation = Added;
+                  event->operation = Added;
                }
                else if (strcmp("remove", udev_device_get_action(dev)) == 0) { // Case when DVB Adapter is closed.
-                  event.operation = Removed;
+                  event->operation = Removed;
                }
 
                printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
                found = fpath.find("frontend");
                if (found != std::string::npos) { // if frontend found, do the following and dipatch the event.
                   sscanf (udev_device_get_devnode(dev), "/%*[a-z-A-Z]/%*[a-z-A-Z]/%*[a-z-A-Z]%d/%*[a-z-A-Z]%d", &i, &j);
-                  tBackend.createTunerId(i, i, tunerId);
-                  event.tuner_id.data = strdup(tunerId.c_str());
-                  event.tuner_id.length = tunerId.length();
-                  tBackend.handleTunerChangedEvent(event);// Sensed a Tuner Change Event....Triggering handleTunerChangedEvent.
+                  createTunerId(i, i, tunerId);
+                  event->tuner_id.data = strdup(tunerId.c_str());
+                  event->tuner_id.length = tunerId.length();
+                  printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+                  eventQueue.pushEvent(event);// Sensed a Tuner Change Event....Triggering handleTunerChangedEvent.
+                  printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
                }
                printf("***Got Device***\n");
                printf("   Node: %s\n", udev_device_get_devnode(dev));

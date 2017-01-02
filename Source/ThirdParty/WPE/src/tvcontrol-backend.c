@@ -44,7 +44,7 @@ wpe_tvcontrol_backend_set_manager_event_client(struct wpe_tvcontrol_backend* bac
 
 __attribute__((visibility("default")))
 void
-wpe_tvcontrol_backend_dispatch_tuner_event(struct wpe_tvcontrol_backend* backend, struct wpe_tvcontrol_tuner_event event)
+wpe_tvcontrol_backend_dispatch_tuner_event(struct wpe_tvcontrol_backend* backend, struct wpe_tvcontrol_event* event)
 {
     if (backend->event_client)
         backend->event_client->handle_tuner_event(backend->event_client_data, event);
@@ -52,7 +52,7 @@ wpe_tvcontrol_backend_dispatch_tuner_event(struct wpe_tvcontrol_backend* backend
 
 __attribute__((visibility("default")))
 void
-wpe_tvcontrol_backend_dispatch_source_event(struct wpe_tvcontrol_backend* backend, struct wpe_tvcontrol_source_event event)
+wpe_tvcontrol_backend_dispatch_source_event(struct wpe_tvcontrol_backend* backend, struct wpe_tvcontrol_event* event)
 {
     if (backend->event_client)
         backend->event_client->handle_source_changed_event(backend->event_client_data, event);
@@ -60,7 +60,7 @@ wpe_tvcontrol_backend_dispatch_source_event(struct wpe_tvcontrol_backend* backen
 
 __attribute__((visibility("default")))
 void
-wpe_tvcontrol_backend_dispatch_channel_event(struct wpe_tvcontrol_backend* backend, struct wpe_tvcontrol_channel_event event)
+wpe_tvcontrol_backend_dispatch_channel_event(struct wpe_tvcontrol_backend* backend, struct wpe_tvcontrol_event* event)
 {
     if (backend->event_client)
         backend->event_client->handle_channel_changed_event(backend->event_client_data, event);
@@ -68,7 +68,7 @@ wpe_tvcontrol_backend_dispatch_channel_event(struct wpe_tvcontrol_backend* backe
 
 __attribute__((visibility("default")))
 void
-wpe_tvcontrol_backend_dispatch_scanning_state_event(struct wpe_tvcontrol_backend* backend, struct wpe_tvcontrol_channel_event event)
+wpe_tvcontrol_backend_dispatch_scanning_state_event(struct wpe_tvcontrol_backend* backend, struct wpe_tvcontrol_event* event)
 {
     if (backend->event_client)
         backend->event_client->handle_scanning_state_changed_event(backend->event_client_data, event);
