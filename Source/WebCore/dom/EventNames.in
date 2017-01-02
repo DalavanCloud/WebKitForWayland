@@ -74,3 +74,5 @@ OverconstrainedErrorEvent conditional=MEDIA_STREAM
 MediaEncryptedEvent conditional=ENCRYPTED_MEDIA
 MediaKeyMessageEvent conditional=ENCRYPTED_MEDIA
 TVTunerChangedEvent conditional=TV_CONTROL
+TVCurrentSourceChangedEvent conditional=TV_CONTROL
+TVScanningStateChangedEvent conditional=TV_CONTROL

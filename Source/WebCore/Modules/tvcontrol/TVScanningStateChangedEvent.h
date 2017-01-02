@@ -22,8 +22,9 @@ public:
     static Ref<TVScanningStateChangedEvent> create (const AtomicString&, State, TVChannel*);
     ~TVScanningStateChangedEvent ();
 
-    State         state () const { return m_state; }
-    TVChannel*    channel () const { return m_channel; }
+    State        state () const { return m_state; }
+    TVChannel*   channel () const { return m_channel; }
+    virtual EventInterface eventInterface() const { return TVScanningStateChangedEventInterfaceType; }
 
 private:
     TVScanningStateChangedEvent (const AtomicString&, State, TVChannel*);

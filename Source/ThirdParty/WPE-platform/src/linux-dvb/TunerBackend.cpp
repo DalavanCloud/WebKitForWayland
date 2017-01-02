@@ -5,7 +5,8 @@ namespace BCMRPi {
 TvTunerBackend::TvTunerBackend(int tunerCnt, TunerData* tunerPtr)
     : m_tunerData(tunerPtr)
     , m_srcTypeListPtr(NULL)
-    , m_supportedSysCount(0) {
+    , m_supportedSysCount(0)
+    , m_sType(Undifined) {
 
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     initializeSourceList();
@@ -454,35 +455,37 @@ void TvTunerBackend::setCurrentSource(SourceType sType) {
     struct dtv_property *propPtr;
     struct dvbfe_handle* feHandle;
 
-    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
-    /* Set the value of private member */
-    setSrcType(sType);
-    /* Retrive the source type corresponds to dvb*/
-    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
-    getSourceType(sType, &platSrcType);
-    propPtr = p;
-    propPtr->u.data = platSrcType;
-
-    /* Set the current to platform*/
-    feHandle = openFE(m_tunerData->tunerId);
-    if (feHandle ) {
-        if (ioctl(feHandle->fd, FE_SET_PROPERTY, &cmdseq) == -1) {
-            printf("Failed to set  Srource %d at plarform \n %s:%s:%d \n",
-                    platSrcType , __FILE__, __func__, __LINE__);
-            //TODO  return
-        }
-
+    /* If sType different for already set source, change the src */
+    if (getSrcType() != sType) {
         printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
-        propPtr->u.data = SYS_UNDEFINED; //RESET
+        /* Retrive the source type corresponds to dvb*/
+        printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+        getSourceType(sType, &platSrcType);
+        propPtr = p;
+        propPtr->u.data = platSrcType;
+        /* Set the current source to platform*/
+        feHandle = openFE(m_tunerData->tunerId);
+        if (feHandle ) {
+            if (ioctl(feHandle->fd, FE_SET_PROPERTY, &cmdseq) == -1) {
+                printf("Failed to set  Srource %d at plarform \n %s:%s:%d \n",
+                        platSrcType , __FILE__, __func__, __LINE__);
+            } else {
+                /* Set the value of private member */
+                setSrcType(sType);
+                /* Sent on source changed */
+            }
+            printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+            propPtr->u.data = SYS_UNDEFINED; //RESET
 
-        /*Get the delivery system*/
-        if (ioctl(feHandle->fd, FE_GET_PROPERTY, &cmdseq) == -1) {
-            printf(" Get ioctl  failed \n");
+            /*Get the delivery system*/
+            if (ioctl(feHandle->fd, FE_GET_PROPERTY, &cmdseq) == -1) {
+                printf(" Get ioctl  failed \n");
+            }
+            dvbfe_close(feHandle);
+            printf("Current v5 delivery system: %d \n", p[0].u.data);
+        } else {
+            printf("Failed to open frontend \n");
         }
-        dvbfe_close(feHandle);
-        printf("Current v5 delivery system: %d \n", p[0].u.data);
-    } else {
-        printf("Failed to open frontend \n");
     }
 }
 

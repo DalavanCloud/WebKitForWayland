@@ -5,12 +5,13 @@
 
 namespace WebCore {
 
-Ref<TVTuner> TVTuner::create (RefPtr<PlatformTVTuner> platformTVTuner) {
-    return adoptRef(*new TVTuner (platformTVTuner));
+Ref<TVTuner> TVTuner::create (ScriptExecutionContext* context, RefPtr<PlatformTVTuner> platformTVTuner) {
+    return adoptRef(*new TVTuner (context, platformTVTuner));
 }
 
-TVTuner::TVTuner (RefPtr<PlatformTVTuner> platformTVTuner)
-    : m_platformTVTuner(platformTVTuner) {
+TVTuner::TVTuner (ScriptExecutionContext* context, RefPtr<PlatformTVTuner> platformTVTuner)
+    : ActiveDOMObject(context)
+    , m_platformTVTuner(platformTVTuner) {
 }
 
 const Vector<TVTuner::SourceType>&  TVTuner::getSupportedSourceTypes () {
@@ -35,13 +36,20 @@ void  TVTuner::getSources (TVSourcePromise&& promise) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     if (m_platformTVTuner) {
         for (auto& source : m_platformTVTuner->getSources())
-            m_sourceList.append(TVSource::create(source, this));
+            m_sourceList.append(TVSource::create(scriptExecutionContext(), source, this));
         promise.resolve(m_sourceList);
     }
     else{
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         promise.reject(nullptr);
     }
+}
+
+void  TVTuner::dispatchSourceChangedEvent() {
+
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    dispatchEvent(TVCurrentSourceChangedEvent::create(eventNames().currentsourcechangedEvent,
+                                                      currentSource()));
 }
 
 void  TVTuner::setCurrentSource (TVTuner::SourceType sourceType, TVPromise&& promise) {
@@ -51,7 +59,7 @@ void  TVTuner::setCurrentSource (TVTuner::SourceType sourceType, TVPromise&& pro
         if (m_sourceList.isEmpty()) {
             /* Get the list first */
             for (auto& source : m_platformTVTuner->getSources())
-                m_sourceList.append(TVSource::create(source, this));
+                m_sourceList.append(TVSource::create(scriptExecutionContext(), source, this));
         } 
         /* Parse the source list and set current source */
         for (auto& src : m_sourceList) {
@@ -67,6 +75,12 @@ void  TVTuner::setCurrentSource (TVTuner::SourceType sourceType, TVPromise&& pro
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     promise.reject(nullptr);
 }
+
+ScriptExecutionContext* TVTuner::scriptExecutionContext() const
+{
+    return ActiveDOMObject::scriptExecutionContext();
+}
+
 
 } // namespace WebCore
 

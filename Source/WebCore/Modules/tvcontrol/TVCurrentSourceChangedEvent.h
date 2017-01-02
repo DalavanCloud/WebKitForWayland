@@ -4,6 +4,7 @@
 #if ENABLE(TV_CONTROL)
 
 #include "Event.h"
+#include "JSTVSource.h"
 
 namespace WebCore {
 
@@ -12,15 +13,15 @@ class TVSource;
 class TVCurrentSourceChangedEvent : public Event {
 public:
 
-    static Ref<TVCurrentSourceChangedEvent> create (const AtomicString&, TVSource*);
+    static Ref<TVCurrentSourceChangedEvent> create (const AtomicString&, RefPtr<TVSource>);
     ~TVCurrentSourceChangedEvent ();
 
-    TVSource*                               source () const { return m_source; }
-
+    RefPtr<TVSource>              source () const { return m_source; }
+    virtual EventInterface eventInterface() const { return TVCurrentSourceChangedEventInterfaceType; }
 private:
-    TVCurrentSourceChangedEvent (const AtomicString&, TVSource*);
+    TVCurrentSourceChangedEvent (const AtomicString&, RefPtr<TVSource>);
 
-    TVSource*   m_source;
+    RefPtr<TVSource>   m_source;
 };
 
 } // namespace WebCore

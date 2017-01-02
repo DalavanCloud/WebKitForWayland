@@ -1,17 +1,19 @@
 #include "config.h"
 #include "ExceptionCode.h"
 #include "TVSource.h"
+#include <inttypes.h>
 
 #if ENABLE(TV_CONTROL)
 
 namespace WebCore {
 
-Ref<TVSource> TVSource::create(RefPtr<PlatformTVSource> platformTVSource, TVTuner* parentTVTuner) {
-    return adoptRef(*new TVSource(platformTVSource, parentTVTuner));
+Ref<TVSource> TVSource::create(ScriptExecutionContext* context, RefPtr<PlatformTVSource> platformTVSource, TVTuner* parentTVTuner) {
+    return adoptRef(*new TVSource(context, platformTVSource, parentTVTuner));
 }
 
-TVSource::TVSource (RefPtr<PlatformTVSource> platformTVSource, TVTuner* parentTVTuner)
-    : m_platformTVSource(platformTVSource)
+TVSource::TVSource (ScriptExecutionContext* context, RefPtr<PlatformTVSource> platformTVSource, TVTuner* parentTVTuner)
+    : ActiveDOMObject(context)
+    , m_platformTVSource(platformTVSource)
     , m_parentTVTuner(parentTVTuner)
     , m_scanState(SCANNING_NOT_INITIALISED)
     , m_isScanning(false) {
@@ -90,6 +92,19 @@ void TVSource::stopScanning (TVPromise&& promise) {
         }
     }
     promise.reject(nullptr);
+}
+
+void TVSource::dispatchScanningStateChangedEvent(uint16_t state) {
+
+    if (state != SCANNING_STARTED) {
+        dispatchEvent(TVScanningStateChangedEvent::create(eventNames().scanningstatechangedEvent, 
+                                                          (TVScanningStateChangedEvent::State)state, NULL));
+    }
+}
+
+ScriptExecutionContext* TVSource::scriptExecutionContext() const
+{
+    return ActiveDOMObject::scriptExecutionContext();
 }
 
 } // namespace WebCore

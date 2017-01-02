@@ -5,6 +5,7 @@ dictionary TVStartScanningOptions {
 };
 [
     Conditional=TV_CONTROL,
+    ActiveDOMObject,
 ] interface TVSource : EventTarget {
     Promise         getChannels ();
     Promise         setCurrentChannel (DOMString channelNumber);
