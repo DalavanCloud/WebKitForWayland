@@ -2,12 +2,12 @@
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
 #include "TVConfig.h"
 #include "TunerBackend.h"
+#include <libudev.h>
 #endif
 #include <stdio.h>
 #include <string>
 #include <thread>
 #include <inttypes.h>
-#include <libudev.h>
 #include <wpe/tvcontrol-backend.h>
 #include "event-queue.h"
 
@@ -335,6 +335,7 @@ void TvControlBackend::setCurrentSource(const char* tunerId, SourceType sType) {
 
 /* TunerChangedListener waits for the addition/removal of Tuner and triggers the event*/
 void TvControlBackend::TunerChangedListener() {
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
     struct udev *udev;
     struct udev_enumerate *enumerate;
     struct udev_list_entry *devices, *dev_list_entry;
@@ -349,7 +350,6 @@ void TvControlBackend::TunerChangedListener() {
         exit(1);
     }
 
-#ifdef TVCONTROL_BACKEND_LINUX_DVB
     /* Create a list of the devices in the 'dvb' subsystem.(Initially found Tuners) */
     enumerate = udev_enumerate_new(udev);
     udev_enumerate_add_match_subsystem(enumerate, "dvb");
@@ -445,8 +445,8 @@ void TvControlBackend::TunerChangedListener() {
         printf(".");
         fflush(stdout);
     }
-#endif
     udev_unref(udev);
+#endif
 }
 
 } // namespace BCMRPi
