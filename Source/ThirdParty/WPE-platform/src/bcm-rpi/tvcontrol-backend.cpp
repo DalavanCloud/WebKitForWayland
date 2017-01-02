@@ -179,12 +179,6 @@ void TvControlBackend::getTuners(struct wpe_tvcontrol_string_vector* outTunerLis
     for(i = 0; i < outTunerList->length; i++)
         printf("%d th tuner id  = %s \n ", (i+1), outTunerList->strings[i].data);
 #endif
-    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    printf("Number of tuners = ");
-    printf("%" PRIu64 "\n", outTunerList->length);
-    for(i = 0; i < outTunerList->length; i++)
-        printf("%d th tuner id  = %s \n ", (i+1), outTunerList->strings[i].data);
-#endif
     //Thread for TunerChange is spawned form here.
     pthread_t tunerChangeThread;
     pthread_attr_t attr;
