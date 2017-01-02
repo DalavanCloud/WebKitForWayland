@@ -8,8 +8,8 @@
 #include <thread>
 #include <inttypes.h>
 #include <libudev.h>
-#include <wpe/event-queue.h>
 #include <wpe/tvcontrol-backend.h>
+#include "event-queue.h"
 
 #define TV_DEBUG 1
 using namespace std;
