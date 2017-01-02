@@ -364,7 +364,7 @@ void* TvControlBackend::TunerChangedListener(void *backend) {
     fd = udev_monitor_get_fd(mon);
 
     // Loop and wait for new Tuners.
-    while (tBackend.isRunning) {
+    while (tBackend.isRunning()) {
         fd_set fds;
         struct timeval tv;
         int ret;
