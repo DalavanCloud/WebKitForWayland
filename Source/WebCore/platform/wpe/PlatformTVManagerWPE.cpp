@@ -1,5 +1,6 @@
 #include "config.h"
 #include "PlatformTVManager.h"
+#include <wtf/MainThread.h>
 
 #if ENABLE(TV_CONTROL)
 
@@ -20,8 +21,14 @@ PlatformTVManager::PlatformTVManager(PlatformTVManagerClient* client)
         // handle_tuner_event
         [](void* data, wpe_tvcontrol_tuner_event event)
         {
-            auto& tvManager = *reinterpret_cast<PlatformTVManager*>(data);
-            tvManager.m_platformTVManagerClient->didTunerOperationChanged(String(event.tuner_id.data, event.tuner_id.length), (uint16_t)event.operation);
+            callOnMainThread([data, event] {
+               printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+               printf("\nEvent = %d", (int)event.operation);
+               auto& tvManager = *reinterpret_cast<PlatformTVManager*>(data);
+               String tmpId(event.tuner_id.data, event.tuner_id.length);
+               tvManager.updateTunerList(tmpId, event.operation);
+               tvManager.m_platformTVManagerClient->didTunerOperationChanged(tmpId, (uint16_t)event.operation);
+            });
         },
         // handle current source changed event
         [](void* data, wpe_tvcontrol_source_event event)
@@ -80,6 +87,10 @@ const Vector<RefPtr<PlatformTVTuner>>& PlatformTVManager::getTuners()
     }
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     return m_tunerList;
+}
+
+void PlatformTVManager::updateTunerList(String tunerId, uint16_t event) {
+   // Add logic to update TunerList
 }
 
 } // namespace WebCore

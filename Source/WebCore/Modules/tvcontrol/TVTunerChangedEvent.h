@@ -21,6 +21,8 @@ public:
     Operation         operation () const { return m_operation; }
     const String&     id () const { return m_tunerId; }
 
+    virtual EventInterface eventInterface() const { return TVTunerChangedEventInterfaceType; }
+
 private:
     String     m_tunerId;
     Operation  m_operation;

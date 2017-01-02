@@ -27,6 +27,7 @@ public:
     WEBCORE_EXPORT virtual ~PlatformTVManager();
 
     const Vector<RefPtr<PlatformTVTuner>>& getTuners();
+    void  updateTunerList(String, uint16_t);
 
     PlatformTVControlBackend *m_tvBackend;
 private:
