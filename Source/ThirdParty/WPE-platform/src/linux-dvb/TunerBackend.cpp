@@ -220,14 +220,17 @@ int TvTunerBackend::freqStep(int channel, int channelList) {
     }
 }
 
-void TvTunerBackend::getSupportedSrcTypeList(wpe_tvcontrol_src_types_vector* out_source_types_list) {
+tvcontrol_return TvTunerBackend::getSupportedSrcTypeList(wpe_tvcontrol_src_types_vector* out_source_types_list) {
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
 
     /* Get supported source list from platform*/
     int  ret = 0;
     ret  =  getSupportedSourcesTypeList(out_source_types_list);
-    if (ret < 0)
+    if (ret < 0) {
         printf("Failed to get supported source list \n");
+        return TVControlFailed;
+    }
+    return TVConstrolSuccess;
 }
 
 void TvTunerBackend::getAvailableSrcList(wpe_tvcontrol_src_types_vector* out_source_list) {
@@ -400,13 +403,14 @@ int TvTunerBackend::getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector* 
     return m_supportedSysCount;
 }
 
-void TvTunerBackend::startScanning() {
-
+tvcontrol_return TvTunerBackend::startScanning() {
+    tvcontrol_return ret = TVControlFailed;
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     /* Get source corresponds to this type  */
     SourceBackend *source;
     getSource(m_sType, &source);
-    source->startScanning();
+    ret = source->startScanning();
+    return ret;
 }
 
 void TvTunerBackend::getSource(SourceType sType, SourceBackend **source) {
@@ -421,34 +425,37 @@ void TvTunerBackend::getSource(SourceType sType, SourceBackend **source) {
     }
 }
 
-void TvTunerBackend::stopScanning() {
-
+tvcontrol_return TvTunerBackend::stopScanning() {
+    tvcontrol_return ret = TVControlFailed;
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     /* Get source corresponds to this type  */
     SourceBackend *source;
     getSource(m_sType, &source);
-    source->stopScanning();
+    ret = source->stopScanning();
+    return ret;
 }
 
-void TvTunerBackend::getChannels(SourceType sType, struct wpe_tvcontrol_channel_vector* channelVector) {
-
+tvcontrol_return TvTunerBackend::getChannels(SourceType sType, struct wpe_tvcontrol_channel_vector* channelVector) {
+    tvcontrol_return ret = TVControlFailed;
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     /* Get source corresponds to this type  */
     SourceBackend *source;
     getSource(sType, &source);
-    source->getChannels(channelVector);
+    ret = source->getChannels(channelVector);
+    return ret;
 }
 
-void TvTunerBackend::setCurrentChannel(SourceType sType ,uint64_t channelNumber) {
-
+tvcontrol_return TvTunerBackend::setCurrentChannel(SourceType sType ,uint64_t channelNumber) {
+    tvcontrol_return ret = TVControlFailed;
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     /* Get source corresponds to this type  */
     SourceBackend *source;
     getSource(sType, &source);
-    source->setCurrentChannel(channelNumber);
+    ret = source->setCurrentChannel(channelNumber);
+    return ret;
 }
-void TvTunerBackend::setCurrentSource(SourceType sType) {
-
+tvcontrol_return TvTunerBackend::setCurrentSource(SourceType sType) {
+    tvcontrol_return ret = TVControlFailed;
     fe_delivery_system  platSrcType;
     struct dtv_property p[] = {{.cmd = DTV_DELIVERY_SYSTEM}};
     struct dtv_properties cmdseq = {.num = 1, .props = p};
@@ -466,6 +473,7 @@ void TvTunerBackend::setCurrentSource(SourceType sType) {
         /* Set the current source to platform*/
         feHandle = openFE(m_tunerData->tunerId);
         if (feHandle ) {
+            ret = TVControlSuccess;
             if (ioctl(feHandle->fd, FE_SET_PROPERTY, &cmdseq) == -1) {
                 printf("Failed to set  Srource %d at plarform \n %s:%s:%d \n",
                         platSrcType , __FILE__, __func__, __LINE__);
@@ -487,6 +495,7 @@ void TvTunerBackend::setCurrentSource(SourceType sType) {
             printf("Failed to open frontend \n");
         }
     }
+    return ret;
 }
 
 void TvTunerBackend::getSourceType(SourceType sType ,fe_delivery_system* platSrcType) {

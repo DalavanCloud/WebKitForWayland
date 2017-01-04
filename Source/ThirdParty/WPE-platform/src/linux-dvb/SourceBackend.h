@@ -30,10 +30,10 @@ public:
     SourceBackend(SourceType, TunerData*);
     virtual ~SourceBackend() {}
 
-    void startScanning();
-    void stopScanning();
-    void setCurrentChannel(uint64_t channelNo);
-    void getChannels(wpe_tvcontrol_channel_vector* channelVector);
+    tvcontrol_return startScanning();
+    tvcontrol_return stopScanning();
+    tvcontrol_return setCurrentChannel(uint64_t channelNo);
+    tvcontrol_return getChannels(wpe_tvcontrol_channel_vector* channelVector);
     SourceType srcType() { return m_sType; }
 
 private:
@@ -43,10 +43,10 @@ private:
     ChannelBackend* getChannelByLCN(uint64_t channelNo);
     bool tuneToFrequency(int frequency, uint64_t modulation, struct dvbfe_handle* feHandle);
     uint32_t getBits(const uint8_t *buf, int startbit, int bitlen);
-    void atscScan(int frequency, uint64_t modulation);
+    tvcontrol_return atscScan(int frequency, uint64_t modulation);
     void mpegScan(int programNumber, std::map<int, int>& streamInfo);
-    void dvbScan();
-    int  processTVCT(int dmxfd, int frequency);
+    tvcontrol_return dvbScan();
+    bool  processTVCT(int dmxfd, int frequency);
     bool processPAT(int patFd, int programNumber, struct pollfd *pollfd, std::map<int, int>& streamInfo);
     void processPMT(int pmtFd, std::map<int, int>& streamInfo);
     int  createSectionFilter(uint16_t pid, uint8_t tableId);

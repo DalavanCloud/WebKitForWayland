@@ -20,50 +20,50 @@ namespace BCMRPi {
 
 class TvTunerBackend {
 public:
-   TvTunerBackend(int, TunerData*);
-   virtual ~TvTunerBackend();
+    TvTunerBackend(int, TunerData*);
+    virtual ~TvTunerBackend();
 
-   SourceType getSrcType() { return m_sType; };
-   void setSrcType(SourceType sType){ m_sType = sType; };
-   void getSignalStrength(double*);
-   void startScanning();
-   void stopScanning();
-   void getChannels(SourceType, struct wpe_tvcontrol_channel_vector*);
-   void setCurrentChannel(SourceType, uint64_t);
-   void setCurrentSource(SourceType sType);
+    SourceType getSrcType() { return m_sType; };
+    void setSrcType(SourceType sType){ m_sType = sType; };
+    void getSignalStrength(double*);
+    tvcontrol_return startScanning();
+    tvcontrol_return stopScanning();
+    tvcontrol_return getChannels(SourceType, struct wpe_tvcontrol_channel_vector*);
+    tvcontrol_return setCurrentChannel(SourceType, uint64_t);
+    tvcontrol_return setCurrentSource(SourceType sType);
 
-   struct TunerData*   m_tunerData;
+    struct TunerData*   m_tunerData;
 
-   std::vector<SourceBackend*>  m_sourceList; //List of source objects
+    std::vector<SourceBackend*>  m_sourceList; //List of source objects
 
-   void getSupportedSrcTypeList(wpe_tvcontrol_src_types_vector* out_source_types_list);
+    tvcontrol_return getSupportedSrcTypeList(wpe_tvcontrol_src_types_vector* out_source_types_list);
 
 private:
 
-   ChannelList              m_channel;
+    ChannelList              m_channel;
 
 
-   SourceType                      m_sType;
-   SourceType*                     m_srcTypeListPtr;
-   uint64_t                        m_supportedSysCount;
-   wpe_tvcontrol_src_types_vector  m_srcList; //List of src type
-   ConfigInfo                      m_configValues;
+    SourceType                      m_sType;
+    SourceType*                     m_srcTypeListPtr;
+    uint64_t                        m_supportedSysCount;
+    wpe_tvcontrol_src_types_vector  m_srcList; //List of src type
+    ConfigInfo                      m_configValues;
 
-   int baseOffset(int channel, int channelList);
-   int freqStep(int channel, int channelList);
-   int getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector*);
+    int baseOffset(int channel, int channelList);
+    int freqStep(int channel, int channelList);
+    int getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector*);
 
-   void getAvailableSrcList(wpe_tvcontrol_src_types_vector*);
-   void initializeSourceList();
-   void getSources();
-   void getSource(SourceType, SourceBackend**);
-   void getSourceType(SourceType sType, fe_delivery_system*);
-   void configureTuner(std::string& modulation);
-   void setModulation(std::string& modulation);
-   void configureTuner(int tunerCnt);
-   void getConfiguration();
-   void getCapabilities();
-   void populateFreq();
+    void getAvailableSrcList(wpe_tvcontrol_src_types_vector*);
+    void initializeSourceList();
+    void getSources();
+    void getSource(SourceType, SourceBackend**);
+    void getSourceType(SourceType sType, fe_delivery_system*);
+    void configureTuner(std::string& modulation);
+    void setModulation(std::string& modulation);
+    void configureTuner(int tunerCnt);
+    void getConfiguration();
+    void getCapabilities();
+    void populateFreq();
 };
 
 } // namespace BCMRPi

@@ -10,7 +10,8 @@ SourceBackend::SourceBackend(SourceType type, TunerData* tunerData)
     m_demux = stoi(m_tunerData->tunerId.substr(m_tunerData->tunerId.find(":")+1));
 }
 
-void SourceBackend::startScanning() {
+tvcontrol_return SourceBackend::startScanning() {
+    tvcontrol_return ret = TVControlFailed;
     uint64_t modulation = m_tunerData->modulation;
     int length =  (m_tunerData->frequency).size();
     struct dvbfe_handle* feHandle = openFE(m_tunerData->tunerId);
@@ -18,29 +19,30 @@ void SourceBackend::startScanning() {
         for (int i = 0; i < length; i++) {
             int frequency = m_tunerData->frequency[i];
             if (tuneToFrequency(frequency, modulation, feHandle)) {
-               switch(m_sType) {
-                   case Atsc:
-                   case AtscMH:
-                       atscScan(frequency, modulation);
-                       break;
-                   case DvbT:
-                   case DvbT2:
-                   case DvbC:
-                   case DvbC2:
-                   case DvbS:
-                   case DvbS2:
-                   case DvbH:
-                   case DvbSh:
-                       dvbScan();
-                       break;
-                   default:
-                       printf("Type Not supported!!");
-                       break;
-               }
+                switch(m_sType) {
+                case Atsc:
+                case AtscMH:
+                    ret = atscScan(frequency, modulation);
+                    break;
+                case DvbT:
+                case DvbT2:
+                case DvbC:
+                case DvbC2:
+                case DvbS:
+                case DvbS2:
+                case DvbH:
+                case DvbSh:
+                    ret = dvbScan();
+                    break;
+                default:
+                    printf("Type Not supported!!");
+                    break;
+                }
             }
         }
         dvbfe_close(feHandle);
     }
+    return ret;
 }
 
 void SourceBackend::processPMT(int pmtFd, std::map<int, int>& streamInfo)
@@ -78,14 +80,15 @@ void SourceBackend::processPMT(int pmtFd, std::map<int, int>& streamInfo)
     }
 }
 
-void SourceBackend::stopScanning() {
+tvcontrol_return SourceBackend::stopScanning() {
     /* */
+    return TVConstrolSuccess;
 }
 
 ChannelBackend* SourceBackend::getChannelByLCN(uint64_t channelNo) {
-    for (std::vector<ChannelBackend*>::iterator it = m_channelList.begin() ; it != m_channelList.end(); ++it) {
-         if (channelNo == (*it)->getLCN()){
-            return *it;
+    for (auto& channel : m_channelList) {
+         if (channelNo == channel->getLCN()){
+            return channel;
         }
     }
     return NULL;
@@ -133,8 +136,9 @@ void SourceBackend::startPlayBack(int frequency, uint64_t modulation, int pmtPid
     execute(argv);
 }
 
-void  SourceBackend::setCurrentChannel(uint64_t channelNo) {
-    printf("\nTune to Channel %" PRIu64 "\n",channelNo);
+tvcontrol_return SourceBackend::setCurrentChannel(uint64_t channelNo) {
+    tvcontrol_return ret = TVControlFailed;
+    rintf("\nTune to Channel %" PRIu64 "\n",channelNo);
     ChannelBackend* channel = getChannelByLCN(channelNo);
     if (channel) {
         kill(m_pid, SIGTERM);
@@ -148,6 +152,7 @@ void  SourceBackend::setCurrentChannel(uint64_t channelNo) {
                 mpegScan(programNumber, streamInfo);
                 dvbfe_close(feHandle);
                 if (!streamInfo.empty()) {
+                    ret = TVConstrolSuccess;
                     int pmtPid = streamInfo[0];
                     int videoPid = 0;
                     int audioPid = 0;
@@ -169,38 +174,43 @@ void  SourceBackend::setCurrentChannel(uint64_t channelNo) {
             }
         }
     }
+    return ret;
 }
 
-void SourceBackend::getChannels(wpe_tvcontrol_channel_vector* channelVector) {
+tvcontrol_return SourceBackend::getChannels(wpe_tvcontrol_channel_vector* channelVector) {
     /*Populate channel list */
+    tvcontrol_return ret = TVControlFailed;
     printf("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
     if (!m_channelList.empty()) {
         printf("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
         channelVector->length = m_channelList.size();
         channelVector->channels = new wpe_tvcontrol_channel[m_channelList.size()];
         std::vector<ChannelBackend*>::iterator it;
-        int i;
-        for (it = m_channelList.begin(), i = 0; it != m_channelList.end(); ++it,++i){
-             if (!((*it)->getNetworkId()).empty())
-                channelVector->channels[i].networkId = strdup(((*it)->getNetworkId()).c_str());
-             if (!((*it)->getName()).empty())
-                channelVector->channels[i].name = strdup(((*it)->getName()).c_str());
-             if (!((*it)->getServiceId()).empty())
-                channelVector->channels[i].serviceId = strdup(((*it)->getServiceId()).c_str());
-             if (!((*it)->getTransportStreamId()).empty())
-                channelVector->channels[i].transportSId = strdup(((*it)->getTransportStreamId()).c_str());
-            channelVector->channels[i].number = (*it)->getLCN();
+        int i = 0;
+        for (auto& channel : m_channelList) {
+            if (!(channel->getNetworkId()).empty())
+                channelVector->channels[i].networkId = strdup((channel->getNetworkId()).c_str());
+            if (!(channel->getName()).empty())
+                channelVector->channels[i].name = strdup((channel->getName()).c_str());
+            if (!(channel->getServiceId()).empty())
+                channelVector->channels[i].serviceId = strdup((channel->getServiceId()).c_str());
+            if (!(channel->getTransportStreamId()).empty())
+                channelVector->channels[i].transportSId = strdup((channel->getTransportStreamId()).c_str());
+            channelVector->channels[i].number = channel->getLCN();
+            i++; 
         }
+        ret = TVConstrolSuccess;
     }
     else {
         channelVector->channels = NULL;
         printf("Channel list is empty .Scanning is incomplete \n");
     }
-
+    return ret;
 }
 
-void SourceBackend::dvbScan(){
+tvcontrol_return SourceBackend::dvbScan(){
     /* */
+    return TVControlNotImplemented;
 }
 
 bool SourceBackend::tuneToFrequency(int frequency, uint64_t modulation, struct dvbfe_handle* feHandle){
@@ -210,27 +220,26 @@ bool SourceBackend::tuneToFrequency(int frequency, uint64_t modulation, struct d
     dvbfe_get_info(feHandle, DVBFE_INFO_FEPARAMS, &feInfo, DVBFE_INFO_QUERYTYPE_IMMEDIATE, 0);
 
     switch (m_sType) {
-        case Atsc:
-        case AtscMH:
-            if (DVBFE_TYPE_ATSC != feInfo.type) {
-                fprintf(stderr, "%s(): only ATSC frontend supported currently\n",
-                __FUNCTION__);
-                return false;
-            }
-            switch (modulation) {
-                case DVBFE_ATSC_MOD_VSB_8:
-                    feInfo.feparams.frequency = frequency;
-                    feInfo.feparams.inversion = DVBFE_INVERSION_AUTO;
-                    feInfo.feparams.u.atsc.modulation = DVBFE_ATSC_MOD_VSB_8;
-                    break;
-                default:
-                    printf("Modulation not supported!!!\n");
-                    return false;
-            }
-            break;
-        default:
-            printf("Only Atsc supported!!\n");
+    case Atsc:
+    case AtscMH:
+        if (DVBFE_TYPE_ATSC != feInfo.type) {
+            fprintf(stderr, "%s(): only ATSC frontend supported currently\n", __FUNCTION__);
             return false;
+        }
+        switch (modulation) {
+        case DVBFE_ATSC_MOD_VSB_8:
+                feInfo.feparams.frequency = frequency;
+                feInfo.feparams.inversion = DVBFE_INVERSION_AUTO;
+                feInfo.feparams.u.atsc.modulation = DVBFE_ATSC_MOD_VSB_8;
+                break;
+            default:
+                printf("Modulation not supported!!!\n");
+                return false;
+        }
+        break;
+    default:
+        printf("Only Atsc supported!!\n");
+        return false;
     }
     fprintf(stdout, "tuning to %d Hz, please wait...\n", frequency);
     if (dvbfe_set(feHandle, &feInfo.feparams, timeout * 1000)) {
@@ -277,16 +286,17 @@ void SourceBackend::mpegScan(int programNumber, std::map<int, int>& streamInfo){
     }
 }
 
-void SourceBackend::atscScan(int frequency, uint64_t modulation) {
+tvcontrol_return SourceBackend::atscScan(int frequency, uint64_t modulation) {
     int vctFd;
     struct pollfd pollFd;
+    tvcontrol_return ret = TVControlFailed;
     switch (modulation) {
-        case DVBFE_ATSC_MOD_VSB_8:
-            vctFd = createSectionFilter(PID_VCT, TABLE_VCT_TERR);
-            break;
-        default:
-            printf("Modulation not supported!!\n");
-            return;
+    case DVBFE_ATSC_MOD_VSB_8:
+        vctFd = createSectionFilter(PID_VCT, TABLE_VCT_TERR);
+        break;
+    default:
+        printf("Modulation not supported!!\n");
+        return ret;
     }
     pollFd.fd = vctFd;
     pollFd.events = POLLIN|POLLPRI|POLLERR;
@@ -302,21 +312,22 @@ void SourceBackend::atscScan(int frequency, uint64_t modulation) {
         }
         if (pollFd.revents & (POLLIN|POLLPRI)) {
             switch(modulation){
-                case DVBFE_ATSC_MOD_VSB_8:
-                    if (processTVCT(pollFd.fd, frequency) ) {
-                        fprintf(stderr, "%s(): error calling parse_stt()\n",
-                        __FUNCTION__);
-                    }
-                    else {
-                        flag = false;
-                        dvbdemux_stop(pollFd.fd);
-                    }
-                    break;
-                default:
-                    break;
+            case DVBFE_ATSC_MOD_VSB_8:
+                if (processTVCT(pollFd.fd, frequency) ) {
+                    flag = false;
+                    dvbdemux_stop(pollFd.fd);
+                    ret = TVConstrolSuccess;
+                }
+                else {
+                    fprintf(stderr, "%s(): error calling parse_stt()\n", __FUNCTION__);
+                }
+                break;
+            default:
+                break;
             }
         }
     }
+    return ret;
 }
 
 int SourceBackend::createSectionFilter(uint16_t pid, uint8_t tableId) {
@@ -392,7 +403,7 @@ bool SourceBackend::processPAT(int patFd, int programNumber, struct pollfd *poll
     return true;
 }
 
-int SourceBackend::processTVCT(int dmxfd, int frequency) {
+bool SourceBackend::processTVCT(int dmxfd, int frequency) {
     int numSections;
     uint32_t sectionPattern;
     struct atsc_tvct_section *tvct;
@@ -409,20 +420,20 @@ int SourceBackend::processTVCT(int dmxfd, int frequency) {
          /* read it */
         if ((size = read(dmxfd, siBuf, sizeof(siBuf))) < 0) {
             fprintf(stderr, "%s(): error calling read()\n", __FUNCTION__);
-            return -1;
+            return false;
         }
 
         section = section_codec(siBuf, size);
         if (NULL == section) {
             fprintf(stderr, "%s(): error calling section_codec()\n",
                 __FUNCTION__);
-            return -1;
+            return false;
         }
         sectionExt = section_ext_decode(section, 0);
         if (NULL == sectionExt) {
             fprintf(stderr, "%s(): error calling section_ext_decode()\n",
                 __FUNCTION__);
-            return -1;
+            return false;
         }
 
         psip = atsc_section_psip_decode(sectionExt);
@@ -430,14 +441,14 @@ int SourceBackend::processTVCT(int dmxfd, int frequency) {
             fprintf(stderr,
                 "%s(): error calling atsc_section_psip_decode()\n",
                 __FUNCTION__);
-            return -1;
+            return false;
         }
 
         tvct = atsc_tvct_section_codec(psip);
         if (NULL == tvct) {
             fprintf(stderr, "%s(): error decode table section\n",
                 __FUNCTION__);
-            return -1;
+            return false;
         }
 
         if (-1 == numSections) {
@@ -446,7 +457,7 @@ int SourceBackend::processTVCT(int dmxfd, int frequency) {
                 fprintf(stderr, "%s(): no support yet for "
                     "tables having more than 32 sections\n",
                     __FUNCTION__);
-                return -1;
+                return false;
             }
         } else {
             if (numSections !=
@@ -454,7 +465,7 @@ int SourceBackend::processTVCT(int dmxfd, int frequency) {
                 fprintf(stderr,
                     "%s(): last section number does not match\n",
                     __FUNCTION__);
-                return -1;
+                return false;
             }
         }
         if (sectionPattern & (1 << tvct->head.ext_head.section_number)) {
@@ -494,11 +505,11 @@ int SourceBackend::processTVCT(int dmxfd, int frequency) {
             atsc_tvct_channel_descriptors_for_each(ch, desc) {
                 printf("Descriptor : %x\n",desc->tag);
                 switch(desc->tag){
-                    case dtag_atsc_extended_channel_name:
-                        parseAtscExtendedChannelNameDescriptor(&serviceName, const_cast<const unsigned char*>(reinterpret_cast<unsigned char*>(desc)));
-                        break;
-                    default:
-                        break;
+                case dtag_atsc_extended_channel_name:
+                    parseAtscExtendedChannelNameDescriptor(&serviceName, const_cast<const unsigned char*>(reinterpret_cast<unsigned char*>(desc)));
+                    break;
+                default:
+                    break;
                 }
             }
             string name(serviceName);
@@ -508,7 +519,7 @@ int SourceBackend::processTVCT(int dmxfd, int frequency) {
         }
     } while(sectionPattern != (uint32_t)((1 << numSections) - 1));
 
-    return 0;
+    return true;
 }
 
 void SourceBackend::parseAtscExtendedChannelNameDescriptor(char **serviceName, const unsigned char *buf) {
@@ -526,16 +537,16 @@ void SourceBackend::parseAtscExtendedChannelNameDescriptor(char **serviceName, c
            int compression_type = b[0],/* mode = b[1],*/ num_bytes = b[2];
 
             switch (compression_type) {
-                case uncompressed_string:
-                    if (name)
-                        free(name);
-                    name = reinterpret_cast<char*>(malloc(num_bytes * sizeof(char) + 1));
-                    memcpy(name,&b[3],num_bytes);
-                    name[num_bytes] = '\0';
-                    *serviceName = name;
-                    break;
-                default:
-                    break;
+            case uncompressed_string:
+                if (name)
+                    free(name);
+                name = reinterpret_cast<char*>(malloc(num_bytes * sizeof(char) + 1));
+                memcpy(name,&b[3],num_bytes);
+                name[num_bytes] = '\0';
+                *serviceName = name;
+                break;
+            default:
+                break;
             }
             b += 3 + num_bytes;
         }
