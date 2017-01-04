@@ -25,27 +25,22 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef westeros_interfaces_h
-#define westeros_interfaces_h
+#include <westeros-compositor.h>
 
-#include <wpe/renderer-backend-egl.h>
-#include <wpe/renderer-host.h>
-#include <wpe/view-backend.h>
+namespace Westeros {
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+struct RendererHost {
+    static RendererHost& singleton();
 
-extern struct wpe_renderer_backend_egl_interface westeros_renderer_backend_egl_interface;
-extern struct wpe_renderer_backend_egl_target_interface westeros_renderer_backend_egl_target_interface;
-extern struct wpe_renderer_backend_egl_offscreen_target_interface westeros_renderer_backend_egl_offscreen_target_interface;
+    WstCompositor* compositor() { return m_compositor; }
 
-extern struct wpe_renderer_host_interface westeros_renderer_host_interface;
+    int createClient();
 
-extern struct wpe_view_backend_interface westeros_view_backend_interface;
+private:
+    RendererHost();
+    ~RendererHost();
 
-#ifdef __cplusplus
-}
-#endif
+    WstCompositor* m_compositor;
+};
 
-#endif // westeros_interfaces_h
+} // namespace Westeros

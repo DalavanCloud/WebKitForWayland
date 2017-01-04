@@ -27,11 +27,12 @@
 
 #include <wpe/view-backend.h>
 
+#include "renderer-host.h"
 #include "WesterosViewbackendInput.h"
 #include "WesterosViewbackendOutput.h"
-#include <cstdio>
-#include <cstdlib>
 #include <westeros-compositor.h>
+
+#include <wpe/renderer-host.h>
 
 namespace Westeros {
 
@@ -42,7 +43,6 @@ struct ViewBackend {
     void initialize();
 
     struct wpe_view_backend* backend;
-    WstCompositor* compositor;
 
     WesterosViewbackendInput* input_handler;
     WesterosViewbackendOutput* output_handler;
@@ -62,12 +62,6 @@ ViewBackend::~ViewBackend()
     if(output_handler)
         output_handler->deinitialize();
 
-    if (compositor) {
-        WstCompositorStop(compositor);
-        WstCompositorDestroy(compositor);
-        compositor = nullptr;
-    }
-
     if(input_handler)
         delete input_handler;
     if(output_handler)
@@ -76,35 +70,19 @@ ViewBackend::~ViewBackend()
 
 void ViewBackend::initialize()
 {
-    compositor = WstCompositorCreate();
+    WstCompositor* compositor = RendererHost::singleton().compositor();
     if (!compositor)
         return;
+        return;
 
-    input_handler = new WesterosViewbackendInput(backend);
-    output_handler = new WesterosViewbackendOutput(backend);
-    const char* nestedTargetDisplay = std::getenv("WAYLAND_DISPLAY");
-    if (nestedTargetDisplay) {
-        fprintf(stderr, "ViewBackendWesteros: running as the nested compositor\n");
-        WstCompositorSetIsNested(compositor, true);
-        WstCompositorSetIsRepeater(compositor, true);
-        WstCompositorSetNestedDisplayName(compositor, nestedTargetDisplay);
-        //Register for all the necessary callback before starting the compositor
+    if (!input_handler) {
+        input_handler = new WesterosViewbackendInput(backend);
         input_handler->initializeNestedInputHandler(compositor);
-        output_handler->initializeNestedOutputHandler(compositor);
-        const char * nestedDisplayName = WstCompositorGetDisplayName(compositor);
-        setenv("WAYLAND_DISPLAY", nestedDisplayName, 1);
     }
 
-    if (!WstCompositorStart(compositor))
-    {
-        fprintf(stderr, "ViewBackendWesteros: failed to start the compositor: %s\n",
-            WstCompositorGetLastErrorDetail(compositor));
-        WstCompositorDestroy(compositor);
-        compositor = nullptr;
-        delete input_handler;
-        delete output_handler;
-        input_handler = nullptr;
-        output_handler = nullptr;
+    if (!output_handler) {
+        output_handler = new WesterosViewbackendOutput(backend);
+        output_handler->initializeNestedOutputHandler(compositor);
     }
 }
 

@@ -15,6 +15,7 @@ list(APPEND WPE_PLATFORM_LIBRARIES
 
 list(APPEND WPE_PLATFORM_SOURCES
     src/westeros/renderer-backend.cpp
+    src/westeros/renderer-host.cpp
     src/westeros/view-backend.cpp
     src/westeros/WesterosViewbackendInput.cpp
     src/westeros/WesterosViewbackendOutput.cpp

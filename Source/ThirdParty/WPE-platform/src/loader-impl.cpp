@@ -86,9 +86,6 @@ __attribute__((visibility("default")))
 struct wpe_loader_interface _wpe_loader_interface = {
     [](const char* object_name) -> void* {
 
-        if (!std::strcmp(object_name, "_wpe_renderer_host_interface"))
-            return &noop_renderer_host_interface;
-
 #ifdef BACKEND_BCM_NEXUS
         if (!std::strcmp(object_name, "_wpe_renderer_backend_egl_interface"))
             return &bcm_nexus_renderer_backend_egl_interface;
@@ -157,9 +154,15 @@ struct wpe_loader_interface _wpe_loader_interface = {
         if (!std::strcmp(object_name, "_wpe_renderer_backend_egl_offscreen_target_interface"))
             return &westeros_renderer_backend_egl_offscreen_target_interface;
 
+        if (!std::strcmp(object_name, "_wpe_renderer_host_interface"))
+            return &westeros_renderer_host_interface;
+
         if (!std::strcmp(object_name, "_wpe_view_backend_interface"))
             return &westeros_view_backend_interface;
 #endif
+
+        if (!std::strcmp(object_name, "_wpe_renderer_host_interface"))
+            return &noop_renderer_host_interface;
 
 #ifdef KEY_INPUT_HANDLING_XKB
         if (!std::strcmp(object_name, "_wpe_input_key_mapper_interface"))
