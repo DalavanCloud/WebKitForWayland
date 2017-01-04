@@ -230,7 +230,7 @@ tvcontrol_return TvTunerBackend::getSupportedSrcTypeList(wpe_tvcontrol_src_types
         printf("Failed to get supported source list \n");
         return TVControlFailed;
     }
-    return TVConstrolSuccess;
+    return TVControlSuccess;
 }
 
 void TvTunerBackend::getAvailableSrcList(wpe_tvcontrol_src_types_vector* out_source_list) {

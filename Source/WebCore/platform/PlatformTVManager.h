@@ -26,12 +26,11 @@ public:
     WEBCORE_EXPORT explicit PlatformTVManager(PlatformTVManagerClient*);
     WEBCORE_EXPORT virtual ~PlatformTVManager();
 
-    const Vector<RefPtr<PlatformTVTuner>>& getTuners();
+    void  getTuners(Vector<RefPtr<PlatformTVTuner>>&);
     void  updateTunerList(String, uint16_t);
 
     PlatformTVControlBackend *m_tvBackend;
 private:
-    Vector<RefPtr<PlatformTVTuner>> m_tunerList;
     bool m_tunerListIsInitialized;
     PlatformTVManagerClient* m_platformTVManagerClient;
 };

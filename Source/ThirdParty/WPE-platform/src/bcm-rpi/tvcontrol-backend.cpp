@@ -30,7 +30,7 @@ public:
     tvcontrol_return setCurrentChannel(const char*, SourceType, uint64_t);
     tvcontrol_return getChannels(const char*, SourceType, struct wpe_tvcontrol_channel_vector*);
     tvcontrol_return setCurrentSource(const char*, SourceType);
-
+    void updateTunerList(const char *, tuner_changed_operation);
 private:
     struct wpe_tvcontrol_backend* m_backend;
     void eventProcessor();
@@ -87,7 +87,6 @@ TvControlBackend::~TvControlBackend () {
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
     /*Clear private tuner  list*/
     m_isRunning = false;
-    // TODO : call pthread join to wait for thread exit
     m_tunerList.clear();
 #endif
 }
@@ -351,53 +350,15 @@ tvcontrol_return TvControlBackend::setCurrentSource(const char* tunerId, SourceT
 void TvControlBackend::TunerChangedListener() {
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
     struct udev *udev;
-    struct udev_enumerate *enumerate;
-    struct udev_list_entry *devices, *dev_list_entry;
     struct udev_device *dev;
-
-    sleep(10);  // Sleep for 10 seconds so that the device goes through the initial setup process.
-
-    /* Create the udev object */
-    udev = udev_new();
-    if (!udev) {
-        printf("Can't create udev\n");
-        exit(1);
-    }
-
-    /* Create a list of the devices in the 'dvb' subsystem.(Initially found Tuners) */
-    enumerate = udev_enumerate_new(udev);
-    udev_enumerate_add_match_subsystem(enumerate, "dvb");
-    udev_enumerate_scan_devices(enumerate);
-    devices = udev_enumerate_get_list_entry(enumerate);
-    udev_list_entry_foreach(dev_list_entry, devices) {
-        const char *path;
-
-        path = udev_list_entry_get_name(dev_list_entry);
-        dev = udev_device_new_from_syspath(udev, path);
-
-        printf("Device Node Path: %s\n", udev_device_get_devnode(dev));
-
-        dev = udev_device_get_parent_with_subsystem_devtype(dev, "usb", "usb_device");
-        if (!dev) {
-            printf("Unable to find parent usb device.");
-            exit(1);
-        }
-
-        printf("  VID/PID: %s %s\n", udev_device_get_sysattr_value(dev,"idVendor"), udev_device_get_sysattr_value(dev, "idProduct"));
-        printf("  %s\n  %s\n", udev_device_get_sysattr_value(dev,"idVendor"), udev_device_get_sysattr_value(dev, "idProduct"));
-        printf("  %s\n  %s\n", udev_device_get_sysattr_value(dev,"manufacturer"), udev_device_get_sysattr_value(dev,"product"));
-        printf("  serial: %s\n", udev_device_get_sysattr_value(dev, "serial"));
-        udev_device_unref(dev);
-    }
-    /* Free the enumerator object */
-    udev_enumerate_unref(enumerate);
-
     int fd;
     struct udev_monitor* mon;
     mon = udev_monitor_new_from_netlink(udev, "udev");
     udev_monitor_filter_add_match_subsystem_devtype(mon, "dvb", NULL);
     udev_monitor_enable_receiving(mon);
     fd = udev_monitor_get_fd(mon);
+
+    sleep(5);
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 
     // Loop and wait for new Tuners.
@@ -411,55 +372,82 @@ void TvControlBackend::TunerChangedListener() {
         tv.tv_sec = 0;
         tv.tv_usec = 0;
 
-        ret = select(fd+1, &fds, NULL, NULL, &tv);
+        ret = select(fd + 1, &fds, NULL, NULL, &tv);
 
         if (ret > 0 && FD_ISSET(fd, &fds)) {
             printf("\nselect() says there should be data\n");
 
             dev = udev_monitor_receive_device(mon);
             if (dev) {
-               std::string tunerId;
-               string fpath;
-               int i, j;
-               printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-               struct wpe_tvcontrol_event* event = reinterpret_cast<struct wpe_tvcontrol_event*>(malloc(sizeof(struct wpe_tvcontrol_event)));
-               event->eventID = TunerChanged;
-               fpath = udev_device_get_devnode(dev);
-               // The data from udev is in string format. So.converting the operation into the appropriate data type.
-               if (strcmp("add", udev_device_get_action(dev)) == 0) { // Case when DVB adapter is added.
-                  event->operation = Added;
-               }
-               else if (strcmp("remove", udev_device_get_action(dev)) == 0) { // Case when DVB Adapter is closed.
-                  event->operation = Removed;
-               }
+                std::string tunerId;
+                string fpath;
+                int i, j;
+                printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+                struct wpe_tvcontrol_event* event = reinterpret_cast<struct wpe_tvcontrol_event*>(malloc(sizeof(struct wpe_tvcontrol_event)));
+                event->eventID = TunerChanged;
+                fpath = udev_device_get_devnode(dev);
+                printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+                found = fpath.find("frontend");
+                if (found != std::string::npos) { // if frontend found, do the following and dipatch the event.
+                    sscanf (udev_device_get_devnode(dev), "/%*[a-z-A-Z]/%*[a-z-A-Z]/%*[a-z-A-Z]%d/%*[a-z-A-Z]%d", &i, &j);
+                    createTunerId(i, i, tunerId);
+                    event->tuner_id.data = strdup(tunerId.c_str());
+                    event->tuner_id.length = tunerId.length();
+                    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 
-               printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-               found = fpath.find("frontend");
-               if (found != std::string::npos) { // if frontend found, do the following and dipatch the event.
-                  sscanf (udev_device_get_devnode(dev), "/%*[a-z-A-Z]/%*[a-z-A-Z]/%*[a-z-A-Z]%d/%*[a-z-A-Z]%d", &i, &j);
-                  createTunerId(i, i, tunerId);
-                  event->tuner_id.data = strdup(tunerId.c_str());
-                  event->tuner_id.length = tunerId.length();
-                  printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-                  eventQueue.pushEvent(event);// Sensed a Tuner Change Event....Triggering handleTunerChangedEvent.
-                  printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-               }
-               printf("***Got Device***\n");
-               printf("   Node: %s\n", udev_device_get_devnode(dev));
-               printf("   Subsystem: %s\n", udev_device_get_subsystem(dev));
-               printf("   Devtype: %s\n", udev_device_get_devtype(dev));
-               printf("   Action: %s\n", udev_device_get_action(dev));
-               udev_device_unref(dev);
-            }
-            else {
-               printf("No Device from receive_device(). An error occured.\n");
+                    // The data from udev is in string format. So.converting the operation into the appropriate data type.
+                    if (strcmp("add", udev_device_get_action(dev)) == 0) { // Case when DVB adapter is added.
+                        event->operation = Added;
+                    }
+                    else if (strcmp("remove", udev_device_get_action(dev)) == 0) { // Case when DVB Adapter is closed.
+                        event->operation = Removed;
+                    }
+                    updateTunerList(tunerId.c_str(), event->operation);
+                    eventQueue.pushEvent(event);// Sensed a Tuner Change Event....Triggering handleTunerChangedEvent.
+                    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+                }
+                printf("***Tuner***\n");
+                printf("   Node: %s\n", udev_device_get_devnode(dev));
+                printf("   Action: %s\n", udev_device_get_action(dev));
+                udev_device_unref(dev);
+            } else {
+                printf("No Device from receive_device(). An error occured.\n");
             }
         }
         usleep(250*1000);
-        printf(".");
-        fflush(stdout);
+        printf(".");fflush(stdout);
     }
     udev_unref(udev);
+#endif
+}
+
+void TvControlBackend::updateTunerList(const char* tunerId, tuner_changed_operation operation) {
+#ifdef TVCONTROL_BACKEND_LINUX_DVB
+    if (operation == Added) { // Case when DVB adapter is added.
+        TunerData *tunerData = new TunerData;
+        tunerData->tunerId.assign(tunerId);
+        TvTunerBackend* tInfo = (TvTunerBackend*) new TvTunerBackend(m_tunerCount, tunerData);
+        m_tunerList.push_back(tInfo);
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+        printf("Found and Added the Tuner:-)");
+        m_tunerCount += 1;
+    }
+    else if (operation == Removed) { // Case when DVB Adapter is closed.
+        int position = 0;
+        /*Iterate  private tuner list and get the particular tuner info  */
+        for (auto& element : m_tunerList) {
+            printf("Id of this tuner %s \n", element->m_tunerData->tunerId.c_str());
+            printf("Id of required tuner %s \n", tunerId);
+            printf(" \n");
+
+            if (strncmp(element->m_tunerData->tunerId.c_str(), tunerId, element->m_tunerData->tunerId.length()) == 0) {
+                m_tunerList.erase(m_tunerList.begin() + position);
+                printf("Found and deleted the Tuner:-))");
+                break;
+            }
+            position++;
+        }
+    }
 #endif
 }
 

@@ -7,27 +7,19 @@
 #include "JSDOMPromise.h"
 #include "JSTVChannel.h"
 #include "TVChannel.h"
-#include "ActiveDOMObject.h"
-#include "TVScanningStateChangedEvent.h"
-#include "EventNames.h"
 
 namespace WebCore {
 
 class TVTuner;
-class Document;
-class Frame;
-class ScriptExecutionContext;
 
-class TVSource : public RefCounted<TVSource>, public PlatformTVSourceClient, public ActiveDOMObject, public EventTargetWithInlineData {
+class TVSource : public RefCounted<TVSource>, public PlatformTVSourceClient, public EventTargetWithInlineData {
 public:
 
     struct StartScanningOptions {
         bool isRescanned;
     };
 
-    static Ref<TVSource> create (ScriptExecutionContext*, RefPtr<PlatformTVSource>, TVTuner*);
-    Document* document() const;
-    WEBCORE_EXPORT Frame* frame() const;
+    static Ref<TVSource> create (RefPtr<PlatformTVSource>, TVTuner*);
     virtual ~TVSource () { }
 
     enum class Type { DvbT, DvbT2, DvbC, DvbC2, DvbS, DvbS2, DvbH, DvbSh, Atsc, AtscMH, IsdbT, IsdbTb, IsdbS, IsdbC, _1seg, Dtmb, Cmmb, TDmb, SDmb };
@@ -39,7 +31,6 @@ public:
     void setCurrentChannel (const String& channelNumber, TVPromise&&);
     void startScanning (const StartScanningOptions&, TVPromise&&);
     void stopScanning(TVPromise&&);
-    void dispatchScanningStateChangedEvent(uint16_t state);
 
     TVTuner*                        tuner () const { return m_parentTVTuner; }
     Type                            type () const { return ((Type)m_platformTVSource->type()); }
@@ -50,7 +41,7 @@ public:
     using RefCounted<TVSource>::deref;
 
 private:
-    explicit TVSource (ScriptExecutionContext*, RefPtr<PlatformTVSource>,  TVTuner*);
+    explicit TVSource (RefPtr<PlatformTVSource>,  TVTuner*);
     RefPtr<PlatformTVSource>   m_platformTVSource;
     TVTuner*                   m_parentTVTuner;
 
@@ -65,9 +56,7 @@ private:
     void derefEventTarget() override { deref(); }
 
     EventTargetInterface eventTargetInterface() const override { return TVSourceEventTargetInterfaceType; }
-    virtual const char* activeDOMObjectName() const override  { return 0; }
-    virtual bool canSuspendForDocumentSuspension() const override {return false;}
-    ScriptExecutionContext* scriptExecutionContext() const override;
+    ScriptExecutionContext* scriptExecutionContext() const override { return nullptr; }
 };
 typedef Vector<RefPtr<TVSource>> TVSourceVector;
 } // namespace WebCore

@@ -21,13 +21,13 @@ PlatformTVManager::PlatformTVManager(PlatformTVManagerClient* client)
         // handle_tuner_event
         [](void* data, wpe_tvcontrol_event* event)
         {
-            callOnMainThread([data, event] {
+            String tunerId(event->tuner_id.data, event->tuner_id.length);
+            printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+            uint16_t operation = event->operation;
+            PlatformTVManager* tvManager = reinterpret_cast<PlatformTVManager*>(data);
+            callOnMainThread([tvManager, tunerId, operation] {
                printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-               printf("\nEvent = %d", (int)event->operation);
-               auto& tvManager = *reinterpret_cast<PlatformTVManager*>(data);
-               String tmpId(event->tuner_id.data, event->tuner_id.length);
-               tvManager.updateTunerList(tmpId, event->operation);
-               tvManager.m_platformTVManagerClient->didTunerOperationChanged(tmpId, (uint16_t)event->operation);
+               tvManager->m_platformTVManagerClient->didTunerOperationChanged(tunerId, operation);
             });
         },
         // handle current source changed event
@@ -65,32 +65,22 @@ PlatformTVManager::~PlatformTVManager()
     delete m_tvBackend;
 }
 
-const Vector<RefPtr<PlatformTVTuner>>& PlatformTVManager::getTuners()
+void PlatformTVManager::getTuners(Vector<RefPtr<PlatformTVTuner>>& tunerVector)
 {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    if (!m_tunerListIsInitialized) {
-        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-        ASSERT(m_tunerList.isEmpty());
 
-        struct wpe_tvcontrol_string_vector tunerList;
-        tunerList.length = 0;
-        wpe_tvcontrol_backend_get_tuner_list(m_tvBackend->m_backend, &tunerList);
+    struct wpe_tvcontrol_string_vector tunerList;
+    tunerList.length = 0;
+    wpe_tvcontrol_backend_get_tuner_list(m_tvBackend->m_backend, &tunerList);
 
-        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-        if (tunerList.length) {
-            for(uint64_t i = 0; i < tunerList.length; i++) {
-                String tmpId(tunerList.strings[i].data, tunerList.strings[i].length);
-                m_tunerList.append(PlatformTVTuner::create(tmpId, m_tvBackend));
-            }
-            m_tunerListIsInitialized = true;
+    if (tunerList.length) {
+        for(uint64_t i = 0; i < tunerList.length; i++) {
+            String tunerId(tunerList.strings[i].data, tunerList.strings[i].length);
+            tunerVector.append(PlatformTVTuner::create(tunerId, m_tvBackend));
         }
     }
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    return m_tunerList;
-}
-
-void PlatformTVManager::updateTunerList(String tunerId, uint16_t event) {
-   // Add logic to update TunerList
+    return;
 }
 
 } // namespace WebCore

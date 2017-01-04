@@ -6,7 +6,7 @@
 namespace WebCore {
 
 Ref<TVCurrentSourceChangedEvent> TVCurrentSourceChangedEvent::create (const AtomicString& type, RefPtr<TVSource> source) {
-   return adoptRef(*new TVCurrentSourceChangedEvent (type, source));
+    return adoptRef(*new TVCurrentSourceChangedEvent (type, source));
 }
 
 TVCurrentSourceChangedEvent::TVCurrentSourceChangedEvent (const AtomicString& type, RefPtr<TVSource> source)

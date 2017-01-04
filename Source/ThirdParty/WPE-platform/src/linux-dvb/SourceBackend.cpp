@@ -82,7 +82,7 @@ void SourceBackend::processPMT(int pmtFd, std::map<int, int>& streamInfo)
 
 tvcontrol_return SourceBackend::stopScanning() {
     /* */
-    return TVConstrolSuccess;
+    return TVControlSuccess;
 }
 
 ChannelBackend* SourceBackend::getChannelByLCN(uint64_t channelNo) {
@@ -138,7 +138,7 @@ void SourceBackend::startPlayBack(int frequency, uint64_t modulation, int pmtPid
 
 tvcontrol_return SourceBackend::setCurrentChannel(uint64_t channelNo) {
     tvcontrol_return ret = TVControlFailed;
-    rintf("\nTune to Channel %" PRIu64 "\n",channelNo);
+    printf("\nTune to Channel %" PRIu64 "\n",channelNo);
     ChannelBackend* channel = getChannelByLCN(channelNo);
     if (channel) {
         kill(m_pid, SIGTERM);
@@ -152,7 +152,7 @@ tvcontrol_return SourceBackend::setCurrentChannel(uint64_t channelNo) {
                 mpegScan(programNumber, streamInfo);
                 dvbfe_close(feHandle);
                 if (!streamInfo.empty()) {
-                    ret = TVConstrolSuccess;
+                    ret = TVControlSuccess;
                     int pmtPid = streamInfo[0];
                     int videoPid = 0;
                     int audioPid = 0;
@@ -199,7 +199,7 @@ tvcontrol_return SourceBackend::getChannels(wpe_tvcontrol_channel_vector* channe
             channelVector->channels[i].number = channel->getLCN();
             i++; 
         }
-        ret = TVConstrolSuccess;
+        ret = TVControlSuccess;
     }
     else {
         channelVector->channels = NULL;
@@ -316,7 +316,7 @@ tvcontrol_return SourceBackend::atscScan(int frequency, uint64_t modulation) {
                 if (processTVCT(pollFd.fd, frequency) ) {
                     flag = false;
                     dvbdemux_stop(pollFd.fd);
-                    ret = TVConstrolSuccess;
+                    ret = TVControlSuccess;
                 }
                 else {
                     fprintf(stderr, "%s(): error calling parse_stt()\n", __FUNCTION__);
