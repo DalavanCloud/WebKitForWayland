@@ -20,16 +20,16 @@ struct TvControlBackend {
 public:
     EventQueue<wpe_tvcontrol_event* > eventQueue;
     TvControlBackend(struct wpe_tvcontrol_backend* backend);
-    virtual ~TvControlBackend();
-    void getTuners(struct wpe_tvcontrol_string_vector*);
-    void getSupportedSourceTypesList(const char*, struct wpe_tvcontrol_src_types_vector*);
-    void getSourceList(const char*, struct wpe_tvcontrol_src_types_vector*);
-    void getSignalStrength(const char*, double* signalStrength);
-    void startScanning(const char*, SourceType);
-    void stopScanning(const char*);
-    void setCurrentChannel(const char*, SourceType, uint64_t);
-    void getChannels(const char*, SourceType, struct wpe_tvcontrol_channel_vector*);
-    void setCurrentSource(const char*, SourceType);
+    virtual          ~TvControlBackend();
+    tvcontrol_return getTuners(struct wpe_tvcontrol_string_vector*);
+    void             getSupportedSourceTypesList(const char*, struct wpe_tvcontrol_src_types_vector*);
+    tvcontrol_return getSourceList(const char*, struct wpe_tvcontrol_src_types_vector*);
+    void             getSignalStrength(const char*, double* signalStrength);
+    tvcontrol_return startScanning(const char*, SourceType);
+    tvcontrol_return stopScanning(const char*);
+    tvcontrol_return setCurrentChannel(const char*, SourceType, uint64_t);
+    tvcontrol_return getChannels(const char*, SourceType, struct wpe_tvcontrol_channel_vector*);
+    tvcontrol_return setCurrentSource(const char*, SourceType);
 
 private:
     struct wpe_tvcontrol_backend* m_backend;
@@ -73,7 +73,7 @@ TvControlBackend::~TvControlBackend () {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     int i ;
     /*Clear tuner id list*/
-    for(i = 0; i < m_tunerCount; i++){
+    for (i = 0; i < m_tunerCount; i++){
         free(m_strPtr[i].data);
         m_strPtr[i].data = NULL;
     }
@@ -97,23 +97,23 @@ void TvControlBackend::eventProcessor () {
     while (m_isEventProcessing) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         wpe_tvcontrol_event* event = eventQueue.getEvents();
-        if(!event)
+        if (!event)
             continue;
         switch (event->eventID) {
-            case TUNER_CHANGED:
-                handleTunerChangedEvent(event);
-                break;
-            case SOURCE_CHANGED:
-                handleSourceChangedEvent(event);
-                break;
-            case CHANNEL_CHANGED:
-                handleChannelChangedEvent(event);
-                break;
-            case SCANNING_CHANGED:
-                handleScanningStateChangedEvent(event);
-                break;
-            default:
-                printf("Unknown Event\n");
+        case TunerChanged:
+            handleTunerChangedEvent(event);
+            break;
+        case SourceChanged:
+            handleSourceChangedEvent(event);
+            break;
+        case ChannelChanged:
+            handleChannelChangedEvent(event);
+            break;
+        case ScanningChanged:
+            handleScanningStateChangedEvent(event);
+            break;
+        default:
+            printf("Unknown Event\n");
         }
         free(event);
     }
@@ -188,12 +188,13 @@ void TvControlBackend::handleScanningStateChangedEvent(struct wpe_tvcontrol_even
     wpe_tvcontrol_backend_dispatch_scanning_state_event(m_backend, event);
 }
 
-void TvControlBackend::getTuners(struct wpe_tvcontrol_string_vector* outTunerList) {
+tvcontrol_return TvControlBackend::getTuners(struct wpe_tvcontrol_string_vector* outTunerList) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     int i = 0;
-
+    tvcontrol_return ret = TVControlFailed;
     if (!m_strPtr && m_tunerCount) {
         /*Create an array of  tuner id struct */
+        ret = TVControlSuccess;
         m_strPtr = (wpe_tvcontrol_string * )new wpe_tvcontrol_string[m_tunerCount];
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
         /*Iterate  private tuner list and update the created array  */
@@ -218,9 +219,10 @@ void TvControlBackend::getTuners(struct wpe_tvcontrol_string_vector* outTunerLis
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     printf("Number of tuners = ");
     printf("%" PRIu64 "\n", outTunerList->length);
-    for(i = 0; i < outTunerList->length; i++)
+    for (i = 0; i < outTunerList->length; i++)
         printf("%d th tuner id  = %s \n ", (i+1), outTunerList->strings[i].data);
 #endif
+    return ret;
 }
 
 void TvControlBackend::getSupportedSourceTypesList(const char* tunerId,
@@ -254,16 +256,18 @@ void TvControlBackend::getTunner(const char* tunerId, TvTunerBackend** tuner) {
 }
 #endif
 
-void TvControlBackend::getSourceList(const char* tunerId, struct wpe_tvcontrol_src_types_vector* outSourceList) {
+tvcontrol_return TvControlBackend::getSourceList(const char* tunerId, struct wpe_tvcontrol_src_types_vector* outSourceList) {
+    tvcontrol_return ret = TVControlFailed;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     /* Get the tuner instance*/
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
     TvTunerBackend* curTuner;
     getTunner(tunerId, &curTuner);
     /* Invoke get available source type list of the particular tuner and get the data */
-    curTuner->getSupportedSrcTypeList(outSourceList);
+    ret = curTuner->getSupportedSrcTypeList(outSourceList);
 #endif
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    return ret;
 }
 
 void TvControlBackend::getSignalStrength(const char* tunerId, double* signalStrength) {
@@ -277,60 +281,70 @@ void TvControlBackend::getSignalStrength(const char* tunerId, double* signalStre
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
-void TvControlBackend::startScanning(const char* tunerId, SourceType type) {
+tvcontrol_return TvControlBackend::startScanning(const char* tunerId, SourceType type) {
+    tvcontrol_return ret = TVControlFailed;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
     TvTunerBackend* tuner;
     //getTuner from the Tuner List
     getTunner(tunerId, &tuner);
     tuner->setSrcType(type);
-    tuner->startScanning();
+    ret = tuner->startScanning();
 #endif
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    return ret;
 }
 
-void TvControlBackend::stopScanning(const char* tunerId) {
+tvcontrol_return TvControlBackend::stopScanning(const char* tunerId) {
+    tvcontrol_return ret = TVControlFailed;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
     TvTunerBackend* tuner;
     //getTuner from the Tuner List
     getTunner(tunerId, &tuner);
-    tuner->stopScanning();
+    ret = tuner->stopScanning();
 #endif
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    return ret;
 }
 
-void TvControlBackend::setCurrentChannel(const char* tunerId, SourceType type, uint64_t channelNumber) {
+tvcontrol_return TvControlBackend::setCurrentChannel(const char* tunerId, SourceType type, uint64_t channelNumber) {
+    tvcontrol_return ret = TVControlFailed;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
     TvTunerBackend* tuner;
     //getTuner from the Tuner List
     getTunner(tunerId, &tuner);
-    tuner->setCurrentChannel(type, channelNumber);
+    ret = tuner->setCurrentChannel(type, channelNumber);
 #endif
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    return ret;
 }
 
-void TvControlBackend::getChannels(const char* tunerId, SourceType type, struct wpe_tvcontrol_channel_vector* channelVector) {
+tvcontrol_return TvControlBackend::getChannels(const char* tunerId, SourceType type, struct wpe_tvcontrol_channel_vector* channelVector) {
+    tvcontrol_return ret = TVControlFailed;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
     TvTunerBackend* tuner;
     //getTuner from the Tuner List
     getTunner(tunerId, &tuner);
-    tuner->getChannels(type, channelVector);
+    ret = tuner->getChannels(type, channelVector);
 #endif
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    return ret;
 }
 
-void TvControlBackend::setCurrentSource(const char* tunerId, SourceType sType) {
+tvcontrol_return TvControlBackend::setCurrentSource(const char* tunerId, SourceType sType) {
+    tvcontrol_return ret = TVControlFailed;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
     TvTunerBackend* tuner;
     //getTuner from the Tuner List
     getTunner(tunerId, &tuner);
-    tuner->setCurrentSource(sType);
+    ret = tuner->setCurrentSource(sType);
 #endif
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    return ret;
 }
 
 /* TunerChangedListener waits for the addition/removal of Tuner and triggers the event*/
@@ -409,7 +423,7 @@ void TvControlBackend::TunerChangedListener() {
                int i, j;
                printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
                struct wpe_tvcontrol_event* event = reinterpret_cast<struct wpe_tvcontrol_event*>(malloc(sizeof(struct wpe_tvcontrol_event)));
-               event->eventID = TUNER_CHANGED;
+               event->eventID = TunerChanged;
                fpath = udev_device_get_devnode(dev);
                // The data from udev is in string format. So.converting the operation into the appropriate data type.
                if (strcmp("add", udev_device_get_action(dev)) == 0) { // Case when DVB adapter is added.
@@ -467,11 +481,13 @@ struct wpe_tvcontrol_backend_interface bcm_rpi_tvcontrol_backend_interface = {
         delete backend;
     },
     // get_tuner_list
-    [](void* data, struct wpe_tvcontrol_string_vector* out_tuner_list)
+    [](void* data, struct wpe_tvcontrol_string_vector* out_tuner_list) -> tvcontrol_return
     {
+        tvcontrol_return ret = TVControlFailed;
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
-        backend.getTuners(out_tuner_list);
+        ret = backend.getTuners(out_tuner_list);
+        return ret;
     }, 
     // get_supported_source_types_list
     [](void* data, const char* tuner_id, struct wpe_tvcontrol_src_types_vector* out_source_types_list)
@@ -481,11 +497,13 @@ struct wpe_tvcontrol_backend_interface bcm_rpi_tvcontrol_backend_interface = {
         backend.getSupportedSourceTypesList(tuner_id, out_source_types_list);
     },
     // get_source_list
-    [](void* data, const char* tuner_id, struct wpe_tvcontrol_src_types_vector* out_source_list)
+    [](void* data, const char* tuner_id, struct wpe_tvcontrol_src_types_vector* out_source_list) -> tvcontrol_return
     {
+        tvcontrol_return ret = TVControlFailed;
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
-        backend.getSourceList(tuner_id, out_source_list);
+        ret = backend.getSourceList(tuner_id, out_source_list);
+        return ret;
     },
     // get_signal_strength
     [](void* data, const char* tuner_id, double* out_signal_strength)
@@ -495,39 +513,49 @@ struct wpe_tvcontrol_backend_interface bcm_rpi_tvcontrol_backend_interface = {
         backend.getSignalStrength(tuner_id, out_signal_strength);
     },
     // start_scanning
-    [](void* data, const char* tuner_id, SourceType type)
+    [](void* data, const char* tuner_id, SourceType type) -> tvcontrol_return
     {
+        tvcontrol_return ret = TVControlFailed;
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
-        backend.startScanning(tuner_id, type);
+        ret = backend.startScanning(tuner_id, type);
+        return ret;
     },
     // stop_scanning
-    [](void* data, const char* tuner_id)
+    [](void* data, const char* tuner_id) -> tvcontrol_return
     {
+        tvcontrol_return ret = TVControlFailed;
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
-        backend.stopScanning(tuner_id);
+        ret = backend.stopScanning(tuner_id);
+        return ret;
     },
     // set_current_channel
-    [](void* data, const char* tuner_id, SourceType type, uint64_t channel_number)
+    [](void* data, const char* tuner_id, SourceType type, uint64_t channel_number) -> tvcontrol_return
     {
+        tvcontrol_return ret = TVControlFailed;
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
-        backend.setCurrentChannel(tuner_id, type, channel_number);
+        ret = backend.setCurrentChannel(tuner_id, type, channel_number);
+        return ret;
     },
     // get_channel_list
-    [](void* data, const char* tuner_id, SourceType type, struct wpe_tvcontrol_channel_vector* out_channel_list)
+    [](void* data, const char* tuner_id, SourceType type, struct wpe_tvcontrol_channel_vector* out_channel_list) -> tvcontrol_return
     {
+        tvcontrol_return ret = TVControlFailed;
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
-        backend.getChannels(tuner_id, type, out_channel_list);
+        ret = backend.getChannels(tuner_id, type, out_channel_list);
+        return ret;
     },
     // set current source
-    [](void* data, const char* tuner_id, SourceType type)
+    [](void* data, const char* tuner_id, SourceType type) -> tvcontrol_return
     {
+        tvcontrol_return ret = TVControlFailed;
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
-        backend.setCurrentSource(tuner_id, type);
+        ret = backend.setCurrentSource(tuner_id, type);
+        return ret;
     },
 };
 

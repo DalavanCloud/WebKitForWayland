@@ -75,12 +75,13 @@ wpe_tvcontrol_backend_dispatch_scanning_state_event(struct wpe_tvcontrol_backend
 }
 
 __attribute__((visibility("default")))
-void
+tvcontrol_return
 wpe_tvcontrol_backend_get_tuner_list(struct wpe_tvcontrol_backend* backend, struct wpe_tvcontrol_string_vector* out_tuner_list)
 {
+    tvcontrol_return ret = TVControlFailed;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    backend->interface->get_tuner_list(backend->interface_data, out_tuner_list);
-    return;
+    ret = backend->interface->get_tuner_list(backend->interface_data, out_tuner_list);
+    return ret;
 }
 
 __attribute__((visibility("default")))
@@ -93,21 +94,23 @@ wpe_tvcontrol_backend_get_supported_source_types_list(struct wpe_tvcontrol_backe
 }
 
 __attribute__((visibility("default")))
-void
+tvcontrol_return
 wpe_tvcontrol_backend_get_source_list(struct wpe_tvcontrol_backend* backend, const char* tuner_id, struct wpe_tvcontrol_src_types_vector* out_source_list)
 {
+    tvcontrol_return ret = TVControlFailed;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    backend->interface->get_source_list(backend->interface_data, tuner_id, out_source_list);
-    return;
+    ret = backend->interface->get_source_list(backend->interface_data, tuner_id, out_source_list);
+    return ret;
 }
 
 __attribute__((visibility("default")))
-void
+tvcontrol_return
 wpe_tvcontrol_backend_set_current_source(struct wpe_tvcontrol_backend* backend, const char* tuner_id, SourceType sType)
 {
+    tvcontrol_return ret = TVControlFailed;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    backend->interface->set_current_source(backend->interface_data, tuner_id, sType);
-    return;
+    ret = backend->interface->set_current_source(backend->interface_data, tuner_id, sType);
+    return ret;
 }
 
 __attribute__((visibility("default")))
@@ -120,37 +123,41 @@ wpe_tvcontrol_backend_get_signal_strength(struct wpe_tvcontrol_backend* backend,
 }
 
 __attribute__((visibility("default")))
-void
+tvcontrol_return
 wpe_tvcontrol_backend_start_scanning(struct wpe_tvcontrol_backend* backend, const char* tuner_id, SourceType type)
 {
+    tvcontrol_return ret = TVControlFailed;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    backend->interface->start_scanning(backend->interface_data, tuner_id, type);
-    return;
+    ret = backend->interface->start_scanning(backend->interface_data, tuner_id, type);
+    return ret;
 }
 
 __attribute__((visibility("default")))
-void
+tvcontrol_return
 wpe_tvcontrol_backend_stop_scanning(struct wpe_tvcontrol_backend* backend, const char* tuner_id)
 {
+    tvcontrol_return ret = TVControlFailed;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    backend->interface->stop_scanning(backend->interface_data, tuner_id);
-    return;
+    ret = backend->interface->stop_scanning(backend->interface_data, tuner_id);
+    return ret;
 }
 
 __attribute__((visibility("default")))
-void
+tvcontrol_return
 wpe_tvcontrol_backend_set_current_channel(struct wpe_tvcontrol_backend* backend, const char* tuner_id, SourceType type, uint64_t channel_number)
 {
+    tvcontrol_return ret = TVControlFailed;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    backend->interface->set_current_channel(backend->interface_data, tuner_id, type, channel_number);
-    return;
+    ret = backend->interface->set_current_channel(backend->interface_data, tuner_id, type, channel_number);
+    return ret;
 }
 
 __attribute__((visibility("default")))
-void
+tvcontrol_return
 wpe_tvcontrol_backend_get_channel_list(struct wpe_tvcontrol_backend* backend, const char* tuner_id, SourceType type, struct wpe_tvcontrol_channel_vector* out_channel_list)
 {
+    tvcontrol_return ret = TVControlFailed;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    backend->interface->get_channel_list(backend->interface_data, tuner_id, type, out_channel_list);
-    return;
+    ret = backend->interface->get_channel_list(backend->interface_data, tuner_id, type, out_channel_list);
+    return ret;
 }
