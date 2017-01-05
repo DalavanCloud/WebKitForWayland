@@ -403,13 +403,13 @@ int TvTunerBackend::getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector* 
     return m_supportedSysCount;
 }
 
-tvcontrol_return TvTunerBackend::startScanning() {
+tvcontrol_return TvTunerBackend::startScanning(bool isRescanned) {
     tvcontrol_return ret = TVControlFailed;
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     /* Get source corresponds to this type  */
     SourceBackend *source;
     getSource(m_sType, &source);
-    ret = source->startScanning();
+    ret = source->startScanning(isRescanned);
     return ret;
 }
 

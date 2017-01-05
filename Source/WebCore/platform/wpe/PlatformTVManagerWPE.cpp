@@ -65,14 +65,16 @@ PlatformTVManager::~PlatformTVManager()
     delete m_tvBackend;
 }
 
-void PlatformTVManager::getTuners(Vector<RefPtr<PlatformTVTuner>>& tunerVector)
+bool PlatformTVManager::getTuners(Vector<RefPtr<PlatformTVTuner>>& tunerVector)
 {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 
     struct wpe_tvcontrol_string_vector tunerList;
     tunerList.length = 0;
-    wpe_tvcontrol_backend_get_tuner_list(m_tvBackend->m_backend, &tunerList);
-
+    tvcontrol_return ret = TVControlFailed;
+    ret = wpe_tvcontrol_backend_get_tuner_list(m_tvBackend->m_backend, &tunerList);
+    if (ret == TVControlFailed || ret == TVControlNotImplemented)
+        return false;
     if (tunerList.length) {
         for(uint64_t i = 0; i < tunerList.length; i++) {
             String tunerId(tunerList.strings[i].data, tunerList.strings[i].length);
@@ -80,7 +82,7 @@ void PlatformTVManager::getTuners(Vector<RefPtr<PlatformTVTuner>>& tunerVector)
         }
     }
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    return;
+    return true;
 }
 
 } // namespace WebCore

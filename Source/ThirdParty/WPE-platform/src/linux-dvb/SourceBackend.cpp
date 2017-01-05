@@ -5,18 +5,32 @@ namespace BCMRPi {
 
 SourceBackend::SourceBackend(SourceType type, TunerData* tunerData)
     : m_sType(type)
-    , m_tunerData(tunerData) {
+    , m_tunerData(tunerData)
+    , m_isScanStopped(false)
+    , m_scanIndex(0) {
     m_adapter = stoi(m_tunerData->tunerId.substr(0, m_tunerData->tunerId.find(":")));
     m_demux = stoi(m_tunerData->tunerId.substr(m_tunerData->tunerId.find(":")+1));
 }
 
-tvcontrol_return SourceBackend::startScanning() {
+void SourceBackend::clearChannelList() {
+    while (!m_channelList.empty()) {
+        delete(m_channelList.back());
+        m_channelList.pop_back();
+    }
+}
+
+tvcontrol_return SourceBackend::startScanning(bool isRescanned) {
     tvcontrol_return ret = TVControlFailed;
     uint64_t modulation = m_tunerData->modulation;
     int length =  (m_tunerData->frequency).size();
     struct dvbfe_handle* feHandle = openFE(m_tunerData->tunerId);
+    if (isRescanned) {
+        clearChannelList();
+        m_scanIndex = 0;
+    }
     if (feHandle) {
-        for (int i = 0; i < length; i++) {
+        int i;
+        for (i = m_scanIndex; i < length; i++) {
             int frequency = m_tunerData->frequency[i];
             if (tuneToFrequency(frequency, modulation, feHandle)) {
                 switch(m_sType) {
@@ -39,7 +53,14 @@ tvcontrol_return SourceBackend::startScanning() {
                     break;
                 }
             }
+            if (m_isScanStopped) {
+                m_isScanStopped = false;
+                m_scanIndex = i + 1;
+                break;
+            }
         }
+        if (i == length)
+            m_scanIndex = 0;
         dvbfe_close(feHandle);
     }
     return ret;
@@ -81,7 +102,7 @@ void SourceBackend::processPMT(int pmtFd, std::map<int, int>& streamInfo)
 }
 
 tvcontrol_return SourceBackend::stopScanning() {
-    /* */
+    m_isScanStopped = true;
     return TVControlSuccess;
 }
 

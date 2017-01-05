@@ -26,7 +26,7 @@ public:
     SourceType getSrcType() { return m_sType; };
     void setSrcType(SourceType sType){ m_sType = sType; };
     void getSignalStrength(double*);
-    tvcontrol_return startScanning();
+    tvcontrol_return startScanning(bool isRescanned);
     tvcontrol_return stopScanning();
     tvcontrol_return getChannels(SourceType, struct wpe_tvcontrol_channel_vector*);
     tvcontrol_return setCurrentChannel(SourceType, uint64_t);

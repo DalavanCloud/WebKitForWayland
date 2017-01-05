@@ -66,7 +66,6 @@ void TVManager::getTuners(TVTunerPromise&& promise) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     if (m_tunerList.size())
     {
-        //return m_tunerList;
         promise.resolve(m_tunerList);
         return;
     }
@@ -75,7 +74,10 @@ void TVManager::getTuners(TVTunerPromise&& promise) {
 
     if (m_platformTVManager) {
         Vector<RefPtr<PlatformTVTuner>> platformTunerList;
-        m_platformTVManager->getTuners(platformTunerList);
+        if (!m_platformTVManager->getTuners(platformTunerList)) {
+            promise.reject(nullptr);
+            return;
+        }
         if (platformTunerList.size()) {
             printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
             for (auto& tuner : platformTunerList) {

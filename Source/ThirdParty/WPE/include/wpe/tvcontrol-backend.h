@@ -71,7 +71,7 @@ struct wpe_tvcontrol_backend_interface {
     void                (*get_supported_source_types_list)(void*, const char*, struct wpe_tvcontrol_src_types_vector*);
     tvcontrol_return    (*get_source_list)(void*, const char*, struct wpe_tvcontrol_src_types_vector*);
     void                (*get_signal_strength)(void*, const char*, double*);
-    tvcontrol_return    (*start_scanning)(void*, const char*, SourceType);
+    tvcontrol_return    (*start_scanning)(void*, const char*, SourceType, bool);
     tvcontrol_return    (*stop_scanning)(void*, const char*);
     tvcontrol_return    (*set_current_channel)(void*, const char*, SourceType, uint64_t);
     tvcontrol_return    (*get_channel_list)(void*, const char*, SourceType, struct wpe_tvcontrol_channel_vector*);
@@ -115,7 +115,7 @@ void
 wpe_tvcontrol_backend_get_signal_strength(struct wpe_tvcontrol_backend* backend, const char* tuner_id, double* out_signal_strength);
 
 tvcontrol_return
-wpe_tvcontrol_backend_start_scanning(struct wpe_tvcontrol_backend*, const char* tuner_id, SourceType type);
+wpe_tvcontrol_backend_start_scanning(struct wpe_tvcontrol_backend*, const char* tuner_id, SourceType type, bool isRescanned);
 
 tvcontrol_return
 wpe_tvcontrol_backend_stop_scanning(struct wpe_tvcontrol_backend*, const char* tuner_id);

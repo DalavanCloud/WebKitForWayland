@@ -25,7 +25,7 @@ public:
     void             getSupportedSourceTypesList(const char*, struct wpe_tvcontrol_src_types_vector*);
     tvcontrol_return getSourceList(const char*, struct wpe_tvcontrol_src_types_vector*);
     void             getSignalStrength(const char*, double* signalStrength);
-    tvcontrol_return startScanning(const char*, SourceType);
+    tvcontrol_return startScanning(const char*, SourceType, bool isRescanned);
     tvcontrol_return stopScanning(const char*);
     tvcontrol_return setCurrentChannel(const char*, SourceType, uint64_t);
     tvcontrol_return getChannels(const char*, SourceType, struct wpe_tvcontrol_channel_vector*);
@@ -280,7 +280,7 @@ void TvControlBackend::getSignalStrength(const char* tunerId, double* signalStre
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
-tvcontrol_return TvControlBackend::startScanning(const char* tunerId, SourceType type) {
+tvcontrol_return TvControlBackend::startScanning(const char* tunerId, SourceType type, bool isRescanned) {
     tvcontrol_return ret = TVControlFailed;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
@@ -288,7 +288,7 @@ tvcontrol_return TvControlBackend::startScanning(const char* tunerId, SourceType
     //getTuner from the Tuner List
     getTunner(tunerId, &tuner);
     tuner->setSrcType(type);
-    ret = tuner->startScanning();
+    ret = tuner->startScanning(isRescanned);
 #endif
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     return ret;
@@ -501,12 +501,12 @@ struct wpe_tvcontrol_backend_interface bcm_rpi_tvcontrol_backend_interface = {
         backend.getSignalStrength(tuner_id, out_signal_strength);
     },
     // start_scanning
-    [](void* data, const char* tuner_id, SourceType type) -> tvcontrol_return
+    [](void* data, const char* tuner_id, SourceType type, bool isRescanned) -> tvcontrol_return
     {
         tvcontrol_return ret = TVControlFailed;
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         auto& backend = *static_cast<BCMRPi::TvControlBackend*>(data);
-        ret = backend.startScanning(tuner_id, type);
+        ret = backend.startScanning(tuner_id, type, isRescanned);
         return ret;
     },
     // stop_scanning

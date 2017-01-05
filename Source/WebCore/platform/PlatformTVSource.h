@@ -23,11 +23,11 @@ public:
     static RefPtr<PlatformTVSource> create(PlatformTVControlBackend*, String, Type);
     virtual ~PlatformTVSource();
 
-    const Vector<RefPtr<PlatformTVChannel>>&   getChannels ();
-    RefPtr<PlatformTVChannel>                  setCurrentChannel (const String& channelNumber);
-    void                                       startScanning (bool scanningOption);
-    void                                       stopScanning ();
-    void                                       setSourceClient (PlatformTVSourceClient* client);
+    bool getChannels(Vector<RefPtr<PlatformTVChannel>>& channelVector);
+    bool setCurrentChannel (const String& channelNumber);
+    bool startScanning (bool scanningOption);
+    bool stopScanning ();
+    void setSourceClient (PlatformTVSourceClient* client);
 
     Type                                       type () const { return m_type; }
 
@@ -35,12 +35,8 @@ private:
     PlatformTVSource (PlatformTVControlBackend*, String, Type);
     String                      m_tunerId;
     Type                        m_type;
-    RefPtr<PlatformTVChannel>   m_currentChannel;
     PlatformTVControlBackend*   m_tvBackend;
     PlatformTVSourceClient*     m_platformTVSourceClient;
-
-    Vector<RefPtr<PlatformTVChannel>> m_channelList;
-    bool m_channelListIsInitialized;
 };
 
 } // namespace WebCore

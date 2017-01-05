@@ -32,10 +32,17 @@ void TVSource::getChannels(TVChannelPromise&& promise) {
     }
 
     if (m_platformTVSource) {
-        for (auto& channel : m_platformTVSource->getChannels())
-            m_channelList.append(TVChannel::create(channel, this));
-        promise.resolve(m_channelList);
-        return;
+        Vector<RefPtr<PlatformTVChannel>> channelVector;
+        if (!m_platformTVSource->getChannels(channelVector)){
+            promise.reject(nullptr);
+            return;
+        }
+        if (channelVector.size()) {
+            for (auto& channel : channelVector)
+                m_channelList.append(TVChannel::create(channel, this));
+            promise.resolve(m_channelList);
+            return;
+        }
     }
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     promise.reject(nullptr);
@@ -48,11 +55,11 @@ void TVSource::setCurrentChannel (const String& channelNumber, TVPromise&& promi
         return;
     }
     if (m_platformTVSource) {
-         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-         if (m_platformTVSource->setCurrentChannel(channelNumber)) {
-             promise.resolve(nullptr);
-             return;
-         }
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+        if (m_platformTVSource->setCurrentChannel(channelNumber)) {
+            promise.resolve(nullptr);
+            return;
+        }
     }
     promise.reject(nullptr);
 }
@@ -68,12 +75,14 @@ void TVSource::startScanning (const StartScanningOptions& scanningOptions, TVPro
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         m_scanState = SCANNING_STARTED;
         m_isScanning = true;
-        m_platformTVSource->startScanning(scanningOptions.isRescanned);
+        if (m_platformTVSource->startScanning(scanningOptions.isRescanned)) {
+            m_scanState = SCANNING_COMPLETED;
+            m_isScanning = false;
+            promise.resolve(nullptr);
+            printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+            return;
+        }
         m_scanState = SCANNING_COMPLETED;
-        m_isScanning = false;
-        promise.resolve(nullptr);
-        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-        return;
     }
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     promise.reject(nullptr);
@@ -84,9 +93,11 @@ void TVSource::stopScanning (TVPromise&& promise) {
     if (m_platformTVSource) {
         if (SCANNING_COMPLETED != m_scanState) { //scanning is already finished
             printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-            m_platformTVSource->stopScanning();
-            m_scanState = SCANNING_COMPLETED;
-            promise.resolve(nullptr);
+            if (m_platformTVSource->stopScanning()) {
+                m_scanState = SCANNING_COMPLETED;
+                promise.resolve(nullptr);
+                return;
+            }
         }
     }
     promise.reject(nullptr);

@@ -30,7 +30,7 @@ public:
     SourceBackend(SourceType, TunerData*);
     virtual ~SourceBackend() {}
 
-    tvcontrol_return startScanning();
+    tvcontrol_return startScanning(bool isRescanned);
     tvcontrol_return stopScanning();
     tvcontrol_return setCurrentChannel(uint64_t channelNo);
     tvcontrol_return getChannels(wpe_tvcontrol_channel_vector* channelVector);
@@ -50,12 +50,15 @@ private:
     bool processPAT(int patFd, int programNumber, struct pollfd *pollfd, std::map<int, int>& streamInfo);
     void processPMT(int pmtFd, std::map<int, int>& streamInfo);
     int  createSectionFilter(uint16_t pid, uint8_t tableId);
+    void clearChannelList();
 
     std::vector<ChannelBackend*> m_channelList;
     SourceType    m_sType;
     TunerData*    m_tunerData;
     int           m_adapter;
     int           m_demux;
+    int           m_scanIndex;
+    bool          m_isScanStopped;
     pid_t         m_pid;
 };
 
