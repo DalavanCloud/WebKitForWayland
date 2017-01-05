@@ -64,9 +64,9 @@ TvControlBackend::TvControlBackend (struct wpe_tvcontrol_backend* backend)
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     m_isEventProcessing = true;
     m_isRunning = true;
-    m_eventThread = thread(&TvControlBackend::eventProcessor, this);
-    m_tunerThread = thread(&TvControlBackend::TunerChangedListener, this);
     initializeTuners();
+    m_eventThread = thread(&TvControlBackend::eventProcessor, this);
+    //m_tunerThread = thread(&TvControlBackend::TunerChangedListener, this);
 }
 
 TvControlBackend::~TvControlBackend () {
