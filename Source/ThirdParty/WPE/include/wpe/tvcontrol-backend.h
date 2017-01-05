@@ -10,6 +10,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef enum { Added, Removed } tuner_changed_operation;
 typedef enum { Cleared, Scanned, Completed, Stopped } scanning_state;
