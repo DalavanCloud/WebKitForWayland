@@ -18,6 +18,7 @@ list(APPEND WPE_PLATFORM_SOURCES
 if (USE_WPE_TVCONTROL_BACKEND_BCM)
 list(APPEND WPE_PLATFORM_SOURCES
     src/bcm-nexus/tvcontrol-backend.cpp
+    src/bcm-nexus/BcmTVManager.cpp
 )
 endif()
 
