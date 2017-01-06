@@ -108,6 +108,11 @@ if (USE_WPE_TVCONTROL_BACKEND_LINUX_DVB)
         "${WPE_PLATFORM_SOURCE_DIR}/src/linux-dvb"
         ${LINUX_DVB_INCLUDE_DIRS}
     )
+    if (USE_WPE_BACKEND_BCM_RPI)
+        list(APPEND WPE_PLATFORM_INCLUDE_DIRECTORIES
+             "${WPE_PLATFORM_SOURCE_DIR}/src/bcm-rpi"
+        )
+    endif()
     list(APPEND WPE_PLATFORM_LIBRARIES
         ${LINUX_DVB_LIBRARIES}
     )
