@@ -5,11 +5,11 @@
 
 namespace WebCore {
 
-Ref<TVScanningStateChangedEvent> TVScanningStateChangedEvent::create (const AtomicString& type, TVScanningStateChangedEvent::State state, TVChannel* channel) {
+Ref<TVScanningStateChangedEvent> TVScanningStateChangedEvent::create (const AtomicString& type, TVScanningStateChangedEvent::State state, RefPtr<TVChannel> channel) {
     return adoptRef(*new TVScanningStateChangedEvent (type, state, channel));
 }
 
-TVScanningStateChangedEvent::TVScanningStateChangedEvent (const AtomicString& type, TVScanningStateChangedEvent::State state, TVChannel* channel)
+TVScanningStateChangedEvent::TVScanningStateChangedEvent (const AtomicString& type, TVScanningStateChangedEvent::State state, RefPtr<TVChannel> channel)
     : Event(type, false, false)
     , m_state(state)
     , m_channel(channel) {

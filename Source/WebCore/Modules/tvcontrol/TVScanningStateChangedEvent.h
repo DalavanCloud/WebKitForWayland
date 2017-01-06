@@ -4,6 +4,7 @@
 #if ENABLE(TV_CONTROL)
 
 #include "Event.h"
+#include "JSTVChannel.h"
 
 namespace WebCore {
 
@@ -19,18 +20,18 @@ public:
         Stopped
     };
 
-    static Ref<TVScanningStateChangedEvent> create (const AtomicString&, State, TVChannel*);
+    static Ref<TVScanningStateChangedEvent> create (const AtomicString&, State, RefPtr<TVChannel>);
     ~TVScanningStateChangedEvent ();
 
     State        state () const { return m_state; }
-    TVChannel*   channel () const { return m_channel; }
+    RefPtr<TVChannel>   channel () const { return m_channel; }
     virtual EventInterface eventInterface() const { return TVScanningStateChangedEventInterfaceType; }
 
 private:
-    TVScanningStateChangedEvent (const AtomicString&, State, TVChannel*);
+    TVScanningStateChangedEvent (const AtomicString&, State, RefPtr<TVChannel>);
 
     State m_state;
-    TVChannel* m_channel;
+    RefPtr<TVChannel> m_channel;
 };
 
 } // namespace WebCore

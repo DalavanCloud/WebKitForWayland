@@ -47,19 +47,34 @@ void TVManager::didTunerOperationChanged (String tunerId, uint16_t event) {
     dispatchEvent(TVTunerChangedEvent::create(eventNames().tunerchangedEvent, tunerId, (TVTunerChangedEvent::Operation)event));
 }
 
-void TVManager::didCurrentSourceChanged(String tunerId, String sourceId) {
-    //Implement logic to identify corresponding tuner instance and source instance
-    //Create event using idenified instance details
+void TVManager::didCurrentSourceChanged(String tunerId) {
+    printf("\n%s:%s:%d\n TUNER ID = %s", __FILE__, __func__, __LINE__, tunerId.utf8().data());
+
+    /*Identify tuner */
+    for (auto& tuner : m_tunerList) {
+        if (equalIgnoringASCIICase(tunerId, tuner->id()) == 1) {
+            tuner->dispatchSourceChangedEvent();
+            break;
+        }
+    }
 }
 
-void TVManager::didCurrentChannelChanged(String tunerId, String sourceId, String channelId) {
+void TVManager::didCurrentChannelChanged(String tunerId) {
     //Implement logic to identify corresponding tuner instance, source instance and channel instance
     //Create event using idenified instance details
 }
 
-void TVManager::didScanningStateChanged(String tunerId, String sourceId, String channelId, uint16_t state) {
-    //Implement logic to identify corresponding tuner instance, source instance and channel instance
-    //Create event using idenified instance details
+void TVManager::didScanningStateChanged(String tunerId, RefPtr<PlatformTVChannel> platformTVChannel, uint16_t state) {
+
+    for (auto& tuner : m_tunerList) {
+        if (equalIgnoringASCIICase(tunerId, tuner->id()) == 1) {
+            printf("Scanning state  dispatched from Mgr = ");
+            printf("%" PRIu16 "\n", state);
+
+            tuner->currentSource()->dispatchScanningStateChangedEvent(platformTVChannel, state);
+            break;
+        }
+    }
 }
 
 void TVManager::getTuners(TVTunerPromise&& promise) {

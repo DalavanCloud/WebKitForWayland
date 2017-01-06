@@ -26,33 +26,45 @@ PlatformTVManager::PlatformTVManager(PlatformTVManagerClient* client)
             uint16_t operation = event->operation;
             PlatformTVManager* tvManager = reinterpret_cast<PlatformTVManager*>(data);
             callOnMainThread([tvManager, tunerId, operation] {
-               printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-               tvManager->m_platformTVManagerClient->didTunerOperationChanged(tunerId, operation);
+                printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+                tvManager->m_platformTVManagerClient->didTunerOperationChanged(tunerId, operation);
             });
         },
         // handle current source changed event
         [](void* data, wpe_tvcontrol_event* event)
         {
-            auto& tvManager = *reinterpret_cast<PlatformTVManager*>(data);
-            tvManager.m_platformTVManagerClient->didCurrentSourceChanged(String(event->tuner_id.data, event->tuner_id.length),
-                                                                         String(event->source_id.data, event->source_id.length));
+            String tunerId(event->tuner_id.data, event->tuner_id.length);
+            printf("\n%s:%s:%d Tuner ID Hello = %s\n", __FILE__, __func__, __LINE__,event->tuner_id.data);
+            PlatformTVManager* tvManager = reinterpret_cast<PlatformTVManager*>(data);
+            callOnMainThread([tvManager, tunerId] {
+                printf("\n%s:%s:%d Tuner ID  = %s\n", __FILE__, __func__, __LINE__,tunerId.utf8().data());
+                tvManager->m_platformTVManagerClient->didCurrentSourceChanged(tunerId);
+            });
         },
         // handle current channel changed event
         [](void* data, wpe_tvcontrol_event* event)
         {
             auto& tvManager = *reinterpret_cast<PlatformTVManager*>(data);
-            tvManager.m_platformTVManagerClient->didCurrentChannelChanged(String(event->tuner_id.data, event->tuner_id.length),
-                                                                          String(event->source_id.data, event->source_id.length),
-                                                                          String(event->channel_id.data, event->channel_id.length));
+            tvManager.m_platformTVManagerClient->didCurrentChannelChanged(String(event->tuner_id.data, event->tuner_id.length));
         },
         // handle current source changed event
         [](void* data, wpe_tvcontrol_event* event)
         {
-            auto& tvManager = *reinterpret_cast<PlatformTVManager*>(data);
-            tvManager.m_platformTVManagerClient->didScanningStateChanged(String(event->tuner_id.data, event->tuner_id.length),
-                                                                         String(event->source_id.data, event->source_id.length),
-                                                                         String(event->channel_id.data, event->channel_id.length),
-                                                                         (uint16_t)event->state);
+
+            uint16_t state = (uint16_t)event->state;
+            String tunerId(event->tuner_id.data, event->tuner_id.length);
+            PlatformTVManager* tvManager = reinterpret_cast<PlatformTVManager*>(data);
+            RefPtr<PlatformTVChannel> channel = nullptr;
+
+            if (event->channel_info) {
+                tvManager->m_tvBackend->m_channel = event->channel_info;
+                channel = PlatformTVChannel::create(tvManager->m_tvBackend, tunerId);
+            }
+            printf("\n%s:%s:%d Tuner ID  = %s\n", __FILE__, __func__, __LINE__, event->tuner_id.data);
+            callOnMainThread([tvManager, tunerId, state, channel] {
+                printf("\n%s:%s:%d Tuner ID  = %s\n", __FILE__, __func__, __LINE__, tunerId.utf8().data());
+                tvManager->m_platformTVManagerClient->didScanningStateChanged(tunerId, channel, state);
+            });
         },
 
     };

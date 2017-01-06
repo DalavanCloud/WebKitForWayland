@@ -103,6 +103,17 @@ void TVSource::stopScanning (TVPromise&& promise) {
     promise.reject(nullptr);
 }
 
+void TVSource::dispatchScanningStateChangedEvent(RefPtr<PlatformTVChannel> platformTVChannel, uint16_t state) {
+
+    RefPtr<TVChannel> channel = nullptr;
+    if (m_platformTVSource && platformTVChannel) {
+            channel = TVChannel::create(platformTVChannel, this);
+            m_channelList.append(channel);
+    }
+    dispatchEvent(TVScanningStateChangedEvent::create(eventNames().scanningstatechangedEvent,
+                                                      (TVScanningStateChangedEvent::State)state, channel));
+}
+
 } // namespace WebCore
 
 #endif // ENABLE(TV_CONTROL)

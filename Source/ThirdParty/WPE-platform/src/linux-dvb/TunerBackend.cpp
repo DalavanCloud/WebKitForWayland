@@ -15,8 +15,8 @@ TvTunerBackend::TvTunerBackend(int tunerCnt, TunerData* tunerPtr)
 
 TvTunerBackend::~TvTunerBackend() {
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
-
-    free(m_tunerData);
+    if (m_tunerData)
+        delete m_tunerData;
     m_tunerData = nullptr;
 
     m_supportedSysCount = 0;

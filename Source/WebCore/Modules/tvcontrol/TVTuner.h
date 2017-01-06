@@ -7,6 +7,9 @@
 #include "TVSource.h"
 #include "PlatformTVTuner.h"
 #include "JSDOMPromise.h"
+#include "TVCurrentSourceChangedEvent.h"
+#include "EventNames.h"
+
 //#include "TVMediaStream.h"
 
 namespace WebCore {
@@ -29,6 +32,7 @@ public:
     RefPtr<TVSource>    currentSource() const { return m_currentSource; } //TODO check again
     //TVMediaStream*    stream() const { return nullptr; } //TODO enable if it is required for basic functionalities
     double              signalStrength() const { return m_platformTVTuner->signalStrength(); }
+    void                dispatchSourceChangedEvent();
 
     using RefCounted<TVTuner>::ref;
     using RefCounted<TVTuner>::deref;

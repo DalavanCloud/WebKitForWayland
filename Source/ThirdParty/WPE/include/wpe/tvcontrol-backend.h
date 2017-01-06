@@ -33,8 +33,7 @@ struct wpe_tvcontrol_event {
     tuner_changed_operation     operation;
     scanning_state              state;
     struct wpe_tvcontrol_string tuner_id;
-    struct wpe_tvcontrol_string source_id;
-    struct wpe_tvcontrol_string channel_id;
+    struct wpe_tvcontrol_channel* channel_info;
 };
 
 struct wpe_tvcontrol_backend_manager_event_client {

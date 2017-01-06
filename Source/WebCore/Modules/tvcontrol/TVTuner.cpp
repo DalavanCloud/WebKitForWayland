@@ -89,6 +89,12 @@ void  TVTuner::setCurrentSource (TVTuner::SourceType sourceType, TVPromise&& pro
     promise.reject(nullptr);
 }
 
+void  TVTuner::dispatchSourceChangedEvent() {
+
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    dispatchEvent(TVCurrentSourceChangedEvent::create(eventNames().currentsourcechangedEvent,
+                                                      currentSource()));
+}
 } // namespace WebCore
 
 #endif // ENABLE(TV_CONTROL)

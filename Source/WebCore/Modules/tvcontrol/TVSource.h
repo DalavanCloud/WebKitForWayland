@@ -7,6 +7,8 @@
 #include "JSDOMPromise.h"
 #include "JSTVChannel.h"
 #include "TVChannel.h"
+#include "TVScanningStateChangedEvent.h"
+#include "EventNames.h"
 
 namespace WebCore {
 
@@ -31,6 +33,7 @@ public:
     void setCurrentChannel (const String& channelNumber, TVPromise&&);
     void startScanning (const StartScanningOptions&, TVPromise&&);
     void stopScanning(TVPromise&&);
+    void dispatchScanningStateChangedEvent(RefPtr<PlatformTVChannel> platformTVChannel, uint16_t state);
 
     TVTuner*                        tuner () const { return m_parentTVTuner; }
     Type                            type () const { return ((Type)m_platformTVSource->type()); }
