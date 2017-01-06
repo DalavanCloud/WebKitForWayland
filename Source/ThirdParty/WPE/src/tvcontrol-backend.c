@@ -151,13 +151,3 @@ wpe_tvcontrol_backend_set_current_channel(struct wpe_tvcontrol_backend* backend,
     ret = backend->interface->set_current_channel(backend->interface_data, tuner_id, type, channel_number);
     return ret;
 }
-
-__attribute__((visibility("default")))
-tvcontrol_return
-wpe_tvcontrol_backend_get_channel_list(struct wpe_tvcontrol_backend* backend, const char* tuner_id, SourceType type, struct wpe_tvcontrol_channel_vector* out_channel_list)
-{
-    tvcontrol_return ret = TVControlFailed;
-    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    ret = backend->interface->get_channel_list(backend->interface_data, tuner_id, type, out_channel_list);
-    return ret;
-}

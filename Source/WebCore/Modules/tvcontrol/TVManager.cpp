@@ -28,7 +28,7 @@ TVManager::~TVManager() {
 }
 void TVManager::didTunerOperationChanged (String tunerId, uint16_t event) {
     int position;
-    if ((TVTunerChangedEvent::Operation)event == Added) { // Case when DVB adapter is added.
+    if ((TVTunerChangedEvent::Operation)event == TVTunerChangedEvent::Operation::Added) { // Case when DVB adapter is added.
         m_tunerList.append(TVTuner::create(PlatformTVTuner::create(tunerId.utf8().data(), m_platformTVManager->m_tvBackend)));
         printf("Found and Added the Tuner");
     } else { // Case when DVB Adapter is closed.

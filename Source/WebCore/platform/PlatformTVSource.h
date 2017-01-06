@@ -23,7 +23,6 @@ public:
     static RefPtr<PlatformTVSource> create(PlatformTVControlBackend*, String, Type);
     virtual ~PlatformTVSource();
 
-    bool getChannels(Vector<RefPtr<PlatformTVChannel>>& channelVector);
     bool setCurrentChannel (const String& channelNumber);
     bool startScanning (bool scanningOption);
     bool stopScanning ();

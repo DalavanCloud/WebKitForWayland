@@ -3,7 +3,7 @@
 
 namespace BCMRPi {
 
-#define TVControlPushEvent(eventId, tunerId, evtState /*optional*/, channelInfo /*optional*/, tvControlBackend) \
+#define TVControlPushEvent(eventId, tunerId, evtState /*optional*/, channelInfo /*optional*/) \
 {                                                                 \
     struct wpe_tvcontrol_event* event = reinterpret_cast<struct wpe_tvcontrol_event*>(malloc(sizeof(struct wpe_tvcontrol_event))); \
     event->eventID = eventId;                                     \
@@ -19,11 +19,19 @@ namespace BCMRPi {
 SourceBackend::SourceBackend(EventQueue<wpe_tvcontrol_event*>* eventQueue, SourceType type, TunerData* tunerData)
     : m_sType(type)
     , m_tunerData(tunerData)
+    , m_isRescanned(false)
     , m_isScanStopped(false)
+    , m_isScanInProgress(false)
     , m_eventQueue(eventQueue)
     , m_scanIndex(0) {
     m_adapter = stoi(m_tunerData->tunerId.substr(0, m_tunerData->tunerId.find(":")));
     m_demux = stoi(m_tunerData->tunerId.substr(m_tunerData->tunerId.find(":")+1));
+    m_scanningThread = thread(&SourceBackend::scanningThread, this);
+}
+
+SourceBackend::~SourceBackend() {
+    m_isRunning = false;
+    m_scanningThread.join();
 }
 
 void SourceBackend::clearChannelList() {
@@ -35,53 +43,72 @@ void SourceBackend::clearChannelList() {
 
 tvcontrol_return SourceBackend::startScanning(bool isRescanned) {
     tvcontrol_return ret = TVControlFailed;
-    uint64_t modulation = m_tunerData->modulation;
-    int length =  (m_tunerData->frequency).size();
-    struct dvbfe_handle* feHandle = openFE(m_tunerData->tunerId);
-    if (isRescanned) {
-        clearChannelList();
-        TVControlPushEvent(ScanningChanged, m_tunerData->tunerId.c_str(), Cleared, nullptr, m_tvControlBackend);
-        m_scanIndex = 0;
+
+    if (m_isRunning && !m_isScanInProgress) {
+        ret = TVControlSuccess;
+        m_scanMutex.lock();
+        m_isRescanned = isRescanned;
+        m_scanCondition.notify_all();
+        m_scanMutex.unlock();
     }
-    if (feHandle) {
-        int i;
-        for (i = m_scanIndex; i < length; i++) {
-            int frequency = m_tunerData->frequency[i];
-            if (tuneToFrequency(frequency, modulation, feHandle)) {
-                switch(m_sType) {
-                case Atsc:
-                case AtscMH:
-                    ret = atscScan(frequency, modulation);
-                    break;
-                case DvbT:
-                case DvbT2:
-                case DvbC:
-                case DvbC2:
-                case DvbS:
-                case DvbS2:
-                case DvbH:
-                case DvbSh:
-                    ret = dvbScan();
-                    break;
-                default:
-                    printf("Type Not supported!!");
+    return ret;
+}
+
+void SourceBackend::scanningThread() {
+    m_isRunning = true;
+    while (m_isRunning) {
+        m_scanMutex.lock();
+        m_isScanInProgress = false;
+        m_scanCondition.wait(m_scanMutex);
+        m_isScanInProgress = true;
+        m_scanMutex.unlock();
+        uint64_t modulation = m_tunerData->modulation;
+        int length =  (m_tunerData->frequency).size();
+        struct dvbfe_handle* feHandle = openFE(m_tunerData->tunerId);
+        if (m_isRescanned) {
+            clearChannelList();
+            TVControlPushEvent(ScanningChanged, m_tunerData->tunerId.c_str(), Cleared, nullptr);
+            m_scanIndex = 0;
+        }
+        if (feHandle) {
+            int i;
+            for (i = m_scanIndex; i < length; i++) {
+                int frequency = m_tunerData->frequency[i];
+                if (tuneToFrequency(frequency, modulation, feHandle)) {
+                    switch(m_sType) {
+                    case Atsc:
+                    case AtscMH:
+                        atscScan(frequency, modulation);
+                        break;
+                    case DvbT:
+                    case DvbT2:
+                    case DvbC:
+                    case DvbC2:
+                    case DvbS:
+                    case DvbS2:
+                    case DvbH:
+                    case DvbSh:
+                        dvbScan();
+                        break;
+                    default:
+                        printf("Type Not supported!!");
+                        break;
+                    }
+                }
+                if (m_isScanStopped) {
+                    TVControlPushEvent(ScanningChanged, m_tunerData->tunerId.c_str(), Stopped, nullptr);
+                    m_isScanStopped = false;
+                    m_scanIndex = i + 1;
                     break;
                 }
             }
-            if (m_isScanStopped) {
-                TVControlPushEvent(ScanningChanged, m_tunerData->tunerId.c_str(), Stopped, nullptr, m_tvControlBackend);
-                m_isScanStopped = false;
-                m_scanIndex = i + 1;
-                break;
+            if (i == length) {
+                TVControlPushEvent(ScanningChanged, m_tunerData->tunerId.c_str(), Completed, nullptr);
+                m_scanIndex = 0;
             }
+            dvbfe_close(feHandle);
         }
-        if (i == length) {
-            TVControlPushEvent(ScanningChanged, m_tunerData->tunerId.c_str(), Completed, nullptr, m_tvControlBackend);
-            m_scanIndex = 0;
-        }
-        dvbfe_close(feHandle);
     }
-    return ret;
 }
 
 void SourceBackend::processPMT(int pmtFd, std::map<int, int>& streamInfo)
@@ -216,40 +243,8 @@ tvcontrol_return SourceBackend::setCurrentChannel(uint64_t channelNo) {
     return ret;
 }
 
-tvcontrol_return SourceBackend::getChannels(wpe_tvcontrol_channel_vector* channelVector) {
-    /*Populate channel list */
-    tvcontrol_return ret = TVControlFailed;
-    printf("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
-    if (!m_channelList.empty()) {
-        printf("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
-        channelVector->length = m_channelList.size();
-        channelVector->channels = new wpe_tvcontrol_channel[m_channelList.size()];
-        std::vector<ChannelBackend*>::iterator it;
-        int i = 0;
-        for (auto& channel : m_channelList) {
-            if (!(channel->getNetworkId()).empty())
-                channelVector->channels[i].networkId = strdup((channel->getNetworkId()).c_str());
-            if (!(channel->getName()).empty())
-                channelVector->channels[i].name = strdup((channel->getName()).c_str());
-            if (!(channel->getServiceId()).empty())
-                channelVector->channels[i].serviceId = strdup((channel->getServiceId()).c_str());
-            if (!(channel->getTransportStreamId()).empty())
-                channelVector->channels[i].transportSId = strdup((channel->getTransportStreamId()).c_str());
-            channelVector->channels[i].number = channel->getLCN();
-            i++; 
-        }
-        ret = TVControlSuccess;
-    }
-    else {
-        channelVector->channels = NULL;
-        printf("Channel list is empty .Scanning is incomplete \n");
-    }
-    return ret;
-}
-
-tvcontrol_return SourceBackend::dvbScan(){
+void SourceBackend::dvbScan(){
     /* */
-    return TVControlNotImplemented;
 }
 
 bool SourceBackend::tuneToFrequency(int frequency, uint64_t modulation, struct dvbfe_handle* feHandle){
@@ -325,17 +320,16 @@ void SourceBackend::mpegScan(int programNumber, std::map<int, int>& streamInfo){
     }
 }
 
-tvcontrol_return SourceBackend::atscScan(int frequency, uint64_t modulation) {
+void SourceBackend::atscScan(int frequency, uint64_t modulation) {
     int vctFd;
     struct pollfd pollFd;
-    tvcontrol_return ret = TVControlFailed;
     switch (modulation) {
     case DVBFE_ATSC_MOD_VSB_8:
         vctFd = createSectionFilter(PID_VCT, TABLE_VCT_TERR);
         break;
     default:
         printf("Modulation not supported!!\n");
-        return ret;
+        return;
     }
     pollFd.fd = vctFd;
     pollFd.events = POLLIN|POLLPRI|POLLERR;
@@ -355,7 +349,6 @@ tvcontrol_return SourceBackend::atscScan(int frequency, uint64_t modulation) {
                 if (processTVCT(pollFd.fd, frequency) ) {
                     flag = false;
                     dvbdemux_stop(pollFd.fd);
-                    ret = TVControlSuccess;
                 }
                 else {
                     fprintf(stderr, "%s(): error calling parse_stt()\n", __FUNCTION__);
@@ -366,7 +359,6 @@ tvcontrol_return SourceBackend::atscScan(int frequency, uint64_t modulation) {
             }
         }
     }
-    return ret;
 }
 
 int SourceBackend::createSectionFilter(uint16_t pid, uint8_t tableId) {
@@ -557,13 +549,13 @@ bool SourceBackend::processTVCT(int dmxfd, int frequency) {
             m_channelList.push_back(currInfo);
 
             printf("Sending channel Info\n"); fflush(stdout);
-            wpe_tvcontrol_channel* channelInfo = new wpe_tvcontrol_channel;
-            channelInfo->networkId  = "";
+            wpe_tvcontrol_channel* channelInfo = reinterpret_cast<struct wpe_tvcontrol_channel*>(malloc(sizeof(struct wpe_tvcontrol_channel)));
+            channelInfo->networkId  = NULL;
             channelInfo->transportSId  = strdup(to_string(ch->channel_TSID).c_str());
             channelInfo->serviceId  = strdup(to_string(ch->source_id).c_str());
             channelInfo->name  = strdup(name.c_str());
             channelInfo->number  = logicalChannelNumber;
-            TVControlPushEvent(ScanningChanged, m_tunerData->tunerId.c_str(), Scanned, channelInfo, m_tvControlBackend);
+            TVControlPushEvent(ScanningChanged, m_tunerData->tunerId.c_str(), Scanned, channelInfo);
         }
     } while(sectionPattern != (uint32_t)((1 << numSections) - 1));
 
