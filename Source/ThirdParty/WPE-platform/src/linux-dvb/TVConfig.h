@@ -17,6 +17,7 @@
 
 using namespace std;
 
+#define TUNER_ID_LEN 3
 #define TV_CONFIG_FILE  "TVConfig.txt"
 
 struct dvbfe_handle {

@@ -2,10 +2,11 @@
 
 namespace BCMRPi {
 
-TvTunerBackend::TvTunerBackend(int tunerCnt, TunerData* tunerPtr)
+TvTunerBackend::TvTunerBackend(EventQueue<wpe_tvcontrol_event*>* eventQueue, int tunerCnt, TunerData* tunerPtr)
     : m_tunerData(tunerPtr)
     , m_srcTypeListPtr(NULL)
     , m_supportedSysCount(0)
+    , m_eventQueue(eventQueue)
     , m_sType(Undifined) {
 
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
@@ -253,7 +254,7 @@ void TvTunerBackend::getSources() {
         /* Read supported type list from the private list
                        and create list of source objects */
         for (i = 0; i < m_supportedSysCount; i++) {
-            SourceBackend* sInfo = (SourceBackend* )new SourceBackend(m_srcTypeListPtr[i], m_tunerData);
+            SourceBackend* sInfo = (SourceBackend* )new SourceBackend(m_eventQueue, m_srcTypeListPtr[i], m_tunerData);
             m_sourceList.push_back(sInfo);
             printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         }

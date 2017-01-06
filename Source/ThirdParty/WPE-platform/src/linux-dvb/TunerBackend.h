@@ -17,10 +17,9 @@ using namespace std;
 typedef std::map<std::string, std::string> ConfigInfo;
 
 namespace BCMRPi {
-
 class TvTunerBackend {
 public:
-    TvTunerBackend(int, TunerData*);
+    TvTunerBackend(EventQueue<wpe_tvcontrol_event*>*, int, TunerData*);
     virtual ~TvTunerBackend();
 
     SourceType getSrcType() { return m_sType; };
@@ -43,11 +42,12 @@ private:
     ChannelList              m_channel;
 
 
-    SourceType                      m_sType;
-    SourceType*                     m_srcTypeListPtr;
-    uint64_t                        m_supportedSysCount;
-    wpe_tvcontrol_src_types_vector  m_srcList; //List of src type
-    ConfigInfo                      m_configValues;
+    SourceType                        m_sType;
+    SourceType*                       m_srcTypeListPtr;
+    uint64_t                          m_supportedSysCount;
+    wpe_tvcontrol_src_types_vector    m_srcList; //List of src type
+    ConfigInfo                        m_configValues;
+    EventQueue<wpe_tvcontrol_event*>* m_eventQueue;
 
     int baseOffset(int channel, int channelList);
     int freqStep(int channel, int channelList);

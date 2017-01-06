@@ -3,10 +3,24 @@
 
 namespace BCMRPi {
 
-SourceBackend::SourceBackend(SourceType type, TunerData* tunerData)
+#define TVControlPushEvent(eventId, tunerId, evtState /*optional*/, channelInfo /*optional*/, tvControlBackend) \
+{                                                                 \
+    struct wpe_tvcontrol_event* event = reinterpret_cast<struct wpe_tvcontrol_event*>(malloc(sizeof(struct wpe_tvcontrol_event))); \
+    event->eventID = eventId;                                     \
+    event->tuner_id.data = strndup(tunerId, TUNER_ID_LEN);        \
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);         \
+    printf("Tuner id platform  =  %s \n", event->tuner_id.data);  \
+    event->tuner_id.length = strlen(tunerId);                     \
+    event->state = evtState;                                      \
+    event->channel_info = channelInfo;                            \
+    m_eventQueue->pushEvent(event);                \
+}
+
+SourceBackend::SourceBackend(EventQueue<wpe_tvcontrol_event*>* eventQueue, SourceType type, TunerData* tunerData)
     : m_sType(type)
     , m_tunerData(tunerData)
     , m_isScanStopped(false)
+    , m_eventQueue(eventQueue)
     , m_scanIndex(0) {
     m_adapter = stoi(m_tunerData->tunerId.substr(0, m_tunerData->tunerId.find(":")));
     m_demux = stoi(m_tunerData->tunerId.substr(m_tunerData->tunerId.find(":")+1));
@@ -26,6 +40,7 @@ tvcontrol_return SourceBackend::startScanning(bool isRescanned) {
     struct dvbfe_handle* feHandle = openFE(m_tunerData->tunerId);
     if (isRescanned) {
         clearChannelList();
+        TVControlPushEvent(ScanningChanged, m_tunerData->tunerId.c_str(), Cleared, nullptr, m_tvControlBackend);
         m_scanIndex = 0;
     }
     if (feHandle) {
@@ -54,13 +69,16 @@ tvcontrol_return SourceBackend::startScanning(bool isRescanned) {
                 }
             }
             if (m_isScanStopped) {
+                TVControlPushEvent(ScanningChanged, m_tunerData->tunerId.c_str(), Stopped, nullptr, m_tvControlBackend);
                 m_isScanStopped = false;
                 m_scanIndex = i + 1;
                 break;
             }
         }
-        if (i == length)
+        if (i == length) {
+            TVControlPushEvent(ScanningChanged, m_tunerData->tunerId.c_str(), Completed, nullptr, m_tvControlBackend);
             m_scanIndex = 0;
+        }
         dvbfe_close(feHandle);
     }
     return ret;
@@ -537,6 +555,15 @@ bool SourceBackend::processTVCT(int dmxfd, int frequency) {
             printf("Extended name : %s\n",name.c_str());
             currInfo->setName(name);
             m_channelList.push_back(currInfo);
+
+            printf("Sending channel Info\n"); fflush(stdout);
+            wpe_tvcontrol_channel* channelInfo = new wpe_tvcontrol_channel;
+            channelInfo->networkId  = "";
+            channelInfo->transportSId  = strdup(to_string(ch->channel_TSID).c_str());
+            channelInfo->serviceId  = strdup(to_string(ch->source_id).c_str());
+            channelInfo->name  = strdup(name.c_str());
+            channelInfo->number  = logicalChannelNumber;
+            TVControlPushEvent(ScanningChanged, m_tunerData->tunerId.c_str(), Scanned, channelInfo, m_tvControlBackend);
         }
     } while(sectionPattern != (uint32_t)((1 << numSections) - 1));
 

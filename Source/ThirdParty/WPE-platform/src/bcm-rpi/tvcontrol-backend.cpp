@@ -15,25 +15,24 @@
 #define TV_DEBUG 1
 using namespace std;
 
-#define TVControlPushEvent( eventId, tunerId, evtOperation/*optional*/, evtState /*optional*/, channelInfo /*optional*/) \
-{                                                           \
+#define TVControlPushEvent( eventId, tunerId, evtOperation/*optional*/) \
+{                                                                \
     struct wpe_tvcontrol_event* event = reinterpret_cast<struct wpe_tvcontrol_event*>(malloc(sizeof(struct wpe_tvcontrol_event))); \
-    event->eventID = eventId;                               \
-    event->tuner_id.data = strndup(tunerId, TUNER_ID_LEN);  \
-    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);    \
+    event->eventID = eventId;                                    \
+    event->tuner_id.data = strndup(tunerId, TUNER_ID_LEN);       \
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);        \
     printf("Tuner id platform  =  %s \n", event->tuner_id.data); \
-    event->tuner_id.length = strlen(tunerId);               \
-    event->operation  = evtOperation;                           \
-    event->state = evtState;                                \
-    event->channel_info = channelInfo;                      \
-    eventQueue.pushEvent(event);                            \
+    event->tuner_id.length = strlen(tunerId);                    \
+    event->operation  = evtOperation;                            \
+    m_eventQueue.pushEvent(event);                               \
 }
 
 namespace BCMRPi {
 
 struct TvControlBackend {
 public:
-    EventQueue<wpe_tvcontrol_event* > eventQueue;
+    EventQueue<wpe_tvcontrol_event*> m_eventQueue;
+
     TvControlBackend(struct wpe_tvcontrol_backend* backend);
     virtual          ~TvControlBackend();
     tvcontrol_return getTuners(struct wpe_tvcontrol_string_vector*);
@@ -46,10 +45,11 @@ public:
     tvcontrol_return getChannels(const char*, SourceType, struct wpe_tvcontrol_channel_vector*);
     tvcontrol_return setCurrentSource(const char*, SourceType);
     void updateTunerList(const char *, tuner_changed_operation);
+
 private:
     struct wpe_tvcontrol_backend* m_backend;
     void eventProcessor();
-    void TunerChangedListener();  //Listens and triggers the TunerChangedEvent
+    void tunerChangedListener();  //Listens and triggers the TunerChangedEvent
     void handleTunerChangedEvent(struct wpe_tvcontrol_event*);
     void handleSourceChangedEvent(struct wpe_tvcontrol_event*);
     void handleChannelChangedEvent(struct wpe_tvcontrol_event*);
@@ -81,7 +81,7 @@ TvControlBackend::TvControlBackend (struct wpe_tvcontrol_backend* backend)
     m_isRunning = true;
     initializeTuners();
     m_eventThread = thread(&TvControlBackend::eventProcessor, this);
-    m_tunerThread = thread(&TvControlBackend::TunerChangedListener, this);
+    m_tunerThread = thread(&TvControlBackend::tunerChangedListener, this);
 }
 
 TvControlBackend::~TvControlBackend () {
@@ -110,7 +110,7 @@ void TvControlBackend::eventProcessor () {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     while (m_isEventProcessing) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-        wpe_tvcontrol_event* event = eventQueue.getEvents();
+        wpe_tvcontrol_event* event = m_eventQueue.getEvents();
         if (!event)
             continue;
         switch (event->eventID) {
@@ -162,7 +162,7 @@ void TvControlBackend::initializeTuners () {
 #endif
             tunerData->tunerId.assign(tunerIdStr);
             dvbfe_close(feHandleTmp);
-            TvTunerBackend* tInfo = (TvTunerBackend*) new TvTunerBackend(m_tunerCount, tunerData);
+            TvTunerBackend* tInfo = (TvTunerBackend*) new TvTunerBackend(&m_eventQueue, m_tunerCount, tunerData);
             /*Update the  private tuner list*/
             m_tunerList.push_back(tInfo);
             m_tunerCount += 1;
@@ -300,13 +300,10 @@ tvcontrol_return TvControlBackend::startScanning(const char* tunerId, SourceType
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
     TvTunerBackend* tuner;
-    TVControlPushEvent(ScanningChanged, tunerId, ((tuner_changed_operation)0), Cleared, nullptr);
     //getTuner from the Tuner List
     getTunner(tunerId, &tuner);
     tuner->setSrcType(type);
-//    ret = tuner->startScanning(isRescanned);
-    //Event completed
-    TVControlPushEvent(ScanningChanged, tunerId, (tuner_changed_operation)0, Completed, nullptr);
+    ret = tuner->startScanning(isRescanned);
 #endif
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     return ret;
@@ -320,7 +317,6 @@ tvcontrol_return TvControlBackend::stopScanning(const char* tunerId) {
     //getTuner from the Tuner List
     getTunner(tunerId, &tuner);
     ret = tuner->stopScanning();
-    TVControlPushEvent(ScanningChanged, tunerId,(tuner_changed_operation)0, Stopped, nullptr);
 #endif
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     return ret;
@@ -359,8 +355,9 @@ tvcontrol_return TvControlBackend::setCurrentSource(const char* tunerId, SourceT
     TvTunerBackend* tuner;
     //getTuner from the Tuner List
     getTunner(tunerId, &tuner);
+    ret = tuner->setCurrentSource(sType);
 
-    TVControlPushEvent(SourceChanged, tunerId,(tuner_changed_operation)0, (scanning_state)0/*Not relevant*/, nullptr);
+    TVControlPushEvent(SourceChanged, tunerId, (tuner_changed_operation)0/*Not relevant*/);
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 
 #endif
@@ -368,8 +365,8 @@ tvcontrol_return TvControlBackend::setCurrentSource(const char* tunerId, SourceT
     return ret;
 }
 
-/* TunerChangedListener waits for the addition/removal of Tuner and triggers the event*/
-void TvControlBackend::TunerChangedListener() {
+/* tunerChangedListener waits for the addition/removal of Tuner and triggers the event*/
+void TvControlBackend::tunerChangedListener() {
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
     struct udev *udev;
     struct udev_enumerate *enumerate;
@@ -436,7 +433,7 @@ void TvControlBackend::TunerChangedListener() {
                 found = fpath.find("frontend");
                 if (found != std::string::npos) { // if frontend found, do the following and dipatch the event.
                     sscanf (udev_device_get_devnode(dev), "/%*[a-z-A-Z]/%*[a-z-A-Z]/%*[a-z-A-Z]%d/%*[a-z-A-Z]%d", &i, &j);
-                    createTunerId(i, i, tunerId);
+                    createTunerId(i, j, tunerId);
                     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 
                     // The data from udev is in string format. So.converting the operation into the appropriate data type.
@@ -447,7 +444,7 @@ void TvControlBackend::TunerChangedListener() {
                         operation = Removed;
                     }
                     updateTunerList(tunerId.c_str(), operation);
-                    TVControlPushEvent(TunerChanged, tunerId.c_str(), operation, (scanning_state)0, nullptr);
+                    TVControlPushEvent(TunerChanged, tunerId.c_str(), operation);
                     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
                 }
                 printf("***Tuner***\n");
@@ -470,7 +467,7 @@ void TvControlBackend::updateTunerList(const char* tunerId, tuner_changed_operat
     if (operation == Added) { // Case when DVB adapter is added.
         TunerData *tunerData = new TunerData;
         tunerData->tunerId.assign(tunerId);
-        TvTunerBackend* tInfo = (TvTunerBackend*) new TvTunerBackend(m_tunerCount, tunerData);
+        TvTunerBackend* tInfo = (TvTunerBackend*) new TvTunerBackend(&m_eventQueue, m_tunerCount, tunerData);
         m_tunerList.push_back(tInfo);
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
         printf("Found and Added the Tuner:-)");

@@ -2,7 +2,6 @@
 #define SOURCE_BACKEND_H_
 
 #include <poll.h>
-#include "ChannelBackend.h"
 #include <linux/dvb/dmx.h>
 #include <libdvbapi/dvbfe.h>
 #include <libdvbapi/dvbdemux.h>
@@ -12,6 +11,9 @@
 #include <libucsi/atsc/extended_channel_name_descriptor.h>
 #include <signal.h>
 #include "TVConfig.h"
+//#include <wpe/tvcontrol-backend.h>
+#include "event-queue.h"
+#include "ChannelBackend.h"
 
 using namespace std;
 #define TV_DEBUG 1 //TODO remove
@@ -23,11 +25,11 @@ struct TunerData {
 };
 
 namespace BCMRPi {
+class TvControlBackend;
 
 class SourceBackend {
-
 public:
-    SourceBackend(SourceType, TunerData*);
+    SourceBackend(EventQueue<wpe_tvcontrol_event*>*, SourceType, TunerData*);
     virtual ~SourceBackend() {}
 
     tvcontrol_return startScanning(bool isRescanned);
@@ -52,7 +54,9 @@ private:
     int  createSectionFilter(uint16_t pid, uint8_t tableId);
     void clearChannelList();
 
-    std::vector<ChannelBackend*> m_channelList;
+    std::vector<ChannelBackend*>      m_channelList;
+    EventQueue<wpe_tvcontrol_event*>* m_eventQueue;
+
     SourceType    m_sType;
     TunerData*    m_tunerData;
     int           m_adapter;
