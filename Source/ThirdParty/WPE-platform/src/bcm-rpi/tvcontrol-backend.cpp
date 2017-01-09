@@ -4,12 +4,12 @@
 #include "TunerBackend.h"
 #include <libudev.h>
 #endif
+#include "event-queue.h"
+#include <inttypes.h>
 #include <stdio.h>
 #include <string>
 #include <thread>
-#include <inttypes.h>
 #include <wpe/tvcontrol-backend.h>
-#include "event-queue.h"
 
 #define TUNER_ID_LEN 3
 #define TV_DEBUG 1
@@ -71,7 +71,7 @@ private:
 #endif
 };
 
-TvControlBackend::TvControlBackend (struct wpe_tvcontrol_backend* backend)
+TvControlBackend::TvControlBackend(struct wpe_tvcontrol_backend* backend)
     : m_backend(backend)
     , m_strPtr(nullptr)
     , m_tunerCount(0) {
@@ -84,11 +84,11 @@ TvControlBackend::TvControlBackend (struct wpe_tvcontrol_backend* backend)
     m_tunerThread = thread(&TvControlBackend::tunerChangedListener, this);
 }
 
-TvControlBackend::~TvControlBackend () {
+TvControlBackend::~TvControlBackend() {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     int i ;
     /*Clear tuner id list*/
-    for (i = 0; i < m_tunerCount; i++){
+    for (i = 0; i < m_tunerCount; i++) {
         free(m_strPtr[i].data);
         m_strPtr[i].data = NULL;
     }
@@ -106,7 +106,7 @@ TvControlBackend::~TvControlBackend () {
 #endif
 }
 
-void TvControlBackend::eventProcessor () {
+void TvControlBackend::eventProcessor() {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     while (m_isEventProcessing) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
@@ -134,7 +134,7 @@ void TvControlBackend::eventProcessor () {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
-void TvControlBackend::initializeTuners () {
+void TvControlBackend::initializeTuners() {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     int i, j;
     int feOpenMode;
@@ -182,29 +182,25 @@ void TvControlBackend::createTunerId(int i, int j, std::string& tunerId) {
     printf("Tuner id %s \n", tunerId.c_str()) ;
 }
 
-void TvControlBackend::handleTunerChangedEvent(struct wpe_tvcontrol_event* event)
-{
+void TvControlBackend::handleTunerChangedEvent(struct wpe_tvcontrol_event* event) {
     wpe_tvcontrol_backend_dispatch_tuner_event(m_backend, event);
     if (event->tuner_id.data)
         free(event->tuner_id.data);
 }
 
-void TvControlBackend::handleSourceChangedEvent(struct wpe_tvcontrol_event* event)
-{
+void TvControlBackend::handleSourceChangedEvent(struct wpe_tvcontrol_event* event) {
     wpe_tvcontrol_backend_dispatch_source_event(m_backend, event);
     if (event->tuner_id.data)
         free(event->tuner_id.data);
 }
 
-void TvControlBackend::handleChannelChangedEvent(struct wpe_tvcontrol_event* event)
-{
+void TvControlBackend::handleChannelChangedEvent(struct wpe_tvcontrol_event* event) {
     wpe_tvcontrol_backend_dispatch_channel_event(m_backend, event);
     if (event->tuner_id.data)
         free(event->tuner_id.data);
 }
 
-void TvControlBackend::handleScanningStateChangedEvent(struct wpe_tvcontrol_event* event)
-{
+void TvControlBackend::handleScanningStateChangedEvent(struct wpe_tvcontrol_event* event) {
     wpe_tvcontrol_backend_dispatch_scanning_state_event(m_backend, event);
 
     if (event->tuner_id.data)
@@ -231,10 +227,10 @@ tvcontrol_return TvControlBackend::getTuners(struct wpe_tvcontrol_string_vector*
     if (!m_strPtr && m_tunerCount) {
         /*Create an array of  tuner id struct */
         ret = TVControlSuccess;
-        m_strPtr = (wpe_tvcontrol_string * )new wpe_tvcontrol_string[m_tunerCount];
+        m_strPtr = (wpe_tvcontrol_string *)new wpe_tvcontrol_string[m_tunerCount];
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
         /*Iterate  private tuner list and update the created array  */
-        for (auto& element: m_tunerList){
+        for (auto& element : m_tunerList) {
             printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
             m_strPtr[i].data = strdup(element->m_tunerData->tunerId.c_str());
             printf("\n%s:%s:%d \n ID = %s  \n", __FILE__, __func__, __LINE__,element->m_tunerData->tunerId.c_str());
@@ -279,7 +275,7 @@ void TvControlBackend::getTunner(const char* tunerId, TvTunerBackend** tuner) {
 
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     /*Iterate  private tuner list and get the particular tuner info  */
-    for (auto& element: m_tunerList){
+    for (auto& element : m_tunerList) {
 #ifdef TV_DEBUG
         printf("Id of this tuner %s \n", element->m_tunerData->tunerId.c_str());
         printf("Id of required tuner %s \n",tunerId);
