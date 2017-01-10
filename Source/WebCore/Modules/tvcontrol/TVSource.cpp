@@ -27,12 +27,23 @@ void TVSource::getChannels(TVChannelPromise&& promise) {
         promise.reject(INVALID_STATE_ERR, "Invalid state: scanning in progress");
         return;
     }
-
     if (m_channelList.size()){
         promise.resolve(m_channelList);
         return;
     }
-
+    if (m_platformTVSource) {
+        Vector<RefPtr<PlatformTVChannel>> channelVector;
+        if (!m_platformTVSource->getChannels(channelVector)){
+            promise.reject(nullptr);
+            return;
+        }
+        if (channelVector.size()) {
+            for (auto& channel : channelVector)
+                m_channelList.append(TVChannel::create(channel, this));
+            promise.resolve(m_channelList);
+           return;
+      }
+    }
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     promise.reject(nullptr);
 }

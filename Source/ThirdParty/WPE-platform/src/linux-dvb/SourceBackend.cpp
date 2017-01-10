@@ -208,6 +208,38 @@ void SourceBackend::startPlayBack(int frequency, uint64_t modulation, int pmtPid
     execute(argv);
 }
 
+tvcontrol_return SourceBackend::getChannels(wpe_tvcontrol_channel_vector* channelVector) {
+    /*Populate channel list */
+    tvcontrol_return ret = TVControlFailed;
+    printf("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+    if (!m_channelList.empty()) {
+        printf("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
+        channelVector->length = m_channelList.size();
+        channelVector->channels = new wpe_tvcontrol_channel[m_channelList.size()];
+        std::vector<ChannelBackend*>::iterator it;
+        int i = 0;
+        for (auto& channel : m_channelList) {
+            if (!(channel->getNetworkId()).empty())
+                channelVector->channels[i].networkId = strdup((channel->getNetworkId()).c_str());
+            if (!(channel->getName()).empty())
+                channelVector->channels[i].name = strdup((channel->getName()).c_str());
+            if (!(channel->getServiceId()).empty())
+                channelVector->channels[i].serviceId = strdup((channel->getServiceId()).c_str());
+            if (!(channel->getTransportStreamId()).empty())
+                channelVector->channels[i].transportSId = strdup((channel->getTransportStreamId()).c_str());
+            channelVector->channels[i].number = channel->getLCN();
+            i++;
+        }
+        ret = TVControlSuccess;
+    }
+    else {
+        channelVector->channels = NULL;
+        printf("Channel list is empty .Scanning is incomplete \n");
+    }
+    return ret;
+}
+
+
 tvcontrol_return SourceBackend::setCurrentChannel(uint64_t channelNo) {
     tvcontrol_return ret = TVControlFailed;
 

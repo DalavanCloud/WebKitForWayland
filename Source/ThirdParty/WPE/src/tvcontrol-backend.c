@@ -112,7 +112,6 @@ wpe_tvcontrol_backend_set_current_source(struct wpe_tvcontrol_backend* backend, 
     ret = backend->interface->set_current_source(backend->interface_data, tuner_id, sType);
     return ret;
 }
-
 __attribute__((visibility("default")))
 void
 wpe_tvcontrol_backend_get_signal_strength(struct wpe_tvcontrol_backend* backend, const char* tuner_id, double* out_signal_strength)
@@ -139,6 +138,16 @@ wpe_tvcontrol_backend_stop_scanning(struct wpe_tvcontrol_backend* backend, const
     tvcontrol_return ret = TVControlFailed;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     ret = backend->interface->stop_scanning(backend->interface_data, tuner_id);
+    return ret;
+}
+
+__attribute__((visibility("default")))
+tvcontrol_return
+wpe_tvcontrol_backend_get_channel_list(struct wpe_tvcontrol_backend* backend, const char* tuner_id, SourceType type, struct wpe_tvcontrol_channel_vector* out_channel_list)
+{
+    tvcontrol_return ret = TVControlFailed;
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    ret = backend->interface->get_channel_list(backend->interface_data, tuner_id, type, out_channel_list);
     return ret;
 }
 

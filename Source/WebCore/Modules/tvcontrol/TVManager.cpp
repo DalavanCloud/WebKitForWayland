@@ -26,7 +26,7 @@ TVManager::TVManager(ScriptExecutionContext* context)
 }
 
 TVManager::~TVManager() {
-
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 Document* TVManager::document() const

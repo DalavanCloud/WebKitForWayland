@@ -80,6 +80,7 @@ PlatformTVManager::PlatformTVManager(PlatformTVManagerClient* client)
 
 PlatformTVManager::~PlatformTVManager()
 {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     wpe_tvcontrol_backend_destroy(m_tvBackend->m_backend);
     delete m_tvBackend;
 }

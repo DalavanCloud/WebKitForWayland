@@ -27,6 +27,7 @@ public:
     bool startScanning (bool scanningOption);
     bool stopScanning ();
     void setSourceClient (PlatformTVSourceClient* client);
+    bool getChannels(Vector<RefPtr<PlatformTVChannel>>& channelVector);
 
     Type                                       type () const { return m_type; }
 

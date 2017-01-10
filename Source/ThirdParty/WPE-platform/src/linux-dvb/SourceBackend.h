@@ -40,6 +40,7 @@ public:
     tvcontrol_return stopScanning();
     tvcontrol_return setCurrentChannel(uint64_t channelNo);
     SourceType srcType() { return m_sType; }
+    tvcontrol_return getChannels(wpe_tvcontrol_channel_vector* channelVector);
 
 private:
     void parseAtscExtendedChannelNameDescriptor(char **name, const unsigned char *buf);

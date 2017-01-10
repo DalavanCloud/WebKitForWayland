@@ -467,6 +467,16 @@ tvcontrol_return TvTunerBackend::setCurrentChannel(SourceType sType ,uint64_t ch
     return ret;
 }
 
+tvcontrol_return TvTunerBackend::getChannels(SourceType sType, struct wpe_tvcontrol_channel_vector* channelVector) {
+    tvcontrol_return ret = TVControlFailed;
+    printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+    /* Get source corresponds to this type  */
+    SourceBackend *source;
+    getSource(sType, &source);
+    ret = source->getChannels(channelVector);
+    return ret;
+}
+
 tvcontrol_return TvTunerBackend::setCurrentSource(SourceType sType) {
     tvcontrol_return ret = TVControlFailed;
     fe_delivery_system  platSrcType;
