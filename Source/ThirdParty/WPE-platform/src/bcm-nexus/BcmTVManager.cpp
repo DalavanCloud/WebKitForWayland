@@ -12,7 +12,7 @@
 #define log_msg         //myprintf
 #define mytrace()       log_msg("%s: %s:%d\n", __FUNCTION__, __FILE__, __LINE__)
 
-#define SCAN_TIMEOUT 2000
+#define TUNE_TIMEOUT 2000
 #define DATA_TIMEOUT 5000
 static const unsigned J83A_SYMBOLRATE_UPPER   = 7200000;
 static const unsigned J83A_SYMBOLRATE_LOWER   = 4000000;
@@ -342,11 +342,11 @@ int BcmAudioDecoder::stop()
     return rc;
 }
 
-BcmTuner::BcmTuner()
+BcmTuner::BcmTuner(bool dvb)
     : frontend(nullptr)
     , pParserBand(nullptr)
     , statusEvent(NULL)
-    , bDvb(true)
+    , bDvb(dvb)
 {
     if (bDvb)
         dbg_msg("Annex-A 8 Mhz\n");
@@ -428,11 +428,11 @@ int BcmTuner::tune(int freq)
     rc = NEXUS_Frontend_TuneQam(frontend, &qamSettings);
     err_msg ("\n%s: NEXUS_Frontend_TuneQam rc=%d\n", __FUNCTION__, rc);
     BDBG_ASSERT(!rc);
-    
+
     NEXUS_FrontendFastStatus status;
     status.lockStatus = NEXUS_FrontendLockStatus_eUnknown;
     do {
-        rc = BKNI_WaitForEvent(statusEvent, SCAN_TIMEOUT);
+        rc = BKNI_WaitForEvent(statusEvent, TUNE_TIMEOUT);
         if(rc == NEXUS_TIMEOUT) {
             dbg_msg("%d Mhz NEXUS_TIMEOUT\n", freq);
             break;
@@ -458,9 +458,10 @@ int BcmTuner::tune(int freq)
     return rc;
 }
 
-BcmTVManager::BcmTVManager()
+BcmTVManager::BcmTVManager(bool bDvb)
     : m_pidChanCount(0)
     , m_parserBand(0)
+    , m_tuner(bDvb)
     , m_msgEvent(NULL)
 {
     BKNI_CreateEvent(&m_msgEvent);
@@ -526,7 +527,7 @@ int BcmTVManager::decode(const ES_Info &ESVideo, const ES_Info &ESAudio)
     log_msg ("%s: simpleVideoDecoder[0].id=%d simpleAudioDecoder.id=%d\n", __FUNCTION__, 
         connectSettings.simpleVideoDecoder[0].id, connectSettings.simpleAudioDecoder.id);
 
-    int pcrPid = ESVideo.pid;    // XXX: get pcr pid from the stream
+    int pcrPid = ESVideo.pcrPid;
     m_pcrPidChannel = NEXUS_PidChannel_Open(m_parserBand, pcrPid, NULL);
 
     NEXUS_SimpleStcChannelSettings stcSettings;
@@ -711,7 +712,7 @@ int BcmTVManager::parsePMT(const uint8_t *buffer, unsigned size, ElementaryStrem
         int elementaryPID;
         TS_PMT_getStream(buffer, size, i, &streamType, &elementaryPID);
         log_msg ("\t%s: #%d. type=%d (x%x) pid=%d (x%x)\n", __FUNCTION__, i, streamType, streamType, elementaryPID, elementaryPID);
-        streams.push_back(ES_Info(streamType, elementaryPID));
+        streams.push_back(ES_Info(streamType, elementaryPID, pcrPid));
     }
     log_msg ("%s: streams.size=%d\n", __FUNCTION__, streams.size());
     return rc;

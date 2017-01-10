@@ -26,15 +26,18 @@ class ES_Info {
     ES_Info()
         : streamType(0)
         , pid(0)
+        , pcrPid(0)
     {
     }
-    ES_Info(int st, int p)
+    ES_Info(int st, int p, int pcr = 0)
         : streamType(st)
         , pid(p)
+        , pcrPid(pcr)
     {
     }
     int streamType;
     int pid;
+    int pcrPid;
 };
 
 typedef std::vector<ES_Info>            ElementaryStrems;   
@@ -81,7 +84,7 @@ class NexusClient {
 
 class BcmTuner {
     public:
-    BcmTuner();
+    BcmTuner(bool dvb);
     ~BcmTuner();
     int tune(int freq);
     void setParserBand(NEXUS_ParserBand *pb) { pParserBand = pb; }
@@ -131,7 +134,7 @@ class BcmAudioDecoder {
 
 class BcmTVManager {
     public:
-    BcmTVManager();
+    BcmTVManager(bool bDvb = false);
     ~BcmTVManager();
     int init();
     int deinit();
