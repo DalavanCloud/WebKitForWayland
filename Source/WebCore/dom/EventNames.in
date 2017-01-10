@@ -76,3 +76,4 @@ MediaKeyMessageEvent conditional=ENCRYPTED_MEDIA
 TVTunerChangedEvent conditional=TV_CONTROL
 TVCurrentSourceChangedEvent conditional=TV_CONTROL
 TVScanningStateChangedEvent conditional=TV_CONTROL
+TVCurrentChannelChangedEvent conditional=TV_CONTROL

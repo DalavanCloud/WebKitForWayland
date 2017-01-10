@@ -13,8 +13,9 @@ Ref<TVSource> TVSource::create(ScriptExecutionContext* context, RefPtr<PlatformT
 TVSource::TVSource (ScriptExecutionContext* context, RefPtr<PlatformTVSource> platformTVSource, TVTuner* parentTVTuner)
     : m_platformTVSource(platformTVSource)
     , m_parentTVTuner(parentTVTuner)
-    , m_scanState(SCANNING_NOT_INITIALISED)
     , ContextDestructionObserver(context)
+    , m_currentChannel(nullptr)
+    , m_scanState(SCANNING_NOT_INITIALISED)
     , m_isScanning(false) {
 
 }
@@ -43,11 +44,17 @@ void TVSource::setCurrentChannel (const String& channelNumber, TVPromise&& promi
         return;
     }
     if (m_platformTVSource) {
-        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-        if (m_platformTVSource->setCurrentChannel(channelNumber)) {
-            promise.resolve(nullptr);
-            return;
+        for (auto& channel : m_channelList) {
+            if (equalIgnoringASCIICase(channel->number(), channelNumber) == 1) {
+                m_currentChannel = channel;
+                printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+                if (m_platformTVSource->setCurrentChannel(channelNumber)) {
+                    promise.resolve(nullptr);
+                    return;
+                }
+            }
         }
+        printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     }
     promise.reject(nullptr);
 }
@@ -89,6 +96,14 @@ void TVSource::stopScanning (TVPromise&& promise) {
         }
     }
     promise.reject(nullptr);
+}
+
+void TVSource::dispatchChannelChangedEvent () {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    scriptExecutionContext()->postTask([=](ScriptExecutionContext&) {
+        dispatchEvent(TVCurrentChannelChangedEvent::create(eventNames().currentchannelchangedEvent, currentChannel()));
+    });
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 void TVSource::dispatchScanningStateChangedEvent(RefPtr<PlatformTVChannel> platformTVChannel, uint16_t state) {

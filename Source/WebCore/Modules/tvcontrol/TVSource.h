@@ -10,6 +10,7 @@
 #include "JSTVChannel.h"
 #include "TVChannel.h"
 #include "TVScanningStateChangedEvent.h"
+#include "TVCurrentChannelChangedEvent.h"
 #include "EventNames.h"
 
 namespace WebCore {
@@ -33,14 +34,14 @@ public:
 
     void getChannels(TVChannelPromise&&);
     void setCurrentChannel (const String& channelNumber, TVPromise&&);
+    RefPtr<TVChannel>    currentChannel() const { return m_currentChannel; }
     void startScanning (const StartScanningOptions&, TVPromise&&);
     void stopScanning(TVPromise&&);
     void dispatchScanningStateChangedEvent(RefPtr<PlatformTVChannel> platformTVChannel, uint16_t state);
-
+    void dispatchChannelChangedEvent();
     TVTuner*                        tuner () const { return m_parentTVTuner; }
     Type                            type () const { return ((Type)m_platformTVSource->type()); }
     bool                            isScanning () const { return m_isScanning; }
-    TVChannel*                      currentChannel () const { return m_channel; }
 
     using RefCounted<TVSource>::ref;
     using RefCounted<TVSource>::deref;
@@ -51,7 +52,7 @@ private:
     TVTuner*                   m_parentTVTuner;
 
     Vector<RefPtr<TVChannel>>  m_channelList;
-    TVChannel*                 m_channel;
+    RefPtr<TVChannel>          m_currentChannel;
 
     enum ScanningState { SCANNING_NOT_INITIALISED, SCANNING_STARTED, SCANNING_COMPLETED };
     ScanningState              m_scanState;

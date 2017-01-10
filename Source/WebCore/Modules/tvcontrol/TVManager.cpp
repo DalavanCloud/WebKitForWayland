@@ -70,6 +70,16 @@ void TVManager::didCurrentSourceChanged(String tunerId) {
 }
 
 void TVManager::didCurrentChannelChanged(String tunerId) {
+
+    printf("\n%s:%s:%d\n TUNER ID = %s", __FILE__, __func__, __LINE__, tunerId.utf8().data());
+    for (auto& tuner : m_tunerList) {
+        if (equalIgnoringASCIICase(tunerId, tuner->id()) == 1) {
+            printf("\n%s:%s:%d\n TUNER ID = %s", __FILE__, __func__, __LINE__, tunerId.utf8().data());
+            tuner->currentSource()->dispatchChannelChangedEvent();
+            break;
+        }
+    }
+
     //Implement logic to identify corresponding tuner instance, source instance and channel instance
     //Create event using idenified instance details
 }

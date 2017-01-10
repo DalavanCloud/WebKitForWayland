@@ -23,15 +23,21 @@ SourceBackend::SourceBackend(EventQueue<wpe_tvcontrol_event*>* eventQueue, Sourc
     , m_isScanStopped(false)
     , m_isScanInProgress(false)
     , m_eventQueue(eventQueue)
-    , m_scanIndex(0) {
+    , m_scanIndex(0)
+    , m_isRunning(true)
+    , m_currentPlaybackState(false) {
     m_adapter = stoi(m_tunerData->tunerId.substr(0, m_tunerData->tunerId.find(":")));
     m_demux = stoi(m_tunerData->tunerId.substr(m_tunerData->tunerId.find(":")+1));
     m_scanningThread = thread(&SourceBackend::scanningThread, this);
+    m_setCurrentChannelThread = thread(&SourceBackend::setCurrentChannelThread, this);
 }
 
 SourceBackend::~SourceBackend() {
     m_isRunning = false;
+    m_channelChangeCondition.notify_all();
+    m_scanCondition.notify_all();
     m_scanningThread.join();
+    m_setCurrentChannelThread.join();
 }
 
 void SourceBackend::clearChannelList() {
@@ -55,13 +61,16 @@ tvcontrol_return SourceBackend::startScanning(bool isRescanned) {
 }
 
 void SourceBackend::scanningThread() {
-    m_isRunning = true;
     while (m_isRunning) {
         m_scanMutex.lock();
         m_isScanInProgress = false;
         m_scanCondition.wait(m_scanMutex);
         m_isScanInProgress = true;
         m_scanMutex.unlock();
+
+        if(!m_isRunning)
+            break;
+
         uint64_t modulation = m_tunerData->modulation;
         int length =  (m_tunerData->frequency).size();
         struct dvbfe_handle* feHandle = openFE(m_tunerData->tunerId);
@@ -201,43 +210,71 @@ void SourceBackend::startPlayBack(int frequency, uint64_t modulation, int pmtPid
 
 tvcontrol_return SourceBackend::setCurrentChannel(uint64_t channelNo) {
     tvcontrol_return ret = TVControlFailed;
-    TvLogInfo("\nTune to Channel %" PRIu64 "\n",channelNo);
-    ChannelBackend* channel = getChannelByLCN(channelNo);
-    if (channel) {
-        kill(m_pid, SIGTERM);
-        int freq = channel->getFrequency();
-        int programNumber = channel->getProgramNumber();
-        unsigned modulation = m_tunerData->modulation;
-        struct dvbfe_handle* feHandle = openFE(m_tunerData->tunerId);
-        if (feHandle) {
-            if (tuneToFrequency(freq, modulation, feHandle)) {
-                std::map<int, int> streamInfo;
-                mpegScan(programNumber, streamInfo);
-                dvbfe_close(feHandle);
-                if (!streamInfo.empty()) {
-                    ret = TVControlSuccess;
-                    int pmtPid = streamInfo[0];
-                    int videoPid = 0;
-                    int audioPid = 0;
-                    for (std::map<int, int>::iterator it = streamInfo.begin(); it != streamInfo.end(); ++it) {
-                         TvLogInfo("Stream Type: %d Pid : %d \n" , it->second,it->first);
-                         if (videoPid == 0 && it->second == 0x2){
-                            videoPid = it->first;
-                        }
-                         if (audioPid == 0 && it->second == 0x81){
-                            audioPid = it->first;
-                        }
-                    }
-                    startPlayBack(freq, modulation, pmtPid, videoPid, audioPid);
-                }
-            }
-            else {
-                dvbfe_close(feHandle);
-                TvLogInfo("Cannot tune to channel \n");
-            }
+
+    TvLogInfo("\nSet Channel invoked \n");
+    if (m_channelNo != channelNo) {
+        ret = TVControlSuccess;
+        m_channelChangeMutex.lock();
+        if(m_currentPlaybackState) {
+            m_currentPlaybackState = false;
+            //TODO stop playback on state change
         }
+        m_channelNo = channelNo;
+        m_channelChangeCondition.notify_all();
+        m_channelChangeMutex.unlock();
     }
     return ret;
+}
+
+void SourceBackend::setCurrentChannelThread() {
+    while(m_isRunning) {
+        m_channelChangeMutex.lock();
+        m_channelChangeCondition.wait(m_channelChangeMutex);
+        m_channelChangeMutex.unlock();
+        if (!m_isRunning)
+            break;
+        TvLogInfo("\nTune to Channel:: %" PRIu64 "\n",m_channelNo);
+        ChannelBackend* channel = getChannelByLCN(m_channelNo);
+        if (channel) {
+            kill(m_pid, SIGTERM);
+            int freq = channel->getFrequency();
+            int programNumber = channel->getProgramNumber();
+            unsigned modulation = m_tunerData->modulation;
+            struct dvbfe_handle* feHandle = openFE(m_tunerData->tunerId);
+            if (feHandle) {
+                if (tuneToFrequency(freq, modulation, feHandle)) {
+                    std::map<int, int> streamInfo;
+                    mpegScan(programNumber, streamInfo);
+                    dvbfe_close(feHandle);
+                    if (!streamInfo.empty()) {
+                        int pmtPid = streamInfo[0];
+                        int videoPid = 0;
+                        int audioPid = 0;
+                        for (std::map<int, int>::iterator it = streamInfo.begin(); it != streamInfo.end(); ++it) {
+                            TvLogInfo("Stream Type: %d Pid : %d \n" , it->second,it->first);
+                            if (videoPid == 0 && it->second == 0x2){
+                                videoPid = it->first;
+                            }
+                            if (audioPid == 0 && it->second == 0x81){
+                                audioPid = it->first;
+                            }
+                        }
+                        TvLogInfo("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+                        m_currentPlaybackState = true;
+                        //      startPlayBack(freq, modulation, pmtPid, videoPid, audioPid);
+
+                        TVControlPushEvent(ChannelChanged, m_tunerData->tunerId.c_str(), (scanning_state)0/*irrelevant*/, nullptr);
+                        TvLogInfo("%s:%s:%d \n", __FILE__, __func__, __LINE__);
+                    }
+                }
+                else {
+                    dvbfe_close(feHandle);
+                    TvLogInfo("Cannot tune to channel \n");
+                }
+            }
+        }
+    } // While
+    TvLogInfo("%s:%s:%d \n", __FILE__, __func__, __LINE__);
 }
 
 void SourceBackend::dvbScan() {

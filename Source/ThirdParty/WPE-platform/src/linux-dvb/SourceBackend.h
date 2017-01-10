@@ -57,12 +57,14 @@ private:
     int  createSectionFilter(uint16_t pid, uint8_t tableId);
     void clearChannelList();
     void scanningThread();
+    void setCurrentChannelThread();
     std::vector<ChannelBackend*>      m_channelList;
     EventQueue<wpe_tvcontrol_event*>* m_eventQueue;
 
     SourceType               m_sType;
     TunerData*               m_tunerData;
     thread                   m_scanningThread;
+    thread                   m_setCurrentChannelThread;
     int                      m_adapter;
     int                      m_demux;
     int                      m_scanIndex;
@@ -73,6 +75,10 @@ private:
     mutex                    m_scanMutex;
     condition_variable_any   m_scanCondition;
     pid_t                    m_pid;
+    uint64_t                 m_channelNo;
+    mutex                    m_channelChangeMutex;
+    condition_variable_any   m_channelChangeCondition;
+    bool                     m_currentPlaybackState;
 };
 
 

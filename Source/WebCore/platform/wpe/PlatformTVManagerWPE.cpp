@@ -44,10 +44,17 @@ PlatformTVManager::PlatformTVManager(PlatformTVManagerClient* client)
         // handle current channel changed event
         [](void* data, wpe_tvcontrol_event* event)
         {
-            auto& tvManager = *reinterpret_cast<PlatformTVManager*>(data);
-            tvManager.m_platformTVManagerClient->didCurrentChannelChanged(String(event->tuner_id.data, event->tuner_id.length));
+            String tunerId(event->tuner_id.data, event->tuner_id.length);
+            PlatformTVManager* tvManager = reinterpret_cast<PlatformTVManager*>(data);
+            RefPtr<PlatformTVChannel> channel = nullptr;
+
+            printf("\n%s:%s:%d Tuner ID  = %s\n", __FILE__, __func__, __LINE__, event->tuner_id.data);
+            callOnMainThread([tvManager, tunerId] {
+                printf("\n%s:%s:%d Tuner ID  = %s\n", __FILE__, __func__, __LINE__, tunerId.utf8().data());
+                tvManager->m_platformTVManagerClient->didCurrentChannelChanged(tunerId);
+            });
         },
-        // handle current source changed event
+        // handle scan state  changed event
         [](void* data, wpe_tvcontrol_event* event)
         {
 
