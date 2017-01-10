@@ -3,6 +3,8 @@
 
 #if ENABLE(TV_CONTROL)
 
+#include "ActiveDOMObject.h"
+#include "ScriptExecutionContext.h"
 #include "PlatformTVSource.h"
 #include "JSDOMPromise.h"
 #include "JSTVChannel.h"
@@ -14,14 +16,14 @@ namespace WebCore {
 
 class TVTuner;
 
-class TVSource : public RefCounted<TVSource>, public PlatformTVSourceClient, public EventTargetWithInlineData {
+class TVSource : public RefCounted<TVSource>, public PlatformTVSourceClient, public ContextDestructionObserver, public EventTargetWithInlineData {
 public:
 
     struct StartScanningOptions {
         bool isRescanned;
     };
 
-    static Ref<TVSource> create (RefPtr<PlatformTVSource>, TVTuner*);
+    static Ref<TVSource> create (ScriptExecutionContext*, RefPtr<PlatformTVSource>, TVTuner*);
     virtual ~TVSource () { }
 
     enum class Type { DvbT, DvbT2, DvbC, DvbC2, DvbS, DvbS2, DvbH, DvbSh, Atsc, AtscMH, IsdbT, IsdbTb, IsdbS, IsdbC, _1seg, Dtmb, Cmmb, TDmb, SDmb };
@@ -44,7 +46,7 @@ public:
     using RefCounted<TVSource>::deref;
 
 private:
-    explicit TVSource (RefPtr<PlatformTVSource>,  TVTuner*);
+    TVSource (ScriptExecutionContext*, RefPtr<PlatformTVSource>,  TVTuner*);
     RefPtr<PlatformTVSource>   m_platformTVSource;
     TVTuner*                   m_parentTVTuner;
 
@@ -58,8 +60,9 @@ private:
     void refEventTarget() override { ref(); }
     void derefEventTarget() override { deref(); }
 
+    void contextDestroyed() final;
     EventTargetInterface eventTargetInterface() const override { return TVSourceEventTargetInterfaceType; }
-    ScriptExecutionContext* scriptExecutionContext() const override { return nullptr; }
+    ScriptExecutionContext* scriptExecutionContext() const override;
 };
 typedef Vector<RefPtr<TVSource>> TVSourceVector;
 } // namespace WebCore

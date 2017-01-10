@@ -4,6 +4,7 @@
 #if ENABLE(TV_CONTROL)
 
 #include "ActiveDOMObject.h"
+#include "ScriptExecutionContext.h"
 #include "PlatformTVManager.h"
 #include "JSDOMPromise.h"
 #include "JSTVTuner.h"
@@ -21,7 +22,6 @@ public:
     WEBCORE_EXPORT ~TVManager ();
 
     Document* document() const;
-    WEBCORE_EXPORT Frame* frame() const;
 
     typedef DOMPromise<TVTunerVector> TVTunerPromise;
     void getTuners(TVTunerPromise&& );
@@ -41,7 +41,7 @@ private:
 
     void refEventTarget() override { ref(); }
     void derefEventTarget() override { deref(); }
-    virtual const char* activeDOMObjectName() const override  { return 0; }
+    virtual const char* activeDOMObjectName() const override  {return "TVManager";}
     virtual bool canSuspendForDocumentSuspension() const override {return false;}
     ScriptExecutionContext* scriptExecutionContext() const override;
     EventTargetInterface eventTargetInterface() const override { return TVManagerEventTargetInterfaceType; }

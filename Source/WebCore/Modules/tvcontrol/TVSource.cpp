@@ -6,14 +6,15 @@
 
 namespace WebCore {
 
-Ref<TVSource> TVSource::create(RefPtr<PlatformTVSource> platformTVSource, TVTuner* parentTVTuner) {
-    return adoptRef(*new TVSource(platformTVSource, parentTVTuner));
+Ref<TVSource> TVSource::create(ScriptExecutionContext* context, RefPtr<PlatformTVSource> platformTVSource, TVTuner* parentTVTuner) {
+    return adoptRef(*new TVSource(context, platformTVSource, parentTVTuner));
 }
 
-TVSource::TVSource (RefPtr<PlatformTVSource> platformTVSource, TVTuner* parentTVTuner)
+TVSource::TVSource (ScriptExecutionContext* context, RefPtr<PlatformTVSource> platformTVSource, TVTuner* parentTVTuner)
     : m_platformTVSource(platformTVSource)
     , m_parentTVTuner(parentTVTuner)
     , m_scanState(SCANNING_NOT_INITIALISED)
+    , ContextDestructionObserver(context)
     , m_isScanning(false) {
 
 }
@@ -91,14 +92,28 @@ void TVSource::stopScanning (TVPromise&& promise) {
 }
 
 void TVSource::dispatchScanningStateChangedEvent(RefPtr<PlatformTVChannel> platformTVChannel, uint16_t state) {
-
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     RefPtr<TVChannel> channel = nullptr;
     if (m_platformTVSource && platformTVChannel) {
             channel = TVChannel::create(platformTVChannel, this);
             m_channelList.append(channel);
     }
-    dispatchEvent(TVScanningStateChangedEvent::create(eventNames().scanningstatechangedEvent,
-                                                      (TVScanningStateChangedEvent::State)state, channel));
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    scriptExecutionContext()->postTask([=](ScriptExecutionContext&) {
+        dispatchEvent(TVScanningStateChangedEvent::create(eventNames().scanningstatechangedEvent,
+                                                         (TVScanningStateChangedEvent::State)state, channel));
+    });
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+}
+
+ScriptExecutionContext* TVSource::scriptExecutionContext() const
+{
+    return ContextDestructionObserver::scriptExecutionContext();
+}
+
+void TVSource::contextDestroyed()
+{
+    ContextDestructionObserver::contextDestroyed();
 }
 
 } // namespace WebCore

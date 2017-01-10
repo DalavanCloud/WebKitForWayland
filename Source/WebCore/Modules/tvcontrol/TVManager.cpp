@@ -13,8 +13,10 @@
 namespace WebCore {
 
 Ref<TVManager> TVManager::create(ScriptExecutionContext* context) {
-    return adoptRef(*new TVManager(context));
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    Ref<TVManager> tvManager(adoptRef(*new TVManager(context)));
+    tvManager->suspendIfNeeded();
+    return tvManager;
 }
 
 TVManager::TVManager(ScriptExecutionContext* context)
@@ -26,10 +28,16 @@ TVManager::TVManager(ScriptExecutionContext* context)
 TVManager::~TVManager() {
 
 }
+
+Document* TVManager::document() const
+{
+    return downcast<Document>(scriptExecutionContext());
+}
+
 void TVManager::didTunerOperationChanged (String tunerId, uint16_t event) {
     int position;
     if ((TVTunerChangedEvent::Operation)event == TVTunerChangedEvent::Operation::Added) { // Case when DVB adapter is added.
-        m_tunerList.append(TVTuner::create(PlatformTVTuner::create(tunerId.utf8().data(), m_platformTVManager->m_tvBackend)));
+        m_tunerList.append(TVTuner::create(scriptExecutionContext(), PlatformTVTuner::create(tunerId.utf8().data(), m_platformTVManager->m_tvBackend)));
         printf("Found and Added the Tuner");
     } else { // Case when DVB Adapter is closed.
         position = 0;
@@ -44,7 +52,9 @@ void TVManager::didTunerOperationChanged (String tunerId, uint16_t event) {
             position++;
         }
     }
-    dispatchEvent(TVTunerChangedEvent::create(eventNames().tunerchangedEvent, tunerId, (TVTunerChangedEvent::Operation)event));
+    scriptExecutionContext()->postTask([=](ScriptExecutionContext&) {
+        dispatchEvent(TVTunerChangedEvent::create(eventNames().tunerchangedEvent, tunerId, (TVTunerChangedEvent::Operation)event));
+    });
 }
 
 void TVManager::didCurrentSourceChanged(String tunerId) {
@@ -97,7 +107,7 @@ void TVManager::getTuners(TVTunerPromise&& promise) {
             printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
             for (auto& tuner : platformTunerList) {
                 printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-                m_tunerList.append(TVTuner::create(tuner));
+                m_tunerList.append(TVTuner::create(document(), tuner));
             }
             platformTunerList.clear();
         }

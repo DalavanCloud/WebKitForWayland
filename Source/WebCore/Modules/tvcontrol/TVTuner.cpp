@@ -5,12 +5,13 @@
 
 namespace WebCore {
 
-Ref<TVTuner> TVTuner::create (RefPtr<PlatformTVTuner> platformTVTuner) {
-    return adoptRef(*new TVTuner (platformTVTuner));
+Ref<TVTuner> TVTuner::create (ScriptExecutionContext* context, RefPtr<PlatformTVTuner> platformTVTuner) {
+    return adoptRef(*new TVTuner (context, platformTVTuner));
 }
 
-TVTuner::TVTuner (RefPtr<PlatformTVTuner> platformTVTuner)
-    : m_platformTVTuner(platformTVTuner) {
+TVTuner::TVTuner (ScriptExecutionContext* context, RefPtr<PlatformTVTuner> platformTVTuner)
+    : ContextDestructionObserver(context)
+    , m_platformTVTuner(platformTVTuner) {
 }
 
 const Vector<TVTuner::SourceType>&  TVTuner::getSupportedSourceTypes () {
@@ -49,7 +50,7 @@ void  TVTuner::getSources (TVSourcePromise&& promise) {
         }
         if (platformSourceList.size()) {
             for (auto& source : platformSourceList) {
-                m_sourceList.append(TVSource::create(source, this));
+                m_sourceList.append(TVSource::create(scriptExecutionContext(), source, this));
             }
             promise.resolve(m_sourceList);
             return;
@@ -71,7 +72,7 @@ void  TVTuner::setCurrentSource (TVTuner::SourceType sourceType, TVPromise&& pro
                 return;
             }
             for (auto& source : platformSourceList)
-                m_sourceList.append(TVSource::create(source, this));
+                m_sourceList.append(TVSource::create(scriptExecutionContext(), source, this));
         } 
         /* Parse the source list and set current source */
         for (auto& src : m_sourceList) {
@@ -92,9 +93,21 @@ void  TVTuner::setCurrentSource (TVTuner::SourceType sourceType, TVPromise&& pro
 void  TVTuner::dispatchSourceChangedEvent() {
 
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    dispatchEvent(TVCurrentSourceChangedEvent::create(eventNames().currentsourcechangedEvent,
-                                                      currentSource()));
+    scriptExecutionContext()->postTask([=](ScriptExecutionContext&) {
+        dispatchEvent(TVCurrentSourceChangedEvent::create(eventNames().currentsourcechangedEvent, currentSource()));
+    });
 }
+
+ScriptExecutionContext* TVTuner::scriptExecutionContext() const
+{
+    return ContextDestructionObserver::scriptExecutionContext();
+}
+
+void TVTuner::contextDestroyed()
+{
+    ContextDestructionObserver::contextDestroyed();
+}
+
 } // namespace WebCore
 
 #endif // ENABLE(TV_CONTROL)
