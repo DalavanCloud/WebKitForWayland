@@ -143,7 +143,7 @@ wpe_tvcontrol_backend_stop_scanning(struct wpe_tvcontrol_backend* backend, const
 
 __attribute__((visibility("default")))
 tvcontrol_return
-wpe_tvcontrol_backend_get_channel_list(struct wpe_tvcontrol_backend* backend, const char* tuner_id, SourceType type, struct wpe_tvcontrol_channel_vector* out_channel_list)
+wpe_tvcontrol_backend_get_channel_list(struct wpe_tvcontrol_backend* backend, const char* tuner_id, SourceType type, struct wpe_tvcontrol_channel_vector** out_channel_list)
 {
     tvcontrol_return ret = TVControlFailed;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);

@@ -29,7 +29,7 @@ public:
     tvcontrol_return stopScanning();
     tvcontrol_return setCurrentChannel(SourceType, uint64_t);
     tvcontrol_return setCurrentSource(SourceType sType);
-    tvcontrol_return getChannels(SourceType, struct wpe_tvcontrol_channel_vector*);
+    tvcontrol_return getChannels(SourceType, struct wpe_tvcontrol_channel_vector**);
     tvcontrol_return getSupportedSrcTypeList(wpe_tvcontrol_src_types_vector* out_source_types_list);
 
     struct TunerData*   m_tunerData;

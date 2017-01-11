@@ -51,9 +51,9 @@ struct wpe_tvcontrol_src_types_vector {
 
 typedef enum { Tv, Radio, Data } ChannelType;
 struct wpe_tvcontrol_channel {
-    char*       networkId;
-    char*       transportSId;
-    char*       serviceId;
+    uint64_t    networkId;
+    uint64_t    transportSId;
+    uint64_t    serviceId;
     char*       name;
     uint64_t    number;
     ChannelType type;
@@ -75,7 +75,7 @@ struct wpe_tvcontrol_backend_interface {
     tvcontrol_return    (*stop_scanning)(void*, const char*);
     tvcontrol_return    (*set_current_channel)(void*, const char*, SourceType, uint64_t);
     tvcontrol_return    (*set_current_source)(void*, const char*, SourceType);
-    tvcontrol_return    (*get_channel_list)(void*, const char*, SourceType, struct wpe_tvcontrol_channel_vector*);
+    tvcontrol_return    (*get_channel_list)(void*, const char*, SourceType, struct wpe_tvcontrol_channel_vector**);
 };
 
 struct wpe_tvcontrol_backend*
@@ -124,7 +124,7 @@ tvcontrol_return
 wpe_tvcontrol_backend_set_current_channel(struct wpe_tvcontrol_backend*, const char* tuner_id, SourceType type, uint64_t channel_number);
 
 tvcontrol_return
-wpe_tvcontrol_backend_get_channel_list(struct wpe_tvcontrol_backend*, const char* tuner_id, SourceType type, struct wpe_tvcontrol_channel_vector* out_channel_list);
+wpe_tvcontrol_backend_get_channel_list(struct wpe_tvcontrol_backend*, const char* tuner_id, SourceType type, struct wpe_tvcontrol_channel_vector** out_channel_list);
 
 #ifdef __cplusplus
 }

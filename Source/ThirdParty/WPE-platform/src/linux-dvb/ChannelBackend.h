@@ -15,9 +15,9 @@ public:
     ChannelBackend() {}
     virtual ~ChannelBackend() {}
 
-    void setNetworkId(string networkId){m_networkId = networkId;}
-    void setTransportStreamId(string transportStreamId){m_transportStreamId = transportStreamId;}
-    void setServiceId(string serviceId){m_serviceId = serviceId;}
+    void setNetworkId(uint64_t networkId){m_networkId = networkId;}
+    void setTransportStreamId(uint64_t transportStreamId){m_transportStreamId = transportStreamId;}
+    void setServiceId(uint64_t serviceId){m_serviceId = serviceId;}
     void setName(string name){m_name = name;}
     void setNumber(uint64_t number){m_number = number;}
     void setProgramNumber(int programNumber){m_programNumber = programNumber;}
@@ -26,16 +26,16 @@ public:
     uint64_t getLCN() const {return m_number;}
     int getFrequency() const {return m_frequency;}
     int getProgramNumber() const {return m_programNumber;}
-    string getName() const {return m_name;}
-    string getServiceId() const {return m_serviceId;}
-    string getTransportStreamId() const {return m_transportStreamId;}
-    string getNetworkId() const {return m_networkId;}
+    string   getName() const {return m_name;}
+    uint64_t getServiceId() const {return m_serviceId;}
+    uint64_t getTransportStreamId() const {return m_transportStreamId;}
+    uint64_t getNetworkId() const {return m_networkId;}
 
 private:
     string   m_name;
-    string   m_networkId;
-    string   m_serviceId;
-    string   m_transportStreamId;
+    uint64_t m_networkId;
+    uint64_t m_serviceId;
+    uint64_t m_transportStreamId;
     uint64_t m_number;
     int      m_programNumber;
     int      m_frequency;

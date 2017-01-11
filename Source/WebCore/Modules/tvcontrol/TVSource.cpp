@@ -20,6 +20,12 @@ TVSource::TVSource (ScriptExecutionContext* context, RefPtr<PlatformTVSource> pl
 
 }
 
+TVSource::~TVSource() {
+    printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    if (m_channelList.size())
+        m_channelList.clear();
+}
+
 void TVSource::getChannels(TVChannelPromise&& promise) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 
@@ -27,6 +33,7 @@ void TVSource::getChannels(TVChannelPromise&& promise) {
         promise.reject(INVALID_STATE_ERR, "Invalid state: scanning in progress");
         return;
     }
+
     if (m_channelList.size()){
         promise.resolve(m_channelList);
         return;

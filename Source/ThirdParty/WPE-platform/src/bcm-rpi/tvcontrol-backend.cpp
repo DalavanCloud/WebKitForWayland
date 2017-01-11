@@ -4,7 +4,7 @@
 #include "TunerBackend.h"
 #include <libudev.h>
 #endif
-#include "TVLog.h"
+#include "tv-log.h"
 #include "event-queue.h"
 #include <inttypes.h>
 #include <stdio.h>
@@ -43,7 +43,7 @@ public:
     tvcontrol_return stopScanning(const char*);
     tvcontrol_return setCurrentChannel(const char*, SourceType, uint64_t);
     tvcontrol_return setCurrentSource(const char*, SourceType);
-    tvcontrol_return getChannels(const char*, SourceType, struct wpe_tvcontrol_channel_vector*);
+    tvcontrol_return getChannels(const char*, SourceType, struct wpe_tvcontrol_channel_vector**);
     void updateTunerList(const char *, tuner_changed_operation);
 
 private:
@@ -172,7 +172,7 @@ void TvControlBackend::initializeTuners() {
     TvLogTrace();
 }
 
-tvcontrol_return TvControlBackend::getChannels(const char* tunerId, SourceType type, struct wpe_tvcontrol_channel_vector* channelVector) {
+tvcontrol_return TvControlBackend::getChannels(const char* tunerId, SourceType type, struct wpe_tvcontrol_channel_vector** channelVector) {
     tvcontrol_return ret = TVControlFailed;
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 #ifdef TVCONTROL_BACKEND_LINUX_DVB
@@ -218,12 +218,6 @@ void TvControlBackend::handleScanningStateChangedEvent(struct wpe_tvcontrol_even
         free(event->tuner_id.data);
     // free channel info
     if (event->channel_info) {
-        if (event->channel_info->networkId)
-            free(event->channel_info->networkId);
-        if (event->channel_info->transportSId)
-            free(event->channel_info->transportSId);
-        if (event->channel_info->serviceId)
-            free(event->channel_info->serviceId);
         if (event->channel_info->name)
             free(event->channel_info->name);
         if (event->channel_info)
@@ -591,7 +585,7 @@ struct wpe_tvcontrol_backend_interface bcm_rpi_tvcontrol_backend_interface = {
         return ret;
     },
     // get_channel_list
-    [](void* data, const char* tuner_id, SourceType type, struct wpe_tvcontrol_channel_vector* out_channel_list) -> tvcontrol_return
+    [](void* data, const char* tuner_id, SourceType type, struct wpe_tvcontrol_channel_vector** out_channel_list) -> tvcontrol_return
     {
         tvcontrol_return ret = TVControlFailed;
         printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);

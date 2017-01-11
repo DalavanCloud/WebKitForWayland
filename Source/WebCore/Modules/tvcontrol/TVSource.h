@@ -25,7 +25,7 @@ public:
     };
 
     static Ref<TVSource> create (ScriptExecutionContext*, RefPtr<PlatformTVSource>, TVTuner*);
-    virtual ~TVSource () { }
+    virtual ~TVSource ();
 
     enum class Type { DvbT, DvbT2, DvbC, DvbC2, DvbS, DvbS2, DvbH, DvbSh, Atsc, AtscMH, IsdbT, IsdbTb, IsdbS, IsdbC, _1seg, Dtmb, Cmmb, TDmb, SDmb };
 

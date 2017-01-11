@@ -40,7 +40,9 @@ public:
     tvcontrol_return stopScanning();
     tvcontrol_return setCurrentChannel(uint64_t channelNo);
     SourceType srcType() { return m_sType; }
-    tvcontrol_return getChannels(wpe_tvcontrol_channel_vector* channelVector);
+    tvcontrol_return getChannels(wpe_tvcontrol_channel_vector** channelVector);
+
+    wpe_tvcontrol_channel_vector m_channelVector;
 
 private:
     void parseAtscExtendedChannelNameDescriptor(char **name, const unsigned char *buf);
@@ -57,10 +59,12 @@ private:
     void processPMT(int pmtFd, std::map<int, int>& streamInfo);
     int  createSectionFilter(uint16_t pid, uint8_t tableId);
     void clearChannelList();
+    void clearChannelVector();
     void scanningThread();
     void setCurrentChannelThread();
-    std::vector<ChannelBackend*>      m_channelList;
-    EventQueue<wpe_tvcontrol_event*>* m_eventQueue;
+
+    std::map<uint64_t, ChannelBackend*> m_channelList;
+    EventQueue<wpe_tvcontrol_event*>*   m_eventQueue;
 
     SourceType               m_sType;
     TunerData*               m_tunerData;
@@ -68,6 +72,7 @@ private:
     thread                   m_setCurrentChannelThread;
     int                      m_adapter;
     int                      m_demux;
+
     int                      m_scanIndex;
     bool                     m_isRescanned;
     bool                     m_isScanStopped;
@@ -76,6 +81,7 @@ private:
     mutex                    m_scanMutex;
     condition_variable_any   m_scanCondition;
     pid_t                    m_pid;
+
     uint64_t                 m_channelNo;
     mutex                    m_channelChangeMutex;
     condition_variable_any   m_channelChangeCondition;

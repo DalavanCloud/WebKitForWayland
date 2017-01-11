@@ -1,5 +1,5 @@
 #include "SourceBackend.h"
-#include "TVLog.h"
+#include "tv-log.h"
 #define TV_DEBUG 1
 
 namespace BCMRPi {
@@ -30,6 +30,7 @@ SourceBackend::SourceBackend(EventQueue<wpe_tvcontrol_event*>* eventQueue, Sourc
     m_demux = stoi(m_tunerData->tunerId.substr(m_tunerData->tunerId.find(":")+1));
     m_scanningThread = thread(&SourceBackend::scanningThread, this);
     m_setCurrentChannelThread = thread(&SourceBackend::setCurrentChannelThread, this);
+    m_channelVector.length = 0;
 }
 
 SourceBackend::~SourceBackend() {
@@ -38,13 +39,27 @@ SourceBackend::~SourceBackend() {
     m_scanCondition.notify_all();
     m_scanningThread.join();
     m_setCurrentChannelThread.join();
+    clearChannelVector();
+}
+
+void SourceBackend::clearChannelVector() {
+    if (m_channelVector.length) {
+        for (int i; i < m_channelVector.length; i++) {
+            if (m_channelVector.channels[i].name)
+                free(m_channelVector.channels[i].name);
+        }
+        free(m_channelVector.channels);
+        m_channelVector.length = 0;
+    }
 }
 
 void SourceBackend::clearChannelList() {
-    while (!m_channelList.empty()) {
-        delete(m_channelList.back());
-        m_channelList.pop_back();
+    if (!m_channelList.empty()) {
+        for (auto &it : m_channelList) {
+           delete(it.second);
+        }
     }
+    m_channelList.clear();
 }
 
 tvcontrol_return SourceBackend::startScanning(bool isRescanned) {
@@ -68,7 +83,7 @@ void SourceBackend::scanningThread() {
         m_isScanInProgress = true;
         m_scanMutex.unlock();
 
-        if(!m_isRunning)
+        if (!m_isRunning)
             break;
 
         uint64_t modulation = m_tunerData->modulation;
@@ -161,8 +176,8 @@ tvcontrol_return SourceBackend::stopScanning() {
 
 ChannelBackend* SourceBackend::getChannelByLCN(uint64_t channelNo) {
     for (auto& channel : m_channelList) {
-         if (channelNo == channel->getLCN()) {
-            return channel;
+         if (channelNo == channel.second->getLCN()) {
+            return channel.second;
         }
     }
     return NULL;
@@ -208,32 +223,33 @@ void SourceBackend::startPlayBack(int frequency, uint64_t modulation, int pmtPid
     execute(argv);
 }
 
-tvcontrol_return SourceBackend::getChannels(wpe_tvcontrol_channel_vector* channelVector) {
+tvcontrol_return SourceBackend::getChannels(wpe_tvcontrol_channel_vector** channelVector) {
     /*Populate channel list */
     tvcontrol_return ret = TVControlFailed;
     printf("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
     if (!m_channelList.empty()) {
         printf("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
-        channelVector->length = m_channelList.size();
-        channelVector->channels = new wpe_tvcontrol_channel[m_channelList.size()];
-        std::vector<ChannelBackend*>::iterator it;
-        int i = 0;
-        for (auto& channel : m_channelList) {
-            if (!(channel->getNetworkId()).empty())
-                channelVector->channels[i].networkId = strdup((channel->getNetworkId()).c_str());
-            if (!(channel->getName()).empty())
-                channelVector->channels[i].name = strdup((channel->getName()).c_str());
-            if (!(channel->getServiceId()).empty())
-                channelVector->channels[i].serviceId = strdup((channel->getServiceId()).c_str());
-            if (!(channel->getTransportStreamId()).empty())
-                channelVector->channels[i].transportSId = strdup((channel->getTransportStreamId()).c_str());
-            channelVector->channels[i].number = channel->getLCN();
-            i++;
+        if (!m_channelVector.length
+        || (m_channelVector.length != m_channelList.size())) {
+            clearChannelVector();
+            m_channelVector.length = m_channelList.size();
+            m_channelVector.channels = new wpe_tvcontrol_channel[m_channelList.size()];
+            int i = 0;
+            for (auto& channel : m_channelList) {
+                m_channelVector.channels[i].networkId = channel.second->getNetworkId();
+                m_channelVector.channels[i].transportSId = channel.second->getTransportStreamId();
+                m_channelVector.channels[i].serviceId = channel.second->getServiceId();
+                m_channelVector.channels[i].number = channel.second->getLCN();
+                if (!(channel.second->getName()).empty())
+                    m_channelVector.channels[i].name = strdup((channel.second->getName()).c_str());
+                i++;
+            }
         }
+        *channelVector = &m_channelVector;
         ret = TVControlSuccess;
     }
     else {
-        channelVector->channels = NULL;
+        channelVector = NULL;
         printf("Channel list is empty .Scanning is incomplete \n");
     }
     return ret;
@@ -245,9 +261,8 @@ tvcontrol_return SourceBackend::setCurrentChannel(uint64_t channelNo) {
 
     TvLogInfo("\nSet Channel invoked \n");
     if (m_channelNo != channelNo) {
-        ret = TVControlSuccess;
         m_channelChangeMutex.lock();
-        if(m_currentPlaybackState) {
+        if (m_currentPlaybackState) {
             m_currentPlaybackState = false;
             //TODO stop playback on state change
         }
@@ -255,11 +270,12 @@ tvcontrol_return SourceBackend::setCurrentChannel(uint64_t channelNo) {
         m_channelChangeCondition.notify_all();
         m_channelChangeMutex.unlock();
     }
+    ret = TVControlSuccess;
     return ret;
 }
 
 void SourceBackend::setCurrentChannelThread() {
-    while(m_isRunning) {
+    while (m_isRunning) {
         m_channelChangeMutex.lock();
         m_channelChangeCondition.wait(m_channelChangeMutex);
         m_channelChangeMutex.unlock();
@@ -592,8 +608,8 @@ bool SourceBackend::processTVCT(int dmxfd, int frequency) {
             TvLogInfo("ServiceID : %d\n",ch->source_id);
 
             currInfo->setNumber(logicalChannelNumber);
-            currInfo->setTransportStreamId(to_string(ch->channel_TSID));
-            currInfo->setServiceId(to_string(ch->source_id));
+            currInfo->setTransportStreamId(ch->channel_TSID);
+            currInfo->setServiceId(ch->source_id);
             currInfo->setProgramNumber(ch->program_number);
             currInfo->setFrequency(frequency);
             TvLogInfo("Short Name : %s\n", serviceName);
@@ -612,17 +628,17 @@ bool SourceBackend::processTVCT(int dmxfd, int frequency) {
             string name(serviceName);
             TvLogInfo("Extended name : %s\n",name.c_str());
             currInfo->setName(name);
-            m_channelList.push_back(currInfo);
+            m_channelList.insert(std::pair<uint64_t, ChannelBackend*>(logicalChannelNumber,currInfo));
             TvLogInfo("Sending channel Info\n"); fflush(stdout);
             wpe_tvcontrol_channel* channelInfo = reinterpret_cast<struct wpe_tvcontrol_channel*>(malloc(sizeof(struct wpe_tvcontrol_channel)));
-            channelInfo->networkId  = NULL;
-            channelInfo->transportSId  = strdup(to_string(ch->channel_TSID).c_str());
-            channelInfo->serviceId  = strdup(to_string(ch->source_id).c_str());
+            channelInfo->networkId  = 0;
+            channelInfo->transportSId  = ch->channel_TSID;
+            channelInfo->serviceId  = ch->source_id;
             channelInfo->name  = strdup(name.c_str());
             channelInfo->number  = logicalChannelNumber;
             TVControlPushEvent(ScanningChanged, m_tunerData->tunerId.c_str(), Scanned, channelInfo);
         }
-    } while(sectionPattern != (uint32_t)((1 << numSections) - 1));
+    } while (sectionPattern != (uint32_t)((1 << numSections) - 1));
 
     return true;
 }
@@ -635,10 +651,10 @@ void SourceBackend::parseAtscExtendedChannelNameDescriptor(char **serviceName, c
     #define uncompressed_string 0x00
 
     b++;
-    for(i = 0; i < num_str; i++) {
+    for (i = 0; i < num_str; i++) {
         int num_seg = b[3];
         b += 4; /* skip lang code */
-        for(j = 0; j < num_seg; j++) {
+        for (j = 0; j < num_seg; j++) {
            int compression_type = b[0],/* mode = b[1],*/ num_bytes = b[2];
 
             switch (compression_type) {

@@ -33,21 +33,22 @@ void PlatformTVSource::setSourceClient(PlatformTVSourceClient* client)
 
 bool PlatformTVSource::getChannels(Vector<RefPtr<PlatformTVChannel>>& channelVector) {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    struct wpe_tvcontrol_channel_vector channelList;
-    channelList.length = 0;
+    struct wpe_tvcontrol_channel_vector *channelList;
     tvcontrol_return ret = TVControlFailed;
     ret = wpe_tvcontrol_backend_get_channel_list(m_tvBackend->m_backend, m_tunerId.utf8().data(), (SourceType)m_type, &channelList);
     if (ret == TVControlFailed || ret == TVControlNotImplemented)
         return false;
-    if (channelList.length) {
-        for (uint64_t i = 0; i < channelList.length; i++) {
-            m_tvBackend->m_channel = &channelList.channels[i];
-            channelVector.append(PlatformTVChannel::create(m_tvBackend, m_tunerId.utf8().data()));
+    if (channelList) {
+        if (channelList->length) {
+            for (uint64_t i = 0; i < channelList->length; i++) {
+                m_tvBackend->m_channel = &channelList->channels[i];
+                channelVector.append(PlatformTVChannel::create(m_tvBackend, m_tunerId.utf8().data()));
+            }
+            return true;
         }
-        return true;
     }
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
-    return true;
+    return false;
 }
 
 bool PlatformTVSource::setCurrentChannel (const String& channelNumber) {

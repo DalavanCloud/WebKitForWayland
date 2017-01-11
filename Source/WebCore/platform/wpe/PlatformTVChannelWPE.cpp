@@ -18,9 +18,9 @@ PlatformTVChannel::PlatformTVChannel(PlatformTVControlBackend* tvBackend, String
     , m_PlatformTVChannelClient(nullptr)
     , m_tvBackend(tvBackend)
 {
-    m_networkId         = tvBackend->m_channel->networkId;
-    m_transportStreamId = tvBackend->m_channel->transportSId;
-    m_serviceId         = tvBackend->m_channel->serviceId;
+    m_networkId         = (std::to_string(tvBackend->m_channel->networkId)).c_str();
+    m_transportStreamId = (std::to_string(tvBackend->m_channel->transportSId)).c_str();
+    m_serviceId         = (std::to_string(tvBackend->m_channel->serviceId)).c_str();
     m_name              = tvBackend->m_channel->name;
     m_number            = (std::to_string(tvBackend->m_channel->number)).c_str();
     m_type              = (PlatformTVChannel::Type)tvBackend->m_channel->type;

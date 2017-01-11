@@ -1,5 +1,5 @@
 #include "TunerBackend.h"
-#include "TVLog.h"
+#include "tv-log.h"
 
 namespace BCMRPi {
 
@@ -467,7 +467,7 @@ tvcontrol_return TvTunerBackend::setCurrentChannel(SourceType sType ,uint64_t ch
     return ret;
 }
 
-tvcontrol_return TvTunerBackend::getChannels(SourceType sType, struct wpe_tvcontrol_channel_vector* channelVector) {
+tvcontrol_return TvTunerBackend::getChannels(SourceType sType, struct wpe_tvcontrol_channel_vector** channelVector) {
     tvcontrol_return ret = TVControlFailed;
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     /* Get source corresponds to this type  */
