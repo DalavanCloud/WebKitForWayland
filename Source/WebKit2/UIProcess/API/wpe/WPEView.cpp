@@ -119,7 +119,7 @@ View::View(struct wpe_view_backend* backend, const API::PageConfiguration& baseC
     wpe_view_backend_initialize(m_backend);
 
     m_pageProxy->initializeWebPage();
-#if PLATFORM(BCM_NEXUS)
+#if ENABLE_TV_CONTROL
     m_pageProxy->setDrawsBackground(false);
 #endif
     

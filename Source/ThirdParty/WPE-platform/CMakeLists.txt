@@ -102,6 +102,10 @@ if (USE_WPE_INPUT_LIBINPUT)
     )
 endif()
 
+if (ENABLE_TV_CONTROL)
+    add_definitions(-DENABLE_TV_CONTROL)
+endif()
+
 if (USE_WPE_TVCONTROL_BACKEND_LINUX_DVB)
     find_package(LinuxDVB REQUIRED)
     list(APPEND WPE_PLATFORM_INCLUDE_DIRECTORIES
