@@ -19,7 +19,7 @@ namespace WebCore {
 class TVTuner : public RefCounted<TVTuner>, public PlatformTVTunerClient, public ContextDestructionObserver, public EventTargetWithInlineData {
 public:
     static Ref<TVTuner> create (ScriptExecutionContext*, RefPtr<PlatformTVTuner> platformTVTuner);
-    virtual ~TVTuner () { }
+    virtual ~TVTuner ();
 
     enum class SourceType { DvbT, DvbT2, DvbC, DvbC2, DvbS, DvbS2, DvbH, DvbSh, Atsc, AtscMH, IsdbT, IsdbTb, IsdbS, IsdbC, _1seg, Dtmb, Cmmb, TDmb, SDmb };
 

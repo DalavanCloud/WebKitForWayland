@@ -14,6 +14,13 @@ TVTuner::TVTuner (ScriptExecutionContext* context, RefPtr<PlatformTVTuner> platf
     , m_platformTVTuner(platformTVTuner) {
 }
 
+TVTuner::~TVTuner () {
+    if (m_sourceTypeList.size())
+        m_sourceTypeList.clear();
+    if (m_sourceList.size())
+        m_sourceList.clear();
+}
+
 const Vector<TVTuner::SourceType>&  TVTuner::getSupportedSourceTypes () {
     //Use platform logic to get supported Source Types and map.
     if (m_sourceTypeList.size())

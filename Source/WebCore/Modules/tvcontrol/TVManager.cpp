@@ -27,6 +27,8 @@ TVManager::TVManager(ScriptExecutionContext* context)
 
 TVManager::~TVManager() {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
+    if (m_tunerList.size())
+        m_tunerList.clear();
 }
 
 Document* TVManager::document() const

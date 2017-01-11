@@ -6,7 +6,7 @@ enum TVChannelType { "tv", "radio", "data" };
     readonly        attribute DOMString     networkId;
     readonly        attribute DOMString     transportStreamId;
     readonly        attribute DOMString     serviceId;
-//    readonly        attribute TVSource      source;
+    readonly        attribute TVSource      source;
     readonly        attribute TVChannelType type;
     readonly        attribute DOMString     name;
     readonly        attribute DOMString     number;

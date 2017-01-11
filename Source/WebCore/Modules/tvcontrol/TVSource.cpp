@@ -11,9 +11,9 @@ Ref<TVSource> TVSource::create(ScriptExecutionContext* context, RefPtr<PlatformT
 }
 
 TVSource::TVSource (ScriptExecutionContext* context, RefPtr<PlatformTVSource> platformTVSource, TVTuner* parentTVTuner)
-    : m_platformTVSource(platformTVSource)
+    : ContextDestructionObserver(context)
+    , m_platformTVSource(platformTVSource)
     , m_parentTVTuner(parentTVTuner)
-    , ContextDestructionObserver(context)
     , m_currentChannel(nullptr)
     , m_scanState(SCANNING_NOT_INITIALISED)
     , m_isScanning(false) {
