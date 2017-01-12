@@ -75,7 +75,6 @@ VPATH = \
     $(WebCore)/svg \
     $(WebCore)/testing \
     $(WebCore)/websockets \
-
 #
 
 JS_BINDING_IDLS = \
