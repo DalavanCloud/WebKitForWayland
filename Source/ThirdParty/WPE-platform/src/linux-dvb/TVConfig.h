@@ -29,7 +29,7 @@ struct dvbfe_handle {
 inline struct dvbfe_handle* openFE(std::string& tunerId) {
 /* Change id to int*/
     int adapter = stoi(tunerId.substr(0, tunerId.find(":")));
-    int frontend = stoi(tunerId.substr(tunerId.find(":")+1));
+    int frontend = stoi(tunerId.substr(tunerId.find(":") + 1));
 /* Open dvbFe*/
     return dvbfe_open(adapter, frontend, 0);
 }

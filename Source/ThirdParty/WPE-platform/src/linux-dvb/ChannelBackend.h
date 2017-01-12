@@ -5,7 +5,6 @@
 #include <wpe/tvcontrol-backend.h>
 
 using namespace std;
-#define TV_DEBUG 1 //TODO remove
 
 namespace BCMRPi {
 

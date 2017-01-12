@@ -5,23 +5,27 @@
 
 namespace WebCore {
 
-Ref<TVTuner> TVTuner::create (ScriptExecutionContext* context, RefPtr<PlatformTVTuner> platformTVTuner) {
+Ref<TVTuner> TVTuner::create (ScriptExecutionContext* context, RefPtr<PlatformTVTuner> platformTVTuner)
+{
     return adoptRef(*new TVTuner (context, platformTVTuner));
 }
 
 TVTuner::TVTuner (ScriptExecutionContext* context, RefPtr<PlatformTVTuner> platformTVTuner)
     : ContextDestructionObserver(context)
-    , m_platformTVTuner(platformTVTuner) {
+    , m_platformTVTuner(platformTVTuner)
+{
 }
 
-TVTuner::~TVTuner () {
+TVTuner::~TVTuner ()
+{
     if (m_sourceTypeList.size())
         m_sourceTypeList.clear();
     if (m_sourceList.size())
         m_sourceList.clear();
 }
 
-const Vector<TVTuner::SourceType>&  TVTuner::getSupportedSourceTypes () {
+const Vector<TVTuner::SourceType>&  TVTuner::getSupportedSourceTypes ()
+{
     //Use platform logic to get supported Source Types and map.
     if (m_sourceTypeList.size())
         return m_sourceTypeList;
@@ -42,7 +46,8 @@ const Vector<TVTuner::SourceType>&  TVTuner::getSupportedSourceTypes () {
     return m_sourceTypeList;
 }
 
-void  TVTuner::getSources (TVSourcePromise&& promise) {
+void  TVTuner::getSources (TVSourcePromise&& promise)
+{
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     if (m_sourceList.size()){
        promise.resolve(m_sourceList);
@@ -67,7 +72,8 @@ void  TVTuner::getSources (TVSourcePromise&& promise) {
     promise.reject(nullptr);
 }
 
-void  TVTuner::setCurrentSource (TVTuner::SourceType sourceType, TVPromise&& promise) {
+void  TVTuner::setCurrentSource (TVTuner::SourceType sourceType, TVPromise&& promise)
+{
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     if (m_platformTVTuner) {
         m_currentSource = nullptr;
@@ -97,7 +103,8 @@ void  TVTuner::setCurrentSource (TVTuner::SourceType sourceType, TVPromise&& pro
     promise.reject(nullptr);
 }
 
-void  TVTuner::dispatchSourceChangedEvent() {
+void  TVTuner::dispatchSourceChangedEvent()
+{
 
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     scriptExecutionContext()->postTask([=](ScriptExecutionContext&) {

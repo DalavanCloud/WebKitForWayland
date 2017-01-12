@@ -96,7 +96,7 @@ bool PlatformTVManager::getTuners(Vector<RefPtr<PlatformTVTuner>>& tunerVector)
     if (ret == TVControlFailed || ret == TVControlNotImplemented)
         return false;
     if (tunerList.length) {
-        for(uint64_t i = 0; i < tunerList.length; i++) {
+        for (uint64_t i = 0; i < tunerList.length; i++) {
             String tunerId(tunerList.strings[i].data, tunerList.strings[i].length);
             tunerVector.append(PlatformTVTuner::create(tunerId, m_tvBackend));
         }

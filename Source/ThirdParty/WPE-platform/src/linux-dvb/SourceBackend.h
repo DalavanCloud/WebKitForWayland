@@ -15,7 +15,6 @@
 #include <condition_variable>
 
 #include "TVConfig.h"
-//#include <wpe/tvcontrol-backend.h>
 #include "event-queue.h"
 #include "ChannelBackend.h"
 

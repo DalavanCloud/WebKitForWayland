@@ -1,6 +1,8 @@
-#ifndef TV_LOG_H_
-#define TV_LOG_H_
-#define DEBUG_LOG 1 
+#ifndef bcm_rpi_tv_log_h
+#define bcm_rpi_tv_log_h
+
+#define DEBUG_LOG 1
+
 #ifdef DEBUG_LOG
 #define TvLogInfo(dbg_msg...) {\
    char msg1[250];                      \
@@ -20,4 +22,4 @@
 
 #endif //DEBUG_LOG
 
-#endif //TV_LOG_H_
+#endif //bcm_rpi_tv_log_h

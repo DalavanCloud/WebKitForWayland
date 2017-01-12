@@ -59,6 +59,7 @@ private:
     void getConfiguration();
     void getCapabilities();
     void populateFreq();
+    void clearSourceList();
 };
 
 } // namespace BCMRPi

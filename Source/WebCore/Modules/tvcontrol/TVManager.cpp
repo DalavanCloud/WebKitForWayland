@@ -12,7 +12,8 @@
 
 namespace WebCore {
 
-Ref<TVManager> TVManager::create(ScriptExecutionContext* context) {
+Ref<TVManager> TVManager::create(ScriptExecutionContext* context)
+{
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     Ref<TVManager> tvManager(adoptRef(*new TVManager(context)));
     tvManager->suspendIfNeeded();
@@ -21,11 +22,13 @@ Ref<TVManager> TVManager::create(ScriptExecutionContext* context) {
 
 TVManager::TVManager(ScriptExecutionContext* context)
    : ActiveDOMObject(context)
-   , m_platformTVManager(nullptr) {
+   , m_platformTVManager(nullptr)
+{
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
-TVManager::~TVManager() {
+TVManager::~TVManager()
+{
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     if (m_tunerList.size())
         m_tunerList.clear();
@@ -36,7 +39,8 @@ Document* TVManager::document() const
     return downcast<Document>(scriptExecutionContext());
 }
 
-void TVManager::didTunerOperationChanged (String tunerId, uint16_t event) {
+void TVManager::didTunerOperationChanged (String tunerId, uint16_t event)
+{
     int position;
     if ((TVTunerChangedEvent::Operation)event == TVTunerChangedEvent::Operation::Added) { // Case when DVB adapter is added.
         m_tunerList.append(TVTuner::create(scriptExecutionContext(), PlatformTVTuner::create(tunerId.utf8().data(), m_platformTVManager->m_tvBackend)));
@@ -59,7 +63,8 @@ void TVManager::didTunerOperationChanged (String tunerId, uint16_t event) {
     });
 }
 
-void TVManager::didCurrentSourceChanged(String tunerId) {
+void TVManager::didCurrentSourceChanged(String tunerId)
+{
     printf("\n%s:%s:%d\n TUNER ID = %s", __FILE__, __func__, __LINE__, tunerId.utf8().data());
 
     /*Identify tuner */
@@ -71,7 +76,8 @@ void TVManager::didCurrentSourceChanged(String tunerId) {
     }
 }
 
-void TVManager::didCurrentChannelChanged(String tunerId) {
+void TVManager::didCurrentChannelChanged(String tunerId)
+{
 
     printf("\n%s:%s:%d\n TUNER ID = %s", __FILE__, __func__, __LINE__, tunerId.utf8().data());
     for (auto& tuner : m_tunerList) {
@@ -86,7 +92,8 @@ void TVManager::didCurrentChannelChanged(String tunerId) {
     //Create event using idenified instance details
 }
 
-void TVManager::didScanningStateChanged(String tunerId, RefPtr<PlatformTVChannel> platformTVChannel, uint16_t state) {
+void TVManager::didScanningStateChanged(String tunerId, RefPtr<PlatformTVChannel> platformTVChannel, uint16_t state)
+{
 
     for (auto& tuner : m_tunerList) {
         if (equalIgnoringASCIICase(tunerId, tuner->id()) == 1) {
@@ -99,7 +106,8 @@ void TVManager::didScanningStateChanged(String tunerId, RefPtr<PlatformTVChannel
     }
 }
 
-void TVManager::getTuners(TVTunerPromise&& promise) {
+void TVManager::getTuners(TVTunerPromise&& promise)
+{
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     if (m_tunerList.size())
     {

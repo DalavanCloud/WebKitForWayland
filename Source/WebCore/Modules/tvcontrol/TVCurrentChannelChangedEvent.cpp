@@ -5,17 +5,20 @@
 
 namespace WebCore {
 
-Ref<TVCurrentChannelChangedEvent> TVCurrentChannelChangedEvent::create (const AtomicString& type, RefPtr<TVChannel> channel) {
+Ref<TVCurrentChannelChangedEvent> TVCurrentChannelChangedEvent::create (const AtomicString& type, RefPtr<TVChannel> channel)
+{
     return adoptRef(*new TVCurrentChannelChangedEvent (type, channel));
 }
 
 TVCurrentChannelChangedEvent::TVCurrentChannelChangedEvent (const AtomicString& type, RefPtr<TVChannel> channel)
     : Event(type, false, false)
-    , m_channel(channel) {
+    , m_channel(channel)
+{
 
 }
 
-TVCurrentChannelChangedEvent::~TVCurrentChannelChangedEvent () {
+TVCurrentChannelChangedEvent::~TVCurrentChannelChangedEvent ()
+{
 
 }
 

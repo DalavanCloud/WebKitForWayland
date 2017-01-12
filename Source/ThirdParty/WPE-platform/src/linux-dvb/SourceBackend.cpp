@@ -1,6 +1,5 @@
 #include "SourceBackend.h"
 #include "tv-log.h"
-#define TV_DEBUG 1
 
 namespace BCMRPi {
 
@@ -9,7 +8,7 @@ namespace BCMRPi {
     struct wpe_tvcontrol_event* event = reinterpret_cast<struct wpe_tvcontrol_event*>(malloc(sizeof(struct wpe_tvcontrol_event))); \
     event->eventID = eventId;                                     \
     event->tuner_id.data = strndup(tunerId, TUNER_ID_LEN);        \
-    TvLogInfo("Tuner id platform  =  %s \n", event->tuner_id.data); \
+    TvLogInfo("Tuner ID =  %s \n", event->tuner_id.data); \
     event->tuner_id.length = strlen(tunerId);                     \
     event->state = evtState;                                      \
     event->channel_info = channelInfo;                            \
@@ -40,6 +39,7 @@ SourceBackend::~SourceBackend() {
     m_scanningThread.join();
     m_setCurrentChannelThread.join();
     clearChannelVector();
+    clearChannelList();
 }
 
 void SourceBackend::clearChannelVector() {
@@ -48,15 +48,15 @@ void SourceBackend::clearChannelVector() {
             if (m_channelVector.channels[i].name)
                 free(m_channelVector.channels[i].name);
         }
-        free(m_channelVector.channels);
+        delete(m_channelVector.channels);
         m_channelVector.length = 0;
     }
 }
 
 void SourceBackend::clearChannelList() {
     if (!m_channelList.empty()) {
-        for (auto &it : m_channelList) {
-           delete(it.second);
+        for (auto& channel : m_channelList) {
+           delete(channel.second);
         }
     }
     m_channelList.clear();
@@ -146,19 +146,19 @@ void SourceBackend::processPMT(int pmtFd, std::map<int, int>& streamInfo) {
 
     // parse section
     struct section *section = section_codec(siBuf, size);
-    if (section == NULL) {
+    if (!section) {
         return;
     }
 
     // parse section_ext
     struct section_ext *sectionExt = section_ext_decode(section, 0);
-    if (sectionExt == NULL) {
+    if (!sectionExt) {
         return;
     }
 
     // parse PMT
     struct mpeg_pmt_section *pmt = mpeg_pmt_section_codec(sectionExt);
-    if (pmt == NULL) {
+    if (!pmt) {
         return;
     }
 
@@ -180,7 +180,7 @@ ChannelBackend* SourceBackend::getChannelByLCN(uint64_t channelNo) {
             return channel.second;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 static void  parse(char *line, char **argv) {
@@ -249,7 +249,7 @@ tvcontrol_return SourceBackend::getChannels(wpe_tvcontrol_channel_vector** chann
         ret = TVControlSuccess;
     }
     else {
-        channelVector = NULL;
+        channelVector = nullptr;
         printf("Channel list is empty .Scanning is incomplete \n");
     }
     return ret;
@@ -298,13 +298,13 @@ void SourceBackend::setCurrentChannelThread() {
                         int pmtPid = streamInfo[0];
                         int videoPid = 0;
                         int audioPid = 0;
-                        for (std::map<int, int>::iterator it = streamInfo.begin(); it != streamInfo.end(); ++it) {
-                            TvLogInfo("Stream Type: %d Pid : %d \n" , it->second,it->first);
-                            if (videoPid == 0 && it->second == 0x2){
-                                videoPid = it->first;
+                        for (auto& info : streamInfo) {
+                            TvLogInfo("Stream Type: %d Pid : %d \n" , info.second,info.first);
+                            if (videoPid == 0 && info.second == 0x2){
+                                videoPid = info.first;
                             }
-                            if (audioPid == 0 && it->second == 0x81){
-                                audioPid = it->first;
+                            if (audioPid == 0 && info.second == 0x81){
+                                audioPid = info.first;
                             }
                         }
                         TvLogInfo("%s:%s:%d \n", __FILE__, __func__, __LINE__);
@@ -477,12 +477,12 @@ bool SourceBackend::processPAT(int patFd, int programNumber, struct pollfd *poll
 
     // parse section
     struct section *section = section_codec(siBuf, size);
-    if (section == NULL) {
+    if (!section) {
         return false;
     }
     // parse sectionExt
     struct section_ext *sectionExt = section_ext_decode(section, 0);
-    if (sectionExt == NULL) {
+    if (!sectionExt) {
         return false;
     }
     /*if (pat_version == sectionExt->version_number) { //TODO: recheck again
@@ -491,7 +491,7 @@ bool SourceBackend::processPAT(int patFd, int programNumber, struct pollfd *poll
 
     // parse PAT
     struct mpeg_pat_section *pat = mpeg_pat_section_codec(sectionExt);
-    if (pat == NULL) {
+    if (!pat) {
         return false;
     }
 
@@ -537,20 +537,20 @@ bool SourceBackend::processTVCT(int dmxfd, int frequency) {
         }
 
         section = section_codec(siBuf, size);
-        if (NULL == section) {
+        if (!section) {
             fprintf(stderr, "%s(): error calling section_codec()\n",
                 __FUNCTION__);
             return false;
         }
         sectionExt = section_ext_decode(section, 0);
-        if (NULL == sectionExt) {
+        if (!sectionExt) {
             fprintf(stderr, "%s(): error calling section_ext_decode()\n",
                 __FUNCTION__);
             return false;
         }
 
         psip = atsc_section_psip_decode(sectionExt);
-        if (NULL == psip) {
+        if (!psip) {
             fprintf(stderr,
                 "%s(): error calling atsc_section_psip_decode()\n",
                 __FUNCTION__);
@@ -558,7 +558,7 @@ bool SourceBackend::processTVCT(int dmxfd, int frequency) {
         }
 
         tvct = atsc_tvct_section_codec(psip);
-        if (NULL == tvct) {
+        if (!tvct) {
             fprintf(stderr, "%s(): error decode table section\n",
                 __FUNCTION__);
             return false;
@@ -628,15 +628,17 @@ bool SourceBackend::processTVCT(int dmxfd, int frequency) {
             string name(serviceName);
             TvLogInfo("Extended name : %s\n",name.c_str());
             currInfo->setName(name);
-            m_channelList.insert(std::pair<uint64_t, ChannelBackend*>(logicalChannelNumber,currInfo));
-            TvLogInfo("Sending channel Info\n"); fflush(stdout);
-            wpe_tvcontrol_channel* channelInfo = reinterpret_cast<struct wpe_tvcontrol_channel*>(malloc(sizeof(struct wpe_tvcontrol_channel)));
-            channelInfo->networkId  = 0;
-            channelInfo->transportSId  = ch->channel_TSID;
-            channelInfo->serviceId  = ch->source_id;
-            channelInfo->name  = strdup(name.c_str());
-            channelInfo->number  = logicalChannelNumber;
-            TVControlPushEvent(ScanningChanged, m_tunerData->tunerId.c_str(), Scanned, channelInfo);
+            if (m_channelList.empty() || (!m_channelList.count(logicalChannelNumber))) {
+                m_channelList.insert(std::pair<uint64_t, ChannelBackend*>(logicalChannelNumber,currInfo));
+                TvLogInfo("Sending channel Info\n"); fflush(stdout);
+                wpe_tvcontrol_channel* channelInfo = reinterpret_cast<struct wpe_tvcontrol_channel*>(malloc(sizeof(struct wpe_tvcontrol_channel)));
+                channelInfo->networkId  = 0;
+                channelInfo->transportSId  = ch->channel_TSID;
+                channelInfo->serviceId  = ch->source_id;
+                channelInfo->name  = strdup(name.c_str());
+                channelInfo->number  = logicalChannelNumber;
+                TVControlPushEvent(ScanningChanged, m_tunerData->tunerId.c_str(), Scanned, channelInfo);
+            }
         }
     } while (sectionPattern != (uint32_t)((1 << numSections) - 1));
 
@@ -685,7 +687,7 @@ uint32_t SourceBackend::getBits(const uint8_t *buf, int startbit, int bitlen) {
 
     bitHigh = 8;
     tmp_long = b[0];
-    for (i = 0; i < ((bitlen-1) >> 3); i++) {
+    for (i = 0; i < ((bitlen - 1) >> 3); i++) {
         tmp_long <<= 8;
         tmp_long  |= b[i + 1];
         bitHigh += 8;

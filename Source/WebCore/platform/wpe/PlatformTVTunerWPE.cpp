@@ -38,7 +38,7 @@ bool PlatformTVTuner::getSupportedSourceTypes(Vector<PlatformTVSource::Type>& so
     sourceTypeList.length = 0;
     wpe_tvcontrol_backend_get_supported_source_types_list(m_tvBackend->m_backend, m_tunerId.utf8().data(), &sourceTypeList);
     if (sourceTypeList.length) {
-        for(uint64_t i = 0; i < sourceTypeList.length; i++) {
+        for (uint64_t i = 0; i < sourceTypeList.length; i++) {
             sourceTypeVector.append(PlatformTVSource::Type(sourceTypeList.types[i]));
         }
         return true;
