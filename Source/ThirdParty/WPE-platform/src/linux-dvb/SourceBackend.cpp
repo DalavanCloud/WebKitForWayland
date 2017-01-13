@@ -137,6 +137,8 @@ void SourceBackend::scanningThread()
                 m_scanIndex = 0;
             }
             dvbfe_close(feHandle);
+        } else {
+            TVControlPushEvent(ScanningChanged, m_tunerData->tunerId.c_str(), Stopped, nullptr);
         }
     }
 }
