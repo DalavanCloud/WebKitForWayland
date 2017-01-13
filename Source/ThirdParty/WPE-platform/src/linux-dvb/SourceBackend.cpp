@@ -24,7 +24,8 @@ SourceBackend::SourceBackend(EventQueue<wpe_tvcontrol_event*>* eventQueue, Sourc
     , m_eventQueue(eventQueue)
     , m_scanIndex(0)
     , m_isRunning(true)
-    , m_currentPlaybackState(false) {
+    , m_currentPlaybackState(false)
+{
     m_adapter = stoi(m_tunerData->tunerId.substr(0, m_tunerData->tunerId.find(":")));
     m_demux = stoi(m_tunerData->tunerId.substr(m_tunerData->tunerId.find(":")+1));
     m_scanningThread = thread(&SourceBackend::scanningThread, this);
@@ -32,7 +33,8 @@ SourceBackend::SourceBackend(EventQueue<wpe_tvcontrol_event*>* eventQueue, Sourc
     m_channelVector.length = 0;
 }
 
-SourceBackend::~SourceBackend() {
+SourceBackend::~SourceBackend()
+{
     m_isRunning = false;
     m_channelChangeCondition.notify_all();
     m_scanCondition.notify_all();
@@ -42,7 +44,8 @@ SourceBackend::~SourceBackend() {
     clearChannelList();
 }
 
-void SourceBackend::clearChannelVector() {
+void SourceBackend::clearChannelVector()
+{
     if (m_channelVector.length) {
         for (int i; i < m_channelVector.length; i++) {
             if (m_channelVector.channels[i].name)
@@ -53,7 +56,8 @@ void SourceBackend::clearChannelVector() {
     }
 }
 
-void SourceBackend::clearChannelList() {
+void SourceBackend::clearChannelList()
+{
     if (!m_channelList.empty()) {
         for (auto& channel : m_channelList) {
            delete(channel.second);
@@ -62,7 +66,8 @@ void SourceBackend::clearChannelList() {
     m_channelList.clear();
 }
 
-tvcontrol_return SourceBackend::startScanning(bool isRescanned) {
+tvcontrol_return SourceBackend::startScanning(bool isRescanned)
+{
     tvcontrol_return ret = TVControlFailed;
 
     if (m_isRunning && !m_isScanInProgress) {
@@ -75,7 +80,8 @@ tvcontrol_return SourceBackend::startScanning(bool isRescanned) {
     return ret;
 }
 
-void SourceBackend::scanningThread() {
+void SourceBackend::scanningThread()
+{
     while (m_isRunning) {
         m_scanMutex.lock();
         m_isScanInProgress = false;
@@ -135,7 +141,8 @@ void SourceBackend::scanningThread() {
     }
 }
 
-void SourceBackend::processPMT(int pmtFd, std::map<int, int>& streamInfo) {
+void SourceBackend::processPMT(int pmtFd, std::map<int, int>& streamInfo)
+{
     int size;
     uint8_t siBuf[4096];
 
@@ -169,12 +176,14 @@ void SourceBackend::processPMT(int pmtFd, std::map<int, int>& streamInfo) {
     }
 }
 
-tvcontrol_return SourceBackend::stopScanning() {
+tvcontrol_return SourceBackend::stopScanning()
+{
     m_isScanStopped = true;
     return TVControlSuccess;
 }
 
-ChannelBackend* SourceBackend::getChannelByLCN(uint64_t channelNo) {
+ChannelBackend* SourceBackend::getChannelByLCN(uint64_t channelNo)
+{
     for (auto& channel : m_channelList) {
          if (channelNo == channel.second->getLCN()) {
             return channel.second;
@@ -183,47 +192,31 @@ ChannelBackend* SourceBackend::getChannelByLCN(uint64_t channelNo) {
     return nullptr;
 }
 
-static void  parse(char *line, char **argv) {
-     while (*line != '\0') {       /* if not the end of line ....... */
-          while (*line == ' ' || *line == '\t' || *line == '\n')
-               *line++ = '\0';     /* replace white spaces with 0    */
-          *argv++ = line;          /* save the argument position     */
-          while (*line != '\0' && *line != ' ' &&
-                 *line != '\t' && *line != '\n')
-               line++;             /* skip the argument until ...    */
-     }
-     *argv = '\0';                 /* mark the end of argument list  */
-}
-
-void SourceBackend::execute(char **argv) {
-    pid_t  pid;
-    int    status;
-
-    if ((pid = fork()) < 0) {     /* fork a child process           */
-         TvLogInfo("*** ERROR: forking child process failed\n");
-         exit(1);
-    }
-    else if (pid == 0) {          /* for the child process:         */
-         if (execvp(*argv, argv) < 0) {     /* execute the command  */
-              TvLogInfo("*** ERROR: exec failed\n");
-              exit(1);
-         }
-    }
-    else {
-        m_pid = pid;
-    }
-}
-
-void SourceBackend::startPlayBack(int frequency, uint64_t modulation, int pmtPid, int videoPid, int audioPid) {
+void SourceBackend::startPlayBack(int frequency, uint64_t modulation, int pmtPid, int videoPid, int audioPid)
+{
     char  command[1024];
-    char  *argv[64];
-    snprintf (command, 1024, "gst-launch-1.0 dvbsrc frequency=%d delsys=\"atsc\" modulation=\"8vsb\" pids=%d:%d:%d ! decodebin name=dec dec. ! videoconvert ! autovideosink dec. ! audioconvert ! autoaudiosink", frequency, pmtPid, videoPid, audioPid);
+    snprintf (command, 1024, "PLAY:%d:%d:%d:%d", frequency, pmtPid, videoPid, audioPid);
     TvLogInfo("Command : %s\n", command);
-    parse(command, argv);
-    execute(argv);
+    ofstream tvConfig;
+    tvConfig.open ("/etc/TVTune.txt" , ios::trunc);
+    tvConfig << command;
+    tvConfig.close();
 }
 
-tvcontrol_return SourceBackend::getChannels(wpe_tvcontrol_channel_vector** channelVector) {
+void SourceBackend::stopPlayBack()
+{
+    char  command[1024];
+    snprintf (command, 1024, "STOP");
+    TvLogInfo("Command : %s\n", command);
+    ofstream myfile;
+    myfile.open ("/etc/TVTune.txt" , ios::trunc);
+    myfile << command;
+    myfile.close();
+    sleep(1);
+}
+
+tvcontrol_return SourceBackend::getChannels(wpe_tvcontrol_channel_vector** channelVector)
+{
     /*Populate channel list */
     tvcontrol_return ret = TVControlFailed;
     printf("%s:%s:%d\n",__FILE__,__FUNCTION__,__LINE__);
@@ -256,7 +249,8 @@ tvcontrol_return SourceBackend::getChannels(wpe_tvcontrol_channel_vector** chann
 }
 
 
-tvcontrol_return SourceBackend::setCurrentChannel(uint64_t channelNo) {
+tvcontrol_return SourceBackend::setCurrentChannel(uint64_t channelNo)
+{
     tvcontrol_return ret = TVControlFailed;
 
     TvLogInfo("\nSet Channel invoked \n");
@@ -274,7 +268,8 @@ tvcontrol_return SourceBackend::setCurrentChannel(uint64_t channelNo) {
     return ret;
 }
 
-void SourceBackend::setCurrentChannelThread() {
+void SourceBackend::setCurrentChannelThread()
+{
     while (m_isRunning) {
         m_channelChangeMutex.lock();
         m_channelChangeCondition.wait(m_channelChangeMutex);
@@ -284,7 +279,7 @@ void SourceBackend::setCurrentChannelThread() {
         TvLogInfo("\nTune to Channel:: %" PRIu64 "\n",m_channelNo);
         ChannelBackend* channel = getChannelByLCN(m_channelNo);
         if (channel) {
-            kill(m_pid, SIGTERM);
+            stopPlayBack();
             int freq = channel->getFrequency();
             int programNumber = channel->getProgramNumber();
             unsigned modulation = m_tunerData->modulation;
@@ -309,7 +304,7 @@ void SourceBackend::setCurrentChannelThread() {
                         }
                         TvLogInfo("%s:%s:%d \n", __FILE__, __func__, __LINE__);
                         m_currentPlaybackState = true;
-                        //      startPlayBack(freq, modulation, pmtPid, videoPid, audioPid);
+                        startPlayBack(freq, modulation, pmtPid, videoPid, audioPid);
 
                         TVControlPushEvent(ChannelChanged, m_tunerData->tunerId.c_str(), (scanning_state)0/*irrelevant*/, nullptr);
                         TvLogInfo("%s:%s:%d \n", __FILE__, __func__, __LINE__);
@@ -325,11 +320,13 @@ void SourceBackend::setCurrentChannelThread() {
     TvLogInfo("%s:%s:%d \n", __FILE__, __func__, __LINE__);
 }
 
-void SourceBackend::dvbScan() {
+void SourceBackend::dvbScan()
+{
     /* */
 }
 
-bool SourceBackend::tuneToFrequency(int frequency, uint64_t modulation, struct dvbfe_handle* feHandle) {
+bool SourceBackend::tuneToFrequency(int frequency, uint64_t modulation, struct dvbfe_handle* feHandle)
+{
     int timeout = 3;
 
     struct dvbfe_info feInfo;
@@ -367,7 +364,8 @@ bool SourceBackend::tuneToFrequency(int frequency, uint64_t modulation, struct d
     return true;
 }
 
-void SourceBackend::mpegScan(int programNumber, std::map<int, int>& streamInfo) {
+void SourceBackend::mpegScan(int programNumber, std::map<int, int>& streamInfo)
+{
     struct pollfd pollFd[2];
     int pmtFd;
     int patFd = createSectionFilter(PID_PAT, TABLE_PAT);
@@ -402,7 +400,8 @@ void SourceBackend::mpegScan(int programNumber, std::map<int, int>& streamInfo) 
     }
 }
 
-void SourceBackend::atscScan(int frequency, uint64_t modulation) {
+void SourceBackend::atscScan(int frequency, uint64_t modulation)
+{
     int vctFd;
     struct pollfd pollFd;
     switch (modulation) {
@@ -443,7 +442,8 @@ void SourceBackend::atscScan(int frequency, uint64_t modulation) {
     }
 }
 
-int SourceBackend::createSectionFilter(uint16_t pid, uint8_t tableId) {
+int SourceBackend::createSectionFilter(uint16_t pid, uint8_t tableId)
+{
     int demuxFd = -1;
     uint8_t filter[18];
     uint8_t mask[18];
@@ -467,7 +467,8 @@ int SourceBackend::createSectionFilter(uint16_t pid, uint8_t tableId) {
     return demuxFd;
 }
 
-bool SourceBackend::processPAT(int patFd, int programNumber, struct pollfd *pollfd, std::map<int, int>& streamInfo) {
+bool SourceBackend::processPAT(int patFd, int programNumber, struct pollfd *pollfd, std::map<int, int>& streamInfo)
+{
     int size;
     uint8_t siBuf[4096];
     // read the section
@@ -516,7 +517,8 @@ bool SourceBackend::processPAT(int patFd, int programNumber, struct pollfd *poll
     return true;
 }
 
-bool SourceBackend::processTVCT(int dmxfd, int frequency) {
+bool SourceBackend::processTVCT(int dmxfd, int frequency)
+{
     int numSections;
     uint32_t sectionPattern;
     struct atsc_tvct_section *tvct;
@@ -645,7 +647,8 @@ bool SourceBackend::processTVCT(int dmxfd, int frequency) {
     return true;
 }
 
-void SourceBackend::parseAtscExtendedChannelNameDescriptor(char **serviceName, const unsigned char *buf) {
+void SourceBackend::parseAtscExtendedChannelNameDescriptor(char **serviceName, const unsigned char *buf)
+{
     unsigned char *b = (unsigned char *) buf + 2;
     int i,j;
     int num_str = b[0];
@@ -677,7 +680,8 @@ void SourceBackend::parseAtscExtendedChannelNameDescriptor(char **serviceName, c
 }
 
 
-uint32_t SourceBackend::getBits(const uint8_t *buf, int startbit, int bitlen) {
+uint32_t SourceBackend::getBits(const uint8_t *buf, int startbit, int bitlen)
+{
     const uint8_t *b;
     uint32_t mask, tmp_long;
     int bitHigh, i;

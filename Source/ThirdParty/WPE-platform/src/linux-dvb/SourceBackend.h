@@ -13,6 +13,8 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <fstream>
+#include <unistd.h>
 
 #include "TVConfig.h"
 #include "event-queue.h"
@@ -46,7 +48,7 @@ public:
 private:
     void parseAtscExtendedChannelNameDescriptor(char **name, const unsigned char *buf);
     void startPlayBack(int frequency, uint64_t modulation, int pmtPid, int videoPid, int audioPid);
-    void execute(char **argv);
+    void stopPlayBack();
     ChannelBackend* getChannelByLCN(uint64_t channelNo);
     bool tuneToFrequency(int frequency, uint64_t modulation, struct dvbfe_handle* feHandle);
     uint32_t getBits(const uint8_t *buf, int startbit, int bitlen);

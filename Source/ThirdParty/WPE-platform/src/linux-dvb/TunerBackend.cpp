@@ -10,7 +10,6 @@ TvTunerBackend::TvTunerBackend(EventQueue<wpe_tvcontrol_event*>* eventQueue, int
     , m_eventQueue(eventQueue)
     , m_sType(Undifined)
 {
-
     TvLogTrace();
     initializeSourceList();
     configureTuner(tunerCnt);
@@ -28,7 +27,8 @@ TvTunerBackend::~TvTunerBackend()
     m_supportedSysCount = 0;
 }
 
-void TvTunerBackend::clearSourceList() {
+void TvTunerBackend::clearSourceList()
+{
     while (!m_sourceList.empty()) {
         delete(m_sourceList.back());
         m_sourceList.pop_back();

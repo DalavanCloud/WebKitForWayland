@@ -3,6 +3,6 @@
     Conditional=TV_CONTROL,
     ActiveDOMObject,
 ] interface TVManager : EventTarget {
-    Promise                      getTuners();
+    Promise<sequence<TVTuner>>   getTuners();
     attribute EventHandler       ontunerchanged;
 };

@@ -95,7 +95,6 @@ void TVSource::startScanning (const StartScanningOptions& scanningOptions, TVPro
         m_scanState = SCANNING_STARTED;
         m_isScanning = true;
         if (m_platformTVSource->startScanning(scanningOptions.isRescanned)) {
-            m_scanState = SCANNING_COMPLETED;
             m_isScanning = false;
             promise.resolve(nullptr);
             printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
@@ -114,7 +113,6 @@ void TVSource::stopScanning (TVPromise&& promise)
         if (SCANNING_COMPLETED != m_scanState) { //scanning is already finished
             printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
             if (m_platformTVSource->stopScanning()) {
-                m_scanState = SCANNING_COMPLETED;
                 promise.resolve(nullptr);
                 return;
             }
@@ -136,6 +134,14 @@ void TVSource::dispatchScanningStateChangedEvent(RefPtr<PlatformTVChannel> platf
 {
     printf("\n%s:%s:%d\n", __FILE__, __func__, __LINE__);
     RefPtr<TVChannel> channel = nullptr;
+    switch (static_cast<TVScanningStateChangedEvent::State>(state)) {
+    case TVScanningStateChangedEvent::State::Completed:
+    case TVScanningStateChangedEvent::State::Stopped:
+        m_scanState = SCANNING_COMPLETED;
+        break;
+    default:
+        break;
+    }
     if (m_platformTVSource && platformTVChannel) {
             channel = TVChannel::create(platformTVChannel, this);
             m_channelList.append(channel);

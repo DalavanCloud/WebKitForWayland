@@ -6,10 +6,10 @@ dictionary TVStartScanningOptions {
 [
     Conditional=TV_CONTROL,
 ] interface TVSource : EventTarget {
-    Promise         getChannels ();
-    Promise         setCurrentChannel (DOMString channelNumber);
-    Promise         startScanning (optional TVStartScanningOptions isRescanned);
-    Promise         stopScanning ();
+    Promise<sequence<TVChannel>>          getChannels ();
+    Promise<void>                         setCurrentChannel (DOMString channelNumber);
+    Promise<void>                         startScanning (optional TVStartScanningOptions isRescanned);
+    Promise<void>                         stopScanning ();
     readonly        attribute TVTuner      tuner;
     readonly        attribute TVSourceType type;
     readonly        attribute boolean      isScanning;
