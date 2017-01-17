@@ -1,3 +1,30 @@
+/*
+ * Copyright (C) 2017 TATA ELXSI
+ * Copyright (C) 2017 Metrological
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+ * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 #include "TunerBackend.h"
 #include "tv-log.h"
 
@@ -30,7 +57,7 @@ TvTunerBackend::~TvTunerBackend()
 void TvTunerBackend::clearSourceList()
 {
     while (!m_sourceList.empty()) {
-        delete(m_sourceList.back());
+        delete (m_sourceList.back());
         m_sourceList.pop_back();
     }
 }
@@ -44,7 +71,7 @@ void TvTunerBackend::initializeSourceList()
 void TvTunerBackend::configureTuner(int tunerCnt)
 {
     TvLogTrace();
-    string  data, tunerStr;
+    string data, tunerStr;
     char tmpStr[20];
     std::string modulation;
     TvLogInfo("Getting Modulation for Tuner:%d", tunerCnt);
@@ -57,7 +84,7 @@ void TvTunerBackend::configureTuner(int tunerCnt)
     tunerStr = string(tmpStr);
     if (m_configValues.find(tunerStr) != m_configValues.end()) {
         std::cout << "Modulation  found = " << m_configValues.find(tunerStr)->second << std::endl;
-        modulation.assign(m_configValues.find(tunerStr)->second) ;
+        modulation.assign(m_configValues.find(tunerStr)->second);
     } else {
         modulation.assign("8VSB");
         std::cout << "Setting default modulation\n";
@@ -80,29 +107,29 @@ void TvTunerBackend::setModulation(std::string& modulation)
 
         /* Set modulation */
         if (!modulation.compare("8VSB")) { //TODO add other modulations
-            if (feHandle->type ==  DVBFE_TYPE_ATSC && (feInfo.caps & FE_CAN_8VSB)) {
+            if (feHandle->type == DVBFE_TYPE_ATSC && (feInfo.caps & FE_CAN_8VSB)) {
                 m_channel = ATSC_VSB; //TODO  check and remove
 
                 /* Set the modulation */
-                struct dtv_property p[] = {{.cmd = DTV_MODULATION}};
-                struct dtv_properties cmdseq = {.num = 1, .props = p};
-                struct dtv_property *propPtr;
+                struct dtv_property p[] = { {.cmd = DTV_MODULATION } };
+                struct dtv_properties cmdseq = {.num = 1, .props = p };
+                struct dtv_property* propPtr;
                 propPtr = p;
                 propPtr->u.data = VSB_8;
 
                 /* Set the current to platform*/
                 if (ioctl(feHandle->fd, FE_SET_PROPERTY, &cmdseq) == -1) {
-                    TvLogInfo("Failed to set  Srource %d at plarform \n",ATSC_VSB);
+                    TvLogInfo("Failed to set  Srource %d at plarform \n", ATSC_VSB);
                 }
                 TvLogTrace();
                 cout << "\nModulation set to 8VSB";
                 propPtr->u.data = 0;
 
                 m_tunerData->modulation = DVBFE_ATSC_MOD_VSB_8;
-            } else { //caps
+            } else { // caps
                 cout << "In sufficient capabilities details";
             }
-        } else { //modulation
+        } else { // modulation
             cout << "In sufficient details";
         }
         dvbfe_close(feHandle);
@@ -113,9 +140,9 @@ void TvTunerBackend::setModulation(std::string& modulation)
 
 void TvTunerBackend::populateFreq()
 {
-    for (int channel = 0; channel < 68 ;channel++) {
+    for (int channel = 0; channel < 68; channel++) {
         if (baseOffset((channel + 2), m_channel) != -1)
-            m_tunerData->frequency.push_back(baseOffset( (channel + 2), m_channel) + ((channel + 2) * freqStep((channel + 2), m_channel)));
+            m_tunerData->frequency.push_back(baseOffset((channel + 2), m_channel) + ((channel + 2) * freqStep((channel + 2), m_channel)));
     }
 }
 
@@ -134,103 +161,103 @@ void TvTunerBackend::getSignalStrength(double* signalStrength)
     }
 }
 
-/*modulation
+/* modulation
  * return the base offsets for specified channellist and channel.
  */
 int TvTunerBackend::baseOffset(int channel, int channelList)
 {
     switch (channelList) {
-    case ATSC_QAM: //ATSC cable, US EIA/NCTA Std Cable center freqs + IRC list
-    case DVBC_BR:  //BRAZIL - same range as ATSC IRCi
+    case ATSC_QAM: // ATSC cable, US EIA/NCTA Std Cable center freqs + IRC list
+    case DVBC_BR: // BRAZIL - same range as ATSC IRCi
         switch (channel) {
-        case  2 ...  4:
-            return   45000000;
-        case  5 ...  6:
-            return   49000000;
-        case  7 ... 13:
-            return  135000000;
+        case 2 ... 4:
+            return 45000000;
+        case 5 ... 6:
+            return 49000000;
+        case 7 ... 13:
+            return 135000000;
         case 14 ... 22:
-            return   39000000;
+            return 39000000;
         case 23 ... 94:
-            return   81000000;
+            return 81000000;
         case 95 ... 99:
             return -477000000;
         case 100 ... 133:
-            return   51000000;
+            return 51000000;
         default:
-            return   -1;
+            return -1;
         }
-    case ATSC_VSB: //ATSC terrestrial, US NTSC center freqs
+    case ATSC_VSB: // ATSC terrestrial, US NTSC center freqs
         switch (channel) {
-        case  2 ...  4:
-            return   45000000;
-        case  5 ...  6:
-            return   49000000;
-        case  7 ... 13:
-            return  135000000;
+        case 2 ... 4:
+            return 45000000;
+        case 5 ... 6:
+            return 49000000;
+        case 7 ... 13:
+            return 135000000;
         case 14 ... 69:
-            return  389000000;
+            return 389000000;
         default:
-            return  -1;
+            return -1;
         }
     case ISDBT_6MHZ: // ISDB-T, 6 MHz central frequencies
         switch (channel) {
-            // Channels 7-13 are reserved but aren't used yet
-            //case  7 ... 13: return  135000000;
+        // Channels 7-13 are reserved but aren't used yet
+        //case  7 ... 13: return  135000000;
         case 14 ... 69:
-            return  389000000;
+            return 389000000;
         default:
-            return  -1;
+            return -1;
         }
-    case DVBT_AU://AUSTRALIA, 7MHz step list
+    case DVBT_AU: // AUSTRALIA, 7MHz step list
         switch (channel) {
-        case  5 ... 12:
-            return  142500000;
+        case 5 ... 12:
+            return 142500000;
         case 21 ... 69:
-            return  333500000;
+            return 333500000;
         default:
-            return  -1;
+            return -1;
         }
-    case DVBT_DE://GERMANY
-    case DVBT_FR://FRANCE, +/- offset 166kHz & +offset 332kHz & +offset 498kHz
-    case DVBT_GB://UNITED KINGDOM, +/- offset
+    case DVBT_DE: // GERMANY
+    case DVBT_FR: // FRANCE, +/- offset 166kHz & +offset 332kHz & +offset 498kHz
+    case DVBT_GB: // UNITED KINGDOM, +/- offset
         switch (channel) {
-        case  5 ... 12:
-            return  142500000; // VHF unused in FRANCE, skip those in offset loop
+        case 5 ... 12:
+            return 142500000; // VHF unused in FRANCE, skip those in offset loop
         case 21 ... 69:
-            return  306000000;
+            return 306000000;
         default:
-            return  -1;
+            return -1;
         }
 
-    case DVBC_QAM: //EUROPE
+    case DVBC_QAM: // EUROPE
         switch (channel) {
-        case  0 ... 1:
-        case  5 ... 12:
-            return   73000000;
+        case 0 ... 1:
+        case 5 ... 12:
+            return 73000000;
         case 22 ... 90:
-            return  138000000;
+            return 138000000;
         default:
-            return  -1;
+            return -1;
         }
-    case DVBC_FI:  //FINLAND, QAM128
+    case DVBC_FI: // FINLAND, QAM128
         switch (channel) {
-        case  1 ... 90:
-            return  138000000;
+        case 1 ... 90:
+            return 138000000;
         default:
-            return  -1;
+            return -1;
         }
-    case DVBC_FR:  //FRANCE, needs user response.
+    case DVBC_FR: // FRANCE, needs user response.
         switch (channel) {
-        case  1 ... 39:
-            return  107000000;
+        case 1 ... 39:
+            return 107000000;
         case 40 ... 89:
-            return  138000000;
+            return 138000000;
         default:
-            return  -1;
+            return -1;
         }
-     default:
-         return -1;
+    default:
+        return -1;
     }
 }
 
@@ -244,14 +271,14 @@ int TvTunerBackend::freqStep(int channel, int channelList)
     case ATSC_VSB:
     case DVBC_BR:
     case ISDBT_6MHZ:
-        return  6000000; // atsc, 6MHz step
+        return 6000000; // atsc, 6MHz step
     case DVBT_AU:
-        return  7000000; // dvb-t australia, 7MHz step
+        return 7000000; // dvb-t australia, 7MHz step
     case DVBT_DE:
     case DVBT_FR:
     case DVBT_GB:
         switch (channel) { // dvb-t europe, 7MHz VHF ch5..12, all other 8MHz
-        case  5 ... 12:
+        case 5 ... 12:
             return 7000000;
         case 21 ... 69:
             return 8000000;
@@ -261,7 +288,7 @@ int TvTunerBackend::freqStep(int channel, int channelList)
     case DVBC_QAM:
     case DVBC_FI:
     case DVBC_FR:
-        return  8000000; // dvb-c, 8MHz step
+        return 8000000; // dvb-c, 8MHz step
     default:
         return 0;
     }
@@ -272,8 +299,8 @@ tvcontrol_return TvTunerBackend::getSupportedSrcTypeList(wpe_tvcontrol_src_types
     TvLogTrace();
 
     /* Get supported source list from platform*/
-    int  ret = 0;
-    ret  =  getSupportedSourcesTypeList(out_source_types_list);
+    int ret = 0;
+    ret = getSupportedSourcesTypeList(out_source_types_list);
     if (ret < 0) {
         TvLogInfo("Failed to get supported source list \n");
         return TVControlFailed;
@@ -285,8 +312,8 @@ void TvTunerBackend::getAvailableSrcList(wpe_tvcontrol_src_types_vector* out_sou
 {
     TvLogTrace();
     /* Get avaiable source list from platform*/
-    int  ret = 0;
-    ret  =  getSupportedSourcesTypeList(out_source_list);
+    int ret = 0;
+    ret = getSupportedSourcesTypeList(out_source_list);
     if (ret < 0)
         TvLogInfo("Failed to get supported source list \n");
     /* Create private list of sources  */
@@ -302,7 +329,7 @@ void TvTunerBackend::getSources()
         /* Read supported type list from the private list
                        and create list of source objects */
         for (i = 0; i < m_supportedSysCount; i++) {
-            SourceBackend* sInfo = (SourceBackend* )new SourceBackend(m_eventQueue, m_srcTypeListPtr[i], m_tunerData);
+            SourceBackend* sInfo = (SourceBackend*)new SourceBackend(m_eventQueue, m_srcTypeListPtr[i], m_tunerData);
             m_sourceList.push_back(sInfo);
             TvLogTrace();
         }
@@ -321,7 +348,7 @@ int TvTunerBackend::getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector* 
     if (!m_srcTypeListPtr && (m_supportedSysCount == 0)) {
         TvLogTrace();
         struct dtv_property p = {.cmd = DTV_ENUM_DELSYS };
-        struct dtv_properties cmdName = {.num = 1, .props = &p};
+        struct dtv_properties cmdName = {.num = 1, .props = &p };
         feHandle = openFE(m_tunerData->tunerId);
         if (feHandle) {
             TvLogTrace();
@@ -332,10 +359,10 @@ int TvTunerBackend::getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector* 
             }
 
             m_supportedSysCount = cmdName.props->u.buffer.len;
-            TvLogInfo("Number of supported Source = %"  PRIu64 "\n", m_supportedSysCount);
+            TvLogInfo("Number of supported Source = %" PRIu64 "\n", m_supportedSysCount);
 
             /*Create an array of  Type */
-            m_srcTypeListPtr = (SourceType *)new SourceType[cmdName.props->u.buffer.len];
+            m_srcTypeListPtr = (SourceType*)new SourceType[cmdName.props->u.buffer.len];
             TvLogTrace();
 
             for (i = 0; i < m_supportedSysCount; i++) {
@@ -347,7 +374,7 @@ int TvTunerBackend::getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector* 
                     break;
                 case SYS_DVBC_ANNEX_B:
                     TvLogInfo("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
-                    m_srcTypeListPtr[i] =  DvbC; //TODO
+                    m_srcTypeListPtr[i] = DvbC; //TODO
                     break;
                 case SYS_DVBT:
                     TvLogInfo("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
@@ -407,7 +434,7 @@ int TvTunerBackend::getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector* 
                     break;
                 case SYS_TURBO:
                     TvLogInfo("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
-                   //TODO m_srcTypeListPtr[i] = ;
+                    //TODO m_srcTypeListPtr[i] = ;
                     break;
                 case SYS_DVBC_ANNEX_C:
                     TvLogInfo("STP: CASE = %d \t", cmdName.props->u.buffer.data[i]);
@@ -437,9 +464,9 @@ int TvTunerBackend::getSupportedSourcesTypeList(wpe_tvcontrol_src_types_vector* 
             return -1;
         }
 
-    } //List already created
+    } // List already created
 
-    /*Update the number of supported Sources*/
+    /* Update the number of supported Sources*/
     out_source_types_list->length = m_supportedSysCount;
     TvLogTrace();
     /* update source type  ptr */
@@ -453,13 +480,13 @@ tvcontrol_return TvTunerBackend::startScanning(bool isRescanned)
     tvcontrol_return ret = TVControlFailed;
     TvLogTrace();
     /* Get source corresponds to this type  */
-    SourceBackend *source;
+    SourceBackend* source;
     getSource(m_sType, &source);
     ret = source->startScanning(isRescanned);
     return ret;
 }
 
-void TvTunerBackend::getSource(SourceType sType, SourceBackend **source)
+void TvTunerBackend::getSource(SourceType sType, SourceBackend** source)
 {
     TvLogTrace();
     /* Iterate list and get the source matching the list*/
@@ -476,18 +503,18 @@ tvcontrol_return TvTunerBackend::stopScanning()
     tvcontrol_return ret = TVControlFailed;
     TvLogTrace();
     /* Get source corresponds to this type  */
-    SourceBackend *source;
+    SourceBackend* source;
     getSource(m_sType, &source);
     ret = source->stopScanning();
     return ret;
 }
 
-tvcontrol_return TvTunerBackend::setCurrentChannel(SourceType sType ,uint64_t channelNumber)
+tvcontrol_return TvTunerBackend::setCurrentChannel(SourceType sType, uint64_t channelNumber)
 {
     tvcontrol_return ret = TVControlFailed;
     TvLogTrace();
     /* Get source corresponds to this type  */
-    SourceBackend *source;
+    SourceBackend* source;
     getSource(sType, &source);
     ret = source->setCurrentChannel(channelNumber);
     return ret;
@@ -498,7 +525,7 @@ tvcontrol_return TvTunerBackend::getChannels(SourceType sType, struct wpe_tvcont
     tvcontrol_return ret = TVControlFailed;
     printf("%s:%s:%d \n", __FILE__, __func__, __LINE__);
     /* Get source corresponds to this type  */
-    SourceBackend *source;
+    SourceBackend* source;
     getSource(sType, &source);
     ret = source->getChannels(channelVector);
     return ret;
@@ -507,10 +534,10 @@ tvcontrol_return TvTunerBackend::getChannels(SourceType sType, struct wpe_tvcont
 tvcontrol_return TvTunerBackend::setCurrentSource(SourceType sType)
 {
     tvcontrol_return ret = TVControlFailed;
-    fe_delivery_system  platSrcType;
-    struct dtv_property p[] = {{.cmd = DTV_DELIVERY_SYSTEM}};
-    struct dtv_properties cmdseq = {.num = 1, .props = p};
-    struct dtv_property *propPtr;
+    fe_delivery_system platSrcType;
+    struct dtv_property p[] = { {.cmd = DTV_DELIVERY_SYSTEM } };
+    struct dtv_properties cmdseq = {.num = 1, .props = p };
+    struct dtv_property* propPtr;
     struct dvbfe_handle* feHandle;
 
     /* If sType different for already set source, change the src */
@@ -525,7 +552,7 @@ tvcontrol_return TvTunerBackend::setCurrentSource(SourceType sType)
         if (feHandle) {
             ret = TVControlSuccess;
             if (ioctl(feHandle->fd, FE_SET_PROPERTY, &cmdseq) == -1) {
-                TvLogInfo("Failed to set  Srource %d at plarform \n ",platSrcType);
+                TvLogInfo("Failed to set  Srource %d at plarform \n ", platSrcType);
             } else {
                 /* Set the value of private member */
                 setSrcType(sType);
@@ -547,7 +574,7 @@ tvcontrol_return TvTunerBackend::setCurrentSource(SourceType sType)
     return ret;
 }
 
-void TvTunerBackend::getSourceType(SourceType sType ,fe_delivery_system* platSrcType)
+void TvTunerBackend::getSourceType(SourceType sType, fe_delivery_system* platSrcType)
 {
     TvLogTrace();
     switch (sType) {
@@ -638,7 +665,7 @@ void TvTunerBackend::getSourceType(SourceType sType ,fe_delivery_system* platSrc
     default:
         TvLogInfo("STP: CASE = %d \t", sType);
         *platSrcType = SYS_UNDEFINED;
-         break;
+        break;
     }
     TvLogTrace();
 }
@@ -651,12 +678,12 @@ void TvTunerBackend::getConfiguration()
     while (std::getline(fileStream, line)) {
         std::istringstream is_line(line);
         std::string key;
-        if (std::getline(is_line, key,'=')) {
+        if (std::getline(is_line, key, '=')) {
             std::string value;
             if (key[0] == '#')
                 continue;
             if (std::getline(is_line, value)) {
-                m_configValues.insert(make_pair(key,value));
+                m_configValues.insert(make_pair(key, value));
             }
         }
     }
@@ -665,13 +692,12 @@ void TvTunerBackend::getConfiguration()
         TvLogInfo("******TVConfig file is MISSING*********\n");
     }
 #ifdef TV_DEBUG
-    std::cout << "Configuration details " << "\n" ;
+    TvLogInfo("Configuration details ");
     /* Iterate through all elements in std::map */
-    for (auto&config : m_configValues) {
-        std::cout<<config.first<<" :: "<<config.second<<std::endl;
+    for (auto& config : m_configValues) {
+        std::cout << config.first << " :: " << config.second << std::endl;
     }
 #endif
-
 }
 
 } // namespace BCMRPi
